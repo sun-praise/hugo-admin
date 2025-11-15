@@ -164,11 +164,11 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [x] Hugo server control
 - [x] Post browsing and search
 - [x] Markdown editor
+- [x] Markdown preview
 - [x] SQLite caching system
 - [x] Test suite with CI/CD
 - [x] Image upload and management
 - [ ] Git operations interface
-- [ ] Markdown preview
 - [ ] Batch operations
 - [ ] Multi-user support
 - [ ] Docker support
@@ -339,11 +339,11 @@ hugo-admin/
 - [x] Hugo 服务器控制
 - [x] 文章浏览和搜索
 - [x] Markdown 编辑器
+- [x] Markdown 预览
 - [x] SQLite 缓存系统
 - [x] 测试套件与 CI/CD
 - [x] 图片上传和管理
 - [ ] Git 操作界面
-- [ ] Markdown 预览
 - [ ] 批量操作
 - [ ] 多用户支持
 - [ ] Docker 支持
