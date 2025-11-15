@@ -499,7 +499,7 @@ if __name__ == '__main__':
     print(f"内容目录: {app.config['CONTENT_DIR']}")
 
     host = '0.0.0.0'
-    port = 5050
+    port = app.config.get('PORT', 5050)  # 从配置中读取端口，默认为5050
     print(f"访问地址: http://{host}:{port}")
     print("=" * 50)
 

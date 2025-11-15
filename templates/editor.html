@@ -404,8 +404,16 @@ function editor() {
         },
 
         updatePreview() {
-            // 渲染 Markdown
-            let html = marked.parse(this.content || '');
+            // 移除 frontmatter 部分（用 --- 包围的元数据）
+            let contentWithoutFrontmatter = this.content || '';
+            // 匹配开头的 frontmatter：--- 开始，--- 结束
+            const frontmatterRegex = /^---[\s\S]*?---\s*/;
+            if (frontmatterRegex.test(contentWithoutFrontmatter)) {
+                contentWithoutFrontmatter = contentWithoutFrontmatter.replace(frontmatterRegex, '');
+            }
+
+            // 渲染 Markdown（使用移除 frontmatter 后的内容）
+            let html = marked.parse(contentWithoutFrontmatter);
 
             // 修复图片路径
             if (this.currentFile) {
