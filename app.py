@@ -11,6 +11,7 @@ from flask_socketio import SocketIO, emit
 
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
+from services.git_service import GitService
 
 # 初始化 Flask 应用
 app = Flask(__name__)
@@ -35,6 +36,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 # 初始化服务
 hugo_manager = HugoServerManager(app.config['HUGO_ROOT'], socketio)
 post_service = PostService(app.config['CONTENT_DIR'], use_cache=True)
+git_service = GitService(app.config['HUGO_ROOT'])
 
 # 在应用启动时初始化缓存
 print("正在初始化文章缓存...")
@@ -447,6 +449,57 @@ def bulk_publish_articles():
             'success': False,
             'error': f'批量发布失败: {str(e)}',
             'error_code': 'BULK_PUBLISH_FAILED'
+        }), 500
+
+
+# ============ Git / 系统发布相关 API ============
+
+@app.route('/api/git/status')
+def git_status():
+    """获取 Git 仓库状态"""
+    try:
+        status = git_service.get_status()
+        return jsonify(status)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取 Git 状态失败: {str(e)}'
+        }), 500
+
+
+@app.route('/api/git/commits')
+def git_commits():
+    """获取最近的提交记录"""
+    try:
+        count = request.args.get('count', 10, type=int)
+        result = git_service.get_recent_commits(count)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取提交记录失败: {str(e)}'
+        }), 500
+
+
+@app.route('/api/publish/system', methods=['POST'])
+def publish_system():
+    """系统发布 - 执行 git add, commit, push 完整流程"""
+    try:
+        data = request.get_json() or {}
+        commit_message = data.get('message')
+
+        result = git_service.publish_system(commit_message)
+
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'系统发布失败: {str(e)}',
+            'steps': {}
         }), 500
 
 
