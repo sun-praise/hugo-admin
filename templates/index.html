@@ -73,7 +73,7 @@
     <!-- 快速操作 -->
     <div class="bg-white rounded-lg shadow p-6 mb-8">
         <h3 class="text-lg font-semibold mb-4">快速操作</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <a href="/posts" class="flex items-center justify-center p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors">
                 <svg class="w-6 h-6 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -95,6 +95,13 @@
                 </svg>
                 <span class="font-medium">服务器控制</span>
             </a>
+
+            <button @click="publishSystem()" class="flex items-center justify-center p-4 border-2 border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors" :disabled="publishing">
+                <svg class="w-6 h-6 text-orange-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                </svg>
+                <span class="font-medium" x-text="publishing ? '发布中...' : '系统发布'"></span>
+            </button>
         </div>
     </div>
 
@@ -141,6 +148,7 @@ function dashboard() {
             running: false
         },
         recentPosts: [],
+        publishing: false,
 
         async init() {
             await this.loadStats();
@@ -211,6 +219,54 @@ function dashboard() {
             } catch (error) {
                 utils.showNotification('创建失败', 'error');
                 console.error(error);
+            }
+        },
+
+        async publishSystem() {
+            // 检查 git 状态
+            this.publishing = true;
+            try {
+                const statusResponse = await fetch('/api/git/status');
+                const status = await statusResponse.json();
+
+                if (!status.success) {
+                    utils.showNotification('Git 状态检查失败: ' + status.message, 'error');
+                    this.publishing = false;
+                    return;
+                }
+
+                if (!status.has_changes) {
+                    utils.showNotification('没有需要发布的改动', 'info');
+                    this.publishing = false;
+                    return;
+                }
+
+                // 询问提交消息
+                const message = prompt('请输入提交消息 (可选，留空使用默认消息):');
+                if (message === null) {
+                    this.publishing = false;
+                    return; // 用户取消
+                }
+
+                // 执行系统发布
+                const response = await fetch('/api/publish/system', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message || null })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    utils.showNotification('系统发布成功！GitHub Actions 将自动构建站点', 'success');
+                } else {
+                    utils.showNotification('发布失败: ' + result.message, 'error');
+                }
+            } catch (error) {
+                utils.showNotification('系统发布失败', 'error');
+                console.error(error);
+            } finally {
+                this.publishing = false;
             }
         }
     };
