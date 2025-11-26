@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2025-11-26
+
+### Fixed
+- Added missing 404.html and 500.html error page templates for better error handling
+
+## [1.1.0] - 2025-11-26
+
+### Added
+- System publish feature for git commit and push functionality
+- Visual status indicators for post publication state
+- Bulk publishing operations for managing multiple posts
+- Markdown preview functionality in the editor
+- Documentation site configuration with MkDocs
+
+### Changed
+- Optimized preview functionality
+- Improved Socket.IO connection port handling
+- Enhanced posts.html bulk operation toolbar layout
+
+### Fixed
+- Fixed tags and categories displaying as 0 in the dashboard
+- Fixed Socket.IO connection port issues
+
 ## [1.0.1] - 2025-11-26
 
 ### Added
