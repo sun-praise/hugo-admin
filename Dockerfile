@@ -18,10 +18,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 Hugo
+# 安装 Hugo Extended
 ARG HUGO_VERSION=0.121.1
-RUN curl -L "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.tar.gz" | tar -xz -C /usr/local/bin/ hugo \
-    && chmod +x /usr/local/bin/hugo
+RUN curl -L "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.tar.gz" -o hugo.tar.gz \
+    && tar -xzf hugo.tar.gz -C /usr/local/bin/ \
+    && rm hugo.tar.gz \
+    && chmod +x /usr/local/bin/hugo \
+    && hugo version \
+    && hugo version | grep -i extended
 
 # 复制依赖文件
 COPY requirements.txt .

@@ -24,6 +24,23 @@ docker-compose logs -f hugo-admin
 docker-compose down
 ```
 
+### 验证 Hugo Extended
+
+容器构建时会自动验证 Hugo Extended 是否正确安装。你也可以手动验证：
+
+```bash
+# 使用 docker-compose
+docker-compose exec hugo-admin hugo version
+
+# 使用 docker 命令
+docker exec hugo-admin hugo version
+```
+
+输出应该包含 `extended` 字样，例如：
+```
+hugo v0.121.1-00b46fed8e47f7bb0a85d7cfc2d9f1356379b740+extended linux/amd64 BuildDate=2023-12-08T08:47:45Z VendorInfo=gohugoio
+```
+
 ### 使用 Docker 命令
 
 1. **构建镜像**
@@ -96,7 +113,7 @@ volumes:
 
 ## Hugo 版本
 
-默认使用 Hugo Extended v0.121.1。如需使用其他版本，可以在构建时指定：
+默认使用 **Hugo Extended v0.121.1**（包含 SCSS/SASS 支持）。如需使用其他版本，可以在构建时指定：
 
 ```bash
 docker build --build-arg HUGO_VERSION=0.120.0 -t hugo-admin:latest .
