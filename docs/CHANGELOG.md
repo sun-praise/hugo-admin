@@ -7,15 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2025-11-26
+
 ### Added
 - 新增文档站点配置 (mkdocs.yml) 支持 MkDocs 文档框架
 - 在 docs 目录中创建站点首页 (index.md)
+- 新增发布文章功能文档
+- 新增版本跟踪文件 (__version__.py)
 
 ### Changed
 - 将技术文档从根目录移动到 docs 目录进行集中管理
   - 移动了7个技术文档文件到 docs 目录
   - 保持了文档的完整性和可访问性
 - 优化了文档管理结构，便于维护和导航
+- 优化预览功能相关修改
 
 ## [1.0.0] - 2025-11-05
 
