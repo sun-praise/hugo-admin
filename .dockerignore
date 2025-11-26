@@ -1,0 +1,70 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+.github
+
+# Python cache
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Hugo build output
+public/
+resources/_gen/
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+config_local.py
+
+# Development files
+debug_posts.py
+requirements-dev.txt
+
+# Specification files
+specs/
+.specify/
+
+# CI/CD
+.github/
+
+# Docker files (don't copy into container)
+Dockerfile
+docker-compose.yml
+.dockerignore
