@@ -7,7 +7,7 @@
 import os
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import yaml
 import uuid
 import fcntl
@@ -80,9 +80,11 @@ class PostService:
                     # 更新 draft 状态
                     post.metadata['draft'] = False
 
-                    # 如果没有 publishDate，添加发布时间
+                    # 如果没有 publishDate，添加发布时间（使用东八区时区）
                     if 'publishDate' not in post.metadata:
-                        post.metadata['publishDate'] = datetime.now().isoformat()
+                        tz_cn = timezone(timedelta(hours=8))
+                        now = datetime.now(tz_cn)
+                        post.metadata['publishDate'] = now.strftime('%Y-%m-%dT%H:%M:%S+08:00')
 
                     # 保存文件
                     frontmatter.dump(post, file_handle.name)
@@ -121,11 +123,15 @@ class PostService:
         for file_path in file_paths:
             success, message, _ = self.publish_article(file_path)
 
+            # 使用东八区时区
+            tz_cn = timezone(timedelta(hours=8))
+            published_at = datetime.now(tz_cn).strftime('%Y-%m-%dT%H:%M:%S+08:00') if success else None
+
             result = {
                 'file_path': file_path,
                 'success': success,
                 'message': message if not success else None,
-                'published_at': datetime.now().isoformat() + 'Z' if success else None
+                'published_at': published_at
             }
             results.append(result)
 
@@ -417,18 +423,27 @@ class PostService:
             # 创建文章文件
             post_file = post_folder / "index.md"
 
-            # 生成 frontmatter
+            # 生成 frontmatter（使用东八区时区）
+            tz_cn = timezone(timedelta(hours=8))
+            now = datetime.now(tz_cn)
+            # 格式化为 RFC3339 格式，不带引号
+            date_str = now.strftime('%Y-%m-%dT%H:%M:%S+08:00')
+
             frontmatter = {
                 'title': title,
-                'date': datetime.now().isoformat(),
+                'date': date_str,
                 'draft': True,
                 'categories': [],
                 'tags': []
             }
 
-            # 写入文件
+            # 手动构造 frontmatter，确保日期格式正确且不加引号
             content = "---\n"
-            content += yaml.dump(frontmatter, allow_unicode=True, sort_keys=False)
+            content += f"title: {title}\n"
+            content += f"date: {date_str}\n"
+            content += f"draft: true\n"
+            content += "categories: []\n"
+            content += "tags: []\n"
             content += "---\n\n"
             content += "在这里编写你的文章内容...\n"
 
