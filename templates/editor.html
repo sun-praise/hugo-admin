@@ -397,6 +397,12 @@ function editor() {
                     this.insertMarkdown('italic');
                 }
             });
+
+            // 添加剪贴板粘贴事件监听器
+            const editor = document.getElementById('markdown-editor');
+            editor.addEventListener('paste', (e) => {
+                this.handlePaste(e);
+            });
         },
 
         checkChanges() {
@@ -722,6 +728,86 @@ function editor() {
             } finally {
                 document.body.removeChild(textArea);
             }
+        },
+
+        async handlePaste(event) {
+            // 检查剪贴板中是否有图片
+            const items = event.clipboardData?.items;
+            if (!items) return;
+
+            let hasImage = false;
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+
+                // 检查是否为图片类型
+                if (item.type.indexOf('image') !== -1) {
+                    hasImage = true;
+                    event.preventDefault(); // 阻止默认粘贴行为
+
+                    // 获取图片文件
+                    const file = item.getAsFile();
+                    if (!file) continue;
+
+                    // 检查是否有当前文件
+                    if (!this.currentFile) {
+                        utils.showNotification('请先选择或创建一篇文章', 'error');
+                        return;
+                    }
+
+                    // 显示上传提示
+                    utils.showNotification('正在上传图片...', 'info');
+
+                    try {
+                        // 上传图片
+                        const formData = new FormData();
+                        formData.append('file', file, `clipboard-${Date.now()}.png`);
+                        formData.append('article_path', this.currentFile);
+
+                        const response = await fetch('/api/image/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const data = await response.json();
+                        if (data.success) {
+                            // 插入图片 Markdown 语法到光标位置
+                            this.insertImageAtCursor(data.url);
+                            utils.showNotification('图片上传成功', 'success');
+
+                            // 刷新图片列表
+                            await this.loadImages();
+                        } else {
+                            utils.showNotification('图片上传失败: ' + data.message, 'error');
+                        }
+                    } catch (error) {
+                        console.error('Failed to upload image from clipboard:', error);
+                        utils.showNotification('图片上传失败', 'error');
+                    }
+
+                    break; // 只处理第一个图片
+                }
+            }
+        },
+
+        insertImageAtCursor(imageUrl) {
+            const textarea = document.getElementById('markdown-editor');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+
+            // 生成 Markdown 图片语法
+            const imageMarkdown = `![](${imageUrl})`;
+
+            // 在光标位置插入图片
+            this.content = this.content.substring(0, start) + imageMarkdown + this.content.substring(end);
+
+            // 更新预览和变更状态
+            this.$nextTick(() => {
+                textarea.focus();
+                const newCursorPos = start + imageMarkdown.length;
+                textarea.setSelectionRange(newCursorPos, newCursorPos);
+                this.updatePreview();
+                this.checkChanges();
+            });
         },
 
     };
