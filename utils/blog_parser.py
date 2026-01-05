@@ -4,9 +4,10 @@ Hugo 博客文章解析器
 用于解析 Hugo 博客的 Markdown 文件和 frontmatter
 独立于特定项目，可在任何 Hugo 博客中使用
 """
+
 import pathlib
 import re
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 
 try:
@@ -48,7 +49,7 @@ class BlogPost:
             # 获取文件修改时间
             self.mod_time = self.file_path.stat().st_mtime
 
-            with open(self.file_path, 'r', encoding='utf-8') as f:
+            with open(self.file_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
             # 使用 frontmatter 库解析
@@ -61,31 +62,33 @@ class BlogPost:
                 metadata, self.content = self._parse_frontmatter_simple(content)
 
             # 提取元数据
-            self.title = metadata.get('title', '')
-            self.description = metadata.get('description', '')
-            self.draft = metadata.get('draft', False)
+            self.title = metadata.get("title", "")
+            self.description = metadata.get("description", "")
+            self.draft = metadata.get("draft", False)
 
             # 处理日期
-            date_value = metadata.get('date')
+            date_value = metadata.get("date")
             if date_value:
                 if isinstance(date_value, str):
                     # 尝试解析日期字符串
                     try:
-                        self.date = datetime.fromisoformat(date_value.replace('Z', '+00:00'))
+                        self.date = datetime.fromisoformat(
+                            date_value.replace("Z", "+00:00")
+                        )
                     except:
                         try:
-                            self.date = datetime.strptime(date_value, '%Y-%m-%d')
+                            self.date = datetime.strptime(date_value, "%Y-%m-%d")
                         except:
                             self.date = None
                 else:
                     self.date = date_value
 
             # 处理标签和分类
-            self.tags = metadata.get('tags', [])
+            self.tags = metadata.get("tags", [])
             if isinstance(self.tags, str):
                 self.tags = [self.tags]
 
-            self.categories = metadata.get('categories', [])
+            self.categories = metadata.get("categories", [])
             if isinstance(self.categories, str):
                 self.categories = [self.categories]
 
@@ -101,23 +104,25 @@ class BlogPost:
         body = content
 
         # 检查是否有 frontmatter
-        if content.startswith('---'):
-            parts = content.split('---', 2)
+        if content.startswith("---"):
+            parts = content.split("---", 2)
             if len(parts) >= 3:
                 frontmatter_text = parts[1]
                 body = parts[2].strip()
 
                 # 简单解析 YAML
-                for line in frontmatter_text.split('\n'):
+                for line in frontmatter_text.split("\n"):
                     line = line.strip()
-                    if ':' in line:
-                        key, value = line.split(':', 1)
+                    if ":" in line:
+                        key, value = line.split(":", 1)
                         key = key.strip()
-                        value = value.strip().strip('"\'')
+                        value = value.strip().strip("\"'")
 
                         # 处理数组
-                        if value.startswith('[') and value.endswith(']'):
-                            value = [v.strip().strip('"\'') for v in value[1:-1].split(',')]
+                        if value.startswith("[") and value.endswith("]"):
+                            value = [
+                                v.strip().strip("\"'") for v in value[1:-1].split(",")
+                            ]
 
                         metadata[key] = value
 
@@ -129,30 +134,30 @@ class BlogPost:
             return ""
 
         # 移除 Markdown 语法
-        text = re.sub(r'#+ ', '', self.content)  # 移除标题
-        text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)  # 移除链接
-        text = re.sub(r'[*_`]', '', text)  # 移除格式标记
+        text = re.sub(r"#+ ", "", self.content)  # 移除标题
+        text = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)  # 移除链接
+        text = re.sub(r"[*_`]", "", text)  # 移除格式标记
 
         # 获取前200个字符
         excerpt = text.strip()[:200]
         if len(text) > 200:
-            excerpt += '...'
+            excerpt += "..."
 
         return excerpt
 
     def to_dict(self):
         """转换为字典"""
         return {
-            'file_path': str(self.file_path),
-            'relative_path': str(self.relative_path) if self.relative_path else None,
-            'title': self.title,
-            'date': self.date.isoformat() if self.date else None,
-            'description': self.description,
-            'tags': self.tags,
-            'categories': self.categories,
-            'draft': self.draft,
-            'excerpt': self.excerpt,
-            'content': self.content
+            "file_path": str(self.file_path),
+            "relative_path": str(self.relative_path) if self.relative_path else None,
+            "title": self.title,
+            "date": self.date.isoformat() if self.date else None,
+            "description": self.description,
+            "tags": self.tags,
+            "categories": self.categories,
+            "draft": self.draft,
+            "excerpt": self.excerpt,
+            "content": self.content,
         }
 
 
@@ -202,9 +207,15 @@ def get_blog_posts(content_dir="content"):
     def get_sort_key(post):
         if not post.date:
             return datetime.min.replace(tzinfo=None)
-        # 如果有时区信息，转换为naive datetime
-        if post.date.tzinfo is not None:
+
+        # 如果是 date 对象而不是 datetime，转换为 datetime
+        if isinstance(post.date, date) and not isinstance(post.date, datetime):
+            return datetime.combine(post.date, datetime.min.time())
+
+        # 如果是 datetime 且有时区信息，转换为naive datetime
+        if hasattr(post.date, "tzinfo") and post.date.tzinfo is not None:
             return post.date.replace(tzinfo=None)
+
         return post.date
 
     posts.sort(key=get_sort_key, reverse=True)
@@ -228,21 +239,23 @@ def filter_posts_by_search(posts, search_query, search_fields=None):
         return posts
 
     if search_fields is None:
-        search_fields = ['all']
+        search_fields = ["all"]
 
     search_query = search_query.lower()
     filtered_posts = []
 
     for post in posts:
         # 如果搜索所有字段
-        if 'all' in search_fields:
-            searchable_text = ' '.join([
-                post.title,
-                post.description,
-                post.content,
-                ' '.join(post.tags),
-                ' '.join(post.categories)
-            ]).lower()
+        if "all" in search_fields:
+            searchable_text = " ".join(
+                [
+                    post.title,
+                    post.description,
+                    post.content,
+                    " ".join(post.tags),
+                    " ".join(post.categories),
+                ]
+            ).lower()
 
             if search_query in searchable_text:
                 filtered_posts.append(post)
@@ -250,14 +263,14 @@ def filter_posts_by_search(posts, search_query, search_fields=None):
             # 搜索指定字段
             match = False
 
-            if 'title' in search_fields and search_query in post.title.lower():
+            if "title" in search_fields and search_query in post.title.lower():
                 match = True
-            elif 'content' in search_fields and search_query in post.content.lower():
+            elif "content" in search_fields and search_query in post.content.lower():
                 match = True
-            elif 'tags' in search_fields:
+            elif "tags" in search_fields:
                 if any(search_query in tag.lower() for tag in post.tags):
                     match = True
-            elif 'categories' in search_fields:
+            elif "categories" in search_fields:
                 if any(search_query in cat.lower() for cat in post.categories):
                     match = True
 
@@ -284,8 +297,8 @@ def get_all_tags(posts):
             tag_count[tag] = tag_count.get(tag, 0) + 1
 
     # 转换为列表并按计数排序
-    tags = [{'name': tag, 'count': count} for tag, count in tag_count.items()]
-    tags.sort(key=lambda x: x['count'], reverse=True)
+    tags = [{"name": tag, "count": count} for tag, count in tag_count.items()]
+    tags.sort(key=lambda x: x["count"], reverse=True)
 
     return tags
 
@@ -307,7 +320,9 @@ def get_all_categories(posts):
             category_count[category] = category_count.get(category, 0) + 1
 
     # 转换为列表并按计数排序
-    categories = [{'name': cat, 'count': count} for cat, count in category_count.items()]
-    categories.sort(key=lambda x: x['count'], reverse=True)
+    categories = [
+        {"name": cat, "count": count} for cat, count in category_count.items()
+    ]
+    categories.sort(key=lambda x: x["count"], reverse=True)
 
     return categories

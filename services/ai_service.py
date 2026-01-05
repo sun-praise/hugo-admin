@@ -4,6 +4,7 @@ import os
 
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.providers.deepseek import DeepSeekProvider
 
 from services.post_service import PostService
 from services.git_service import GitService
@@ -27,10 +28,13 @@ class AIService:
         git_service: GitService,
         hugo_manager: HugoServerManager,
     ):
+        # 创建 DeepSeek provider 并传递 API key
+        deepseek_provider = DeepSeekProvider(api_key=api_key)
+
+        # 使用 DeepSeek provider 初始化模型
         self.model = OpenAIModel(
             model_name=model_name,
-            base_url=base_url,
-            api_key=api_key,
+            provider=deepseek_provider,
         )
 
         self.deps = Deps(
@@ -125,7 +129,7 @@ class AIService:
 
     async def chat(self, message: str, history: Optional[List[Dict[str, str]]] = None):
         """Handle a chat message."""
-        # Convert history to PydanticAI format if needed,
-        # but for now we'll just handle single messages or pass history if PydanticAI supports it directly.
-        # PydanticAI keeps track of message history if we pass it to run.
-        return self.agent.run_stream(message, deps=self.deps, message_history=history)
+        # PydanticAI 会自动管理消息历史
+        # 对于简单实现,我们不传递历史记录,让 agent 处理单次对话
+        # 如果需要完整历史支持,需要转换为 ModelMessage 格式
+        return self.agent.run_stream(message, deps=self.deps)
