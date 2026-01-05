@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Any
 import os
 
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.deepseek import DeepSeekProvider
 
 from services.post_service import PostService
@@ -32,7 +32,7 @@ class AIService:
         deepseek_provider = DeepSeekProvider(api_key=api_key)
 
         # 使用 DeepSeek provider 初始化模型
-        self.model = OpenAIModel(
+        self.model = OpenAIChatModel(
             model_name=model_name,
             provider=deepseek_provider,
         )

@@ -41,7 +41,10 @@ class Config:
     SOCKETIO_ASYNC_MODE = "threading"
 
     # AI 助手配置
-    AI_API_KEY = os.environ.get("AI_API_KEY") or ""
+    # 优先使用 DEEPSEEK_API_KEY，如果没有则尝试 AI_API_KEY
+    AI_API_KEY = (
+        os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("AI_API_KEY") or ""
+    )
     AI_BASE_URL = os.environ.get("AI_BASE_URL") or "https://api.deepseek.com"
     AI_MODEL = os.environ.get("AI_MODEL") or "deepseek-chat"
 
