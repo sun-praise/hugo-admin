@@ -472,7 +472,7 @@ def ai_chat():
                 # Convert simple dict history to PydanticAI messages if needed
                 # For now, we assume history is already in correct format or empty
 
-                async with await ai_service.agent.run_stream(
+                async with ai_service.agent.run_stream(
                     message, deps=ai_service.deps, message_history=history
                 ) as result:
                     async for message_chunk in result.stream_text(delta=True):
