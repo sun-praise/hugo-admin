@@ -18,6 +18,11 @@ PyYAML==6.0.1
 # Markdown frontmatter 解析 (更可靠的 frontmatter 处理)
 python-frontmatter==1.1.0
 
+# AI Assistant
+pydantic-ai==0.0.18
+openai==1.59.3
+python-dotenv==1.0.0
+
 # 已有依赖(tasks.py 中使用)
 # 这些依赖应该已经安装
 # invoke
