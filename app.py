@@ -23,6 +23,7 @@ from services.hugo_service import HugoServerManager
 from services.post_service import PostService
 from services.git_service import GitService
 from services.ai_service import AIService
+from routes import register_ai_routes
 
 # 初始化 Flask 应用
 load_dotenv()
@@ -67,6 +68,10 @@ print("正在初始化文章缓存...")
 if post_service.cache_service:
     post_service.cache_service.initialize()
 print("缓存初始化完成")
+
+# 注册 AI 路由
+ai_blueprint = register_ai_routes(ai_service)
+app.register_blueprint(ai_blueprint)
 
 
 # ============ 页面路由 ============
@@ -266,7 +271,8 @@ def upload_image():
 
     # 检查文件类型
     allowed_extensions = {"png", "jpg", "jpeg", "gif", "svg", "webp"}
-    ext = file.filename.rsplit(".", 1)[1].lower() if "." in file.filename else ""
+    filename = file.filename or ""
+    ext = filename.rsplit(".", 1)[1].lower() if "." in filename else ""
     if ext not in allowed_extensions:
         return jsonify({"success": False, "message": f"不支持的文件类型: {ext}"}), 400
 
@@ -432,65 +438,6 @@ def bulk_publish_articles():
         ), 500
 
 
-# --- AI 助手 API ---
-
-
-@app.route("/api/ai/chat", methods=["POST"])
-def ai_chat():
-    """AI 聊天接口（支持流式响应）"""
-    data = request.get_json()
-    message = data.get("message")
-    history = data.get("history", [])
-
-    if not message:
-        return jsonify({"success": False, "message": "缺少消息内容"}), 400
-
-    def generate():
-        import asyncio
-
-        async def run_ai():
-            async with ai_service.chat(message, history) as result:
-                async for chunk in result:
-                    # PydanticAI streaming chunk handling
-                    # result.new_messages() might contains tool calls or final response
-                    # For simplicity, we just yield the text content
-                    yield f"data: {chunk}\n\n"
-
-        # Using asyncio.run or similar might be tricky in Flask thread
-        # Flask-SocketIO might be better for real-time, but the request asks for API endpoint.
-        # We'll use a simplified version for now or follow PydanticAI streaming docs.
-        # Actually PydanticAI stream is async. Flask is usually sync.
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-        try:
-            # Re-implementing simplified stream for Flask sync environment
-            async def get_stream():
-                from pydantic_ai.messages import ModelRequest, ModelResponse
-
-                # Convert simple dict history to PydanticAI messages if needed
-                # For now, we assume history is already in correct format or empty
-
-                async with ai_service.agent.run_stream(
-                    message, deps=ai_service.deps, message_history=history
-                ) as result:
-                    async for message_chunk in result.stream_text(delta=True):
-                        yield f"data: {message_chunk}\n\n"
-
-            gen = get_stream()
-            while True:
-                try:
-                    chunk = loop.run_until_complete(gen.__anext__())
-                    yield chunk
-                except StopAsyncIteration:
-                    break
-        finally:
-            loop.close()
-
-    return Response(generate(), mimetype="text/event-stream")
-
-
 # ============ Git / 系统发布相关 API ============
 
 
@@ -596,4 +543,4 @@ if __name__ == "__main__":
 
     # 运行应用
     # allow_unsafe_werkzeug=True 允许使用 Werkzeug 开发服务器(仅用于开发环境)
-    socketio.run(app, host=host, port=port, debug=True, allow_unsafe_werkzeug=True)
+    socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)

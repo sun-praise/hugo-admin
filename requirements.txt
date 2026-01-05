@@ -13,15 +13,15 @@ python-engineio==4.8.0
 psutil==5.9.6
 
 # YAML 解析
-PyYAML==6.0.1
+PyYAML>=6.0.2
 
 # Markdown frontmatter 解析 (更可靠的 frontmatter 处理)
 python-frontmatter==1.1.0
 
 # AI Assistant
-pydantic-ai==0.0.18
-openai==1.59.3
-python-dotenv==1.0.0
+pydantic-ai>=1.10.0,<1.31.0
+openai>=1.99.9,<2.0.0
+python-dotenv>=1.1.0
 
 # 已有依赖(tasks.py 中使用)
 # 这些依赖应该已经安装
