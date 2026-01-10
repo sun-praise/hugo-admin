@@ -334,33 +334,45 @@
                         this.messages.push({ role: 'assistant', content: '' });
                         let accumulatedContent = '';
 
-                        while (true) {
-                            const { value, done } = await reader.read();
-                            if (done) break;
+                        try {
+                            while (true) {
+                                const { value, done } = await reader.read();
+                                if (done) break;
 
-                            const chunk = decoder.decode(value);
-                            const lines = chunk.split('\n');
-                            
-                            for (const line of lines) {
-                                if (line.startsWith('data: ')) {
-                                    const data = line.slice(6);
-                                    // 忽略完成标记和错误 JSON
-                                    if (data === '[DONE]') continue;
-                                    if (data.startsWith('{"error":')) {
-                                        try {
-                                            const errorData = JSON.parse(data);
-                                            accumulatedContent += '\n\n错误: ' + errorData.error;
-                                        } catch (e) {
-                                            accumulatedContent += data;
+                                const chunk = decoder.decode(value);
+                                const lines = chunk.split('\n');
+
+                                let streamDone = false;
+                                for (const line of lines) {
+                                    const trimmedLine = line.trim();
+                                    if (trimmedLine.startsWith('data:')) {
+                                        const data = trimmedLine.slice(5).trim();
+                                        // 检测完成标记，跳出循环
+                                        if (data === '[DONE]') {
+                                            streamDone = true;
+                                            break;
                                         }
-                                        continue;
+                                        if (data.startsWith('{"error":')) {
+                                            try {
+                                                const errorData = JSON.parse(data);
+                                                accumulatedContent += '\n\n错误: ' + errorData.error;
+                                            } catch (e) {
+                                                accumulatedContent += data;
+                                            }
+                                            continue;
+                                        }
+                                        accumulatedContent += data;
+                                        // 使用 splice 强制 Alpine.js 响应式更新
+                                        this.messages.splice(assistantMsgIndex, 1, { role: 'assistant', content: accumulatedContent });
+                                        this.$nextTick(() => this.scrollToBottom());
                                     }
-                                    accumulatedContent += data;
-                                    // 使用 splice 强制 Alpine.js 响应式更新
-                                    this.messages.splice(assistantMsgIndex, 1, { role: 'assistant', content: accumulatedContent });
-                                    this.$nextTick(() => this.scrollToBottom());
                                 }
+                                // 如果收到 [DONE] 标记，跳出主循环
+                                if (streamDone) break;
                             }
+                        } finally {
+                            // 确保关闭读取器
+                            reader.cancel().catch(() => {});
                         }
                     } catch (error) {
                         console.error('Chat error:', error);
