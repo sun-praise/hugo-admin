@@ -4,6 +4,7 @@
 负责文章的读取、保存、搜索等操作
 复用 tasks.py 中的 BlogPost 类
 """
+
 import os
 import sys
 from pathlib import Path
@@ -31,7 +32,7 @@ class PostService:
             use_cache: 是否使用缓存
         """
         self.content_dir = Path(content_dir)
-        self.post_dir = self.content_dir / 'post'
+        self.post_dir = self.content_dir / "post"
         self.use_cache = use_cache
 
         # 初始化缓存服务
@@ -74,17 +75,19 @@ class PostService:
                     post = frontmatter.load(file_path)
 
                     # 检查是否已经是发布状态
-                    if not post.get('draft', False):
+                    if not post.get("draft", False):
                         return False, "文章已经发布", False
 
                     # 更新 draft 状态
-                    post.metadata['draft'] = False
+                    post.metadata["draft"] = False
 
                     # 如果没有 publishDate，添加发布时间（使用东八区时区）
-                    if 'publishDate' not in post.metadata:
+                    if "publishDate" not in post.metadata:
                         tz_cn = timezone(timedelta(hours=8))
                         now = datetime.now(tz_cn)
-                        post.metadata['publishDate'] = now.strftime('%Y-%m-%dT%H:%M:%S+08:00')
+                        post.metadata["publishDate"] = now.strftime(
+                            "%Y-%m-%dT%H:%M:%S+08:00"
+                        )
 
                     # 保存文件
                     frontmatter.dump(post, file_handle.name)
@@ -94,7 +97,9 @@ class PostService:
                     return False, f"发布操作失败: {str(e)}", False
 
             # 执行带锁的发布操作
-            result, message, status_changed = self._safe_file_operation(str(file_path), publish_operation)
+            result, message, status_changed = self._safe_file_operation(
+                str(file_path), publish_operation
+            )
 
             # 如果发布成功，更新缓存
             if result and self.use_cache and self.cache_service:
@@ -125,13 +130,17 @@ class PostService:
 
             # 使用东八区时区
             tz_cn = timezone(timedelta(hours=8))
-            published_at = datetime.now(tz_cn).strftime('%Y-%m-%dT%H:%M:%S+08:00') if success else None
+            published_at = (
+                datetime.now(tz_cn).strftime("%Y-%m-%dT%H:%M:%S+08:00")
+                if success
+                else None
+            )
 
             result = {
-                'file_path': file_path,
-                'success': success,
-                'message': message if not success else None,
-                'published_at': published_at
+                "file_path": file_path,
+                "success": success,
+                "message": message if not success else None,
+                "published_at": published_at,
             }
             results.append(result)
 
@@ -141,13 +150,13 @@ class PostService:
                 failed_count += 1
 
         return {
-            'success': failed_count == 0,
-            'total_count': len(file_paths),
-            'published_count': published_count,
-            'failed_count': failed_count,
-            'operation_id': operation_id,
-            'results': results,
-            'duration_ms': 0  # 可以添加计时逻辑
+            "success": failed_count == 0,
+            "total_count": len(file_paths),
+            "published_count": published_count,
+            "failed_count": failed_count,
+            "operation_id": operation_id,
+            "results": results,
+            "duration_ms": 0,  # 可以添加计时逻辑
         }
 
     def get_publish_status(self, file_path):
@@ -170,45 +179,39 @@ class PostService:
             # 安全检查
             if not self._is_safe_path(file_path):
                 return {
-                    'error': '访问被拒绝:文件不在允许的目录中',
-                    'file_path': str(file_path)
+                    "error": "访问被拒绝:文件不在允许的目录中",
+                    "file_path": str(file_path),
                 }
 
             # 检查文件是否存在
             if not file_path.exists():
-                return {
-                    'error': '文件不存在',
-                    'file_path': str(file_path)
-                }
+                return {"error": "文件不存在", "file_path": str(file_path)}
 
             # 加载文章 frontmatter
             post = frontmatter.load(str(file_path))
-            is_draft = post.get('draft', True)  # 默认为 draft
+            is_draft = post.get("draft", True)  # 默认为 draft
 
             # 检查是否可以发布
             is_publishable = is_draft  # 简化逻辑，后续可以扩展
             publish_errors = []
 
             # 验证必要的 frontmatter 字段
-            if not post.get('title'):
-                publish_errors.append('缺少标题')
+            if not post.get("title"):
+                publish_errors.append("缺少标题")
 
             return {
-                'file_path': str(file_path),
-                'is_draft': is_draft,
-                'is_publishable': is_publishable,
-                'last_published': post.get('publishDate') if not is_draft else None,
-                'publish_errors': publish_errors,
-                'frontmatter': dict(post.metadata)  # 返回 frontmatter 的副本
+                "file_path": str(file_path),
+                "is_draft": is_draft,
+                "is_publishable": is_publishable,
+                "last_published": post.get("publishDate") if not is_draft else None,
+                "publish_errors": publish_errors,
+                "frontmatter": dict(post.metadata),  # 返回 frontmatter 的副本
             }
 
         except Exception as e:
-            return {
-                'error': f'状态检查失败: {str(e)}',
-                'file_path': str(file_path)
-            }
+            return {"error": f"状态检查失败: {str(e)}", "file_path": str(file_path)}
 
-    def get_posts(self, query='', category='', tag='', page=1, per_page=20):
+    def get_posts(self, query="", category="", tag="", page=1, per_page=20):
         """
         获取文章列表
 
@@ -232,7 +235,7 @@ class PostService:
 
         # 应用搜索过滤
         if query:
-            all_posts = filter_posts_by_search(all_posts, query, search_fields=['all'])
+            all_posts = filter_posts_by_search(all_posts, query, search_fields=["all"])
 
         # 按分类过滤
         if category:
@@ -255,26 +258,32 @@ class PostService:
         posts_data = []
         for post in page_posts:
             # BlogPost 类已经统一处理了所有字段类型，这里直接使用即可
-            posts_data.append({
-                'title': post.title,
-                'path': str(post.relative_path),
-                'full_path': str(post.file_path),
-                'date': post.date[:10] if post.date else '',  # date 已经是字符串
-                'description': post.description,
-                'excerpt': post.excerpt,
-                'tags': post.tags,  # 已经是列表
-                'categories': post.categories,  # 已经是列表
-                'mod_time': datetime.fromtimestamp(post.mod_time).strftime("%Y-%m-%d %H:%M")
-            })
+            posts_data.append(
+                {
+                    "title": post.title,
+                    "path": str(post.relative_path),
+                    "full_path": str(post.file_path),
+                    "date": post.date.strftime("%Y-%m-%d")
+                    if post.date
+                    else "",  # date 是 datetime 对象
+                    "description": post.description,
+                    "excerpt": post.excerpt,
+                    "tags": post.tags,  # 已经是列表
+                    "categories": post.categories,  # 已经是列表
+                    "mod_time": datetime.fromtimestamp(post.mod_time).strftime(
+                        "%Y-%m-%d %H:%M"
+                    ),
+                }
+            )
 
         return {
-            'posts': posts_data,
-            'total': total,
-            'page': page,
-            'per_page': per_page,
-            'total_pages': total_pages,
-            'has_next': page < total_pages,
-            'has_prev': page > 1
+            "posts": posts_data,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1,
         }
 
     def get_all_tags(self):
@@ -298,8 +307,8 @@ class PostService:
                 tag_count[tag] = tag_count.get(tag, 0) + 1
 
         # 按文章数量排序
-        tags = [{'name': tag, 'count': count} for tag, count in tag_count.items()]
-        tags.sort(key=lambda x: x['count'], reverse=True)
+        tags = [{"name": tag, "count": count} for tag, count in tag_count.items()]
+        tags.sort(key=lambda x: x["count"], reverse=True)
 
         return tags
 
@@ -324,8 +333,10 @@ class PostService:
                 category_count[category] = category_count.get(category, 0) + 1
 
         # 按文章数量排序
-        categories = [{'name': cat, 'count': count} for cat, count in category_count.items()]
-        categories.sort(key=lambda x: x['count'], reverse=True)
+        categories = [
+            {"name": cat, "count": count} for cat, count in category_count.items()
+        ]
+        categories.sort(key=lambda x: x["count"], reverse=True)
 
         return categories
 
@@ -355,7 +366,7 @@ class PostService:
                 return False, f"文件不存在: {file_path}"
 
             # 读取文件
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
             return True, content
@@ -389,7 +400,7 @@ class PostService:
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
             # 保存文件
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
 
             # 更新缓存
@@ -427,14 +438,14 @@ class PostService:
             tz_cn = timezone(timedelta(hours=8))
             now = datetime.now(tz_cn)
             # 格式化为 RFC3339 格式，不带引号
-            date_str = now.strftime('%Y-%m-%dT%H:%M:%S+08:00')
+            date_str = now.strftime("%Y-%m-%dT%H:%M:%S+08:00")
 
             frontmatter = {
-                'title': title,
-                'date': date_str,
-                'draft': True,
-                'categories': [],
-                'tags': []
+                "title": title,
+                "date": date_str,
+                "draft": True,
+                "categories": [],
+                "tags": [],
             }
 
             # 手动构造 frontmatter，确保日期格式正确且不加引号
@@ -447,7 +458,7 @@ class PostService:
             content += "---\n\n"
             content += "在这里编写你的文章内容...\n"
 
-            with open(post_file, 'w', encoding='utf-8') as f:
+            with open(post_file, "w", encoding="utf-8") as f:
                 f.write(content)
 
             # 返回相对路径
@@ -498,7 +509,7 @@ class PostService:
 
         while time.time() - start_time < timeout:
             try:
-                with open(file_path, 'r+', encoding='utf-8') as f:
+                with open(file_path, "r+", encoding="utf-8") as f:
                     # 尝试获取文件锁
                     try:
                         fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -510,7 +521,10 @@ class PostService:
                     return operation(f)
 
             except (IOError, OSError) as e:
-                if "Resource temporarily unavailable" in str(e) or "already locked" in str(e).lower():
+                if (
+                    "Resource temporarily unavailable" in str(e)
+                    or "already locked" in str(e).lower()
+                ):
                     # 文件被锁定，等待后重试
                     time.sleep(0.1)
                     continue
@@ -536,23 +550,23 @@ class PostService:
         errors = []
 
         # 检查必要字段
-        if not post.get('title'):
-            errors.append('缺少标题')
+        if not post.get("title"):
+            errors.append("缺少标题")
 
         # 检查 draft 字段类型
-        draft_value = post.get('draft')
+        draft_value = post.get("draft")
         if draft_value is not None and not isinstance(draft_value, bool):
-            errors.append('draft 字段必须是布尔值')
+            errors.append("draft 字段必须是布尔值")
 
         # 检查日期格式
-        date_value = post.get('date')
+        date_value = post.get("date")
         if date_value:
             try:
                 # 尝试解析日期
                 if isinstance(date_value, str):
-                    datetime.fromisoformat(date_value.replace('Z', '+00:00'))
+                    datetime.fromisoformat(date_value.replace("Z", "+00:00"))
             except (ValueError, AttributeError):
-                errors.append('日期格式无效')
+                errors.append("日期格式无效")
 
         return len(errors) == 0, errors
 
@@ -570,7 +584,7 @@ class PostService:
             path = Path(file_path)
 
             # 检查路径是否尝试进行目录遍历攻击
-            if '..' in path.parts:
+            if ".." in path.parts:
                 return False, "路径包含目录遍历字符"
 
             # 转换为绝对路径
@@ -585,7 +599,7 @@ class PostService:
                 return False, "路径不在允许的内容目录内"
 
             # 检查文件扩展名
-            allowed_extensions = {'.md', '.markdown'}
+            allowed_extensions = {".md", ".markdown"}
             if path.suffix.lower() not in allowed_extensions:
                 return False, f"不支持的文件扩展名: {path.suffix}"
 
@@ -616,13 +630,13 @@ class PostService:
             article_dir = article_file.parent
 
             # 创建 pics 目录
-            pics_dir = article_dir / 'pics'
+            pics_dir = article_dir / "pics"
             pics_dir.mkdir(exist_ok=True)
 
             # 生成安全的文件名
             filename = file.filename
             # 移除特殊字符
-            safe_filename = "".join(c for c in filename if c.isalnum() or c in '.-_')
+            safe_filename = "".join(c for c in filename if c.isalnum() or c in ".-_")
 
             # 保存文件
             file_path = pics_dir / safe_filename
@@ -655,27 +669,29 @@ class PostService:
 
             # 获取文章所在目录
             article_dir = article_file.parent
-            pics_dir = article_dir / 'pics'
+            pics_dir = article_dir / "pics"
 
             if not pics_dir.exists():
                 return True, []
 
             # 支持的图片格式
-            image_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'}
+            image_extensions = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
 
             # 列出所有图片
             images = []
             for img_path in pics_dir.iterdir():
                 if img_path.is_file() and img_path.suffix.lower() in image_extensions:
-                    images.append({
-                        'name': img_path.name,
-                        'url': f"pics/{img_path.name}",
-                        'size': img_path.stat().st_size,
-                        'modified': img_path.stat().st_mtime
-                    })
+                    images.append(
+                        {
+                            "name": img_path.name,
+                            "url": f"pics/{img_path.name}",
+                            "size": img_path.stat().st_size,
+                            "modified": img_path.stat().st_mtime,
+                        }
+                    )
 
             # 按修改时间倒序排列
-            images.sort(key=lambda x: x['modified'], reverse=True)
+            images.sort(key=lambda x: x["modified"], reverse=True)
 
             return True, images
 
