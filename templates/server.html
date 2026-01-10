@@ -120,7 +120,7 @@
             <template x-if="logs.length === 0">
                 <p class="text-gray-500">暂无日志输出</p>
             </template>
-            <template x-for="log in logs" :key="log.timestamp + log.message">
+            <template x-for="(log, index) in logs" :key="index">
                 <div class="mb-1 hover:bg-gray-800 px-2 py-1 rounded">
                     <span class="text-gray-500" x-text="'[' + log.timestamp + ']'"></span>
                     <span :class="{
