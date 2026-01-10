@@ -128,8 +128,8 @@
 
     <!-- 全局 JavaScript -->
     <script>
-        // Socket.IO 连接
-        const socket = io('http://127.0.0.1:5050');
+        // Socket.IO 连接 - 使用当前页面的主机和端口
+        const socket = io(window.location.origin);
 
         socket.on('connect', () => {
             console.log('Connected to server');
@@ -329,8 +329,10 @@
 
                         const reader = response.body.getReader();
                         const decoder = new TextDecoder();
-                        let assistantMessage = { role: 'assistant', content: '' };
-                        this.messages.push(assistantMessage);
+                        // 添加空的助手消息并保存其索引
+                        const assistantMsgIndex = this.messages.length;
+                        this.messages.push({ role: 'assistant', content: '' });
+                        let accumulatedContent = '';
 
                         while (true) {
                             const { value, done } = await reader.read();
@@ -342,7 +344,20 @@
                             for (const line of lines) {
                                 if (line.startsWith('data: ')) {
                                     const data = line.slice(6);
-                                    assistantMessage.content += data;
+                                    // 忽略完成标记和错误 JSON
+                                    if (data === '[DONE]') continue;
+                                    if (data.startsWith('{"error":')) {
+                                        try {
+                                            const errorData = JSON.parse(data);
+                                            accumulatedContent += '\n\n错误: ' + errorData.error;
+                                        } catch (e) {
+                                            accumulatedContent += data;
+                                        }
+                                        continue;
+                                    }
+                                    accumulatedContent += data;
+                                    // 使用 splice 强制 Alpine.js 响应式更新
+                                    this.messages.splice(assistantMsgIndex, 1, { role: 'assistant', content: accumulatedContent });
                                     this.$nextTick(() => this.scrollToBottom());
                                 }
                             }
