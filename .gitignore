@@ -61,3 +61,6 @@ htmlcov/
 *.bak
 
 site
+
+.serena
+test-report.md
