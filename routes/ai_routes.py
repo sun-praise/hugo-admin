@@ -30,13 +30,30 @@ def register_ai_routes(ai_service):
 
         def generate():
             try:
-                # 使用 pydantic-ai 1.x 的同步流式 API
-                result = ai_service.agent.run_stream_sync(
+                # 使用 run_sync 确保工具调用被正确执行
+                # run_stream_sync 会在遇到第一个文本输出时停止，不执行后续工具调用
+                result = ai_service.agent.run_sync(
                     message, deps=ai_service.deps, message_history=history
                 )
 
-                # 流式输出文本内容
-                for chunk in result.stream_text(delta=True):
+                # 获取最终输出文本
+                output_text = result.output if hasattr(result, 'output') else str(result.data)
+
+                # 模拟流式输出 - 按句子/段落分块发送
+                # 这样前端仍然能获得渐进式的用户体验
+                chunks = []
+                current_chunk = ""
+                for char in output_text:
+                    current_chunk += char
+                    # 在标点符号或换行处分块
+                    if char in "。！？\n" or (char in "，、；：" and len(current_chunk) > 20):
+                        chunks.append(current_chunk)
+                        current_chunk = ""
+                if current_chunk:
+                    chunks.append(current_chunk)
+
+                # 流式发送每个块
+                for chunk in chunks:
                     yield f"data: {chunk}\n\n"
 
                 # 流结束后发送完成标记
@@ -45,6 +62,7 @@ def register_ai_routes(ai_service):
                 # 发送错误信息
                 error_msg = json.dumps({"error": str(e)})
                 yield f"data: {error_msg}\n\n"
+                yield "data: [DONE]\n\n"
 
         return Response(generate(), mimetype="text/event-stream")
 
