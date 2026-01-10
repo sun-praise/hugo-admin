@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-01-10
+
+### Added
+- Clipboard image paste functionality in editor
+- OpenSpec support for project planning and changes
+- AI chat assistant with tool calling capabilities
+
+### Fixed
+- AI tool calls streaming response handling
+- SSE stream termination and loading state resets
+- Standardized date format to RFC3339 with timezone
+- Socket.IO port and server log display issues
+
 ## [1.1.1] - 2025-11-26
 
 ### Fixed
