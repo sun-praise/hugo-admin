@@ -18,9 +18,9 @@ fi
 
 echo "1. 检查依赖..."
 # 检查是否已安装依赖
-if ! python3 -c "import flask" 2>/dev/null; then
+if ! uv run python3 -c "import flask" 2>/dev/null; then
     echo "首次运行，正在安装依赖..."
-    pip install -r requirements.txt
+    uv pip install -r requirements.txt
     if [ $? -ne 0 ]; then
         echo "错误: 依赖安装失败"
         exit 1
@@ -48,4 +48,4 @@ echo "=========================================="
 echo ""
 
 # 启动应用
-python3 app.py
+uv run python3 app.py
