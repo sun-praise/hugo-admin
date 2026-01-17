@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Socket.IO Connection
 The system SHALL establish Socket.IO connection using the same host and port as the current page URL, eliminating hardcoded port values.
@@ -10,8 +10,6 @@ The system SHALL establish Socket.IO connection using the same host and port as 
 #### Scenario: Console confirmation
 - **WHEN** Socket.IO connects successfully
 - **THEN** "Connected to server" appears in browser console
-
-## MODIFIED Requirements
 
 ### Requirement: AI Chat Streaming Response
 The system SHALL correctly parse and display SSE streaming responses from the AI chat endpoint.

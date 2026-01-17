@@ -1,9 +1,10 @@
-# Capability: AI Tools Integration
+# ai-tools-integration Specification
 
-## MODIFIED Requirements
-
+## Purpose
+TBD - created by archiving change add-ai-chat-assistant. Update Purpose after archive.
+## Requirements
 ### Requirement: Tool access to system services
-The AI Agent shall have controlled access to existing blog management services.
+The AI Agent SHALL have controlled access to existing blog management services.
 
 #### Scenario: Git status check
 - **Given** the `git_status_tool` is active
@@ -16,3 +17,4 @@ The AI Agent shall have controlled access to existing blog management services.
 - **When** the user says "Start the preview server"
 - **Then** the agent should call `hugo_manager.start()`
 - **And** provide a link to the preview URL.
+

@@ -1,9 +1,9 @@
 # Capability: AI UI Chatbox
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Real-time chat interface
-The system shall provide a floating chat box in the web interface for interacting with the AI Agent.
+The system SHALL provide a floating chat box in the web interface for interacting with the AI Agent.
 
 #### Scenario: Opening the chat box
 - **Given** the user is on the Dashboard page
