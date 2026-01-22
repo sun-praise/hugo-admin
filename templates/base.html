@@ -347,22 +347,24 @@
                                     const trimmedLine = line.trim();
                                     if (trimmedLine.startsWith('data:')) {
                                         const data = trimmedLine.slice(5).trim();
-                                        // 检测完成标记，跳出循环
                                         if (data === '[DONE]') {
                                             streamDone = true;
                                             break;
                                         }
-                                        if (data.startsWith('{"error":')) {
-                                            try {
-                                                const errorData = JSON.parse(data);
-                                                accumulatedContent += '\n\n错误: ' + errorData.error;
-                                            } catch (e) {
-                                                accumulatedContent += data;
+
+                                        try {
+                                            const parsed = JSON.parse(data);
+                                            if (parsed.type === 'tool_call') {
+                                                accumulatedContent += `\n\n🔧 调用工具: ${parsed.tool}\n参数: ${JSON.stringify(parsed.args, null, 2)}\n`;
+                                            } else if (parsed.type === 'tool_result') {
+                                                accumulatedContent += `\n✅ 工具结果:\n${JSON.stringify(parsed.result, null, 2)}\n\n`;
+                                            } else if (parsed.type === 'error') {
+                                                accumulatedContent += `\n\n❌ 错误: ${parsed.error}`;
                                             }
-                                            continue;
+                                        } catch (e) {
+                                            accumulatedContent += data;
                                         }
-                                        accumulatedContent += data;
-                                        // 使用 splice 强制 Alpine.js 响应式更新
+
                                         this.messages.splice(assistantMsgIndex, 1, { role: 'assistant', content: accumulatedContent });
                                         this.$nextTick(() => this.scrollToBottom());
                                     }

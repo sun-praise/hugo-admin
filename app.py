@@ -23,6 +23,7 @@ from services.hugo_service import HugoServerManager
 from services.post_service import PostService
 from services.git_service import GitService
 from services.ai_service import AIService
+from services.email_service import EmailService
 from routes import register_ai_routes
 
 # 初始化 Flask 应用
@@ -484,6 +485,89 @@ def publish_system():
         return jsonify(
             {"success": False, "message": f"系统发布失败: {str(e)}", "steps": {}}
         ), 500
+
+
+# ============ 邮件推送 API ============
+
+
+@app.route("/api/email/push-latest", methods=["POST"])
+def email_push_latest():
+    """推送最新文章到订阅者"""
+    try:
+        data = request.get_json() or {}
+        debug_mode = data.get("debug_mode", False)
+        force = data.get("force", False)
+
+        email_service = EmailService(debug_mode=debug_mode)
+        result = email_service.push_latest(force=force)
+
+        status_code = 200 if result.get("success") else 400
+        return jsonify(result), status_code
+
+    except FileNotFoundError as e:
+        return jsonify({"success": False, "message": f"配置文件错误: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": f"推送失败: {str(e)}"}), 500
+
+
+@app.route("/api/email/push-article", methods=["POST"])
+def email_push_article():
+    """推送指定文章到订阅者"""
+    try:
+        data = request.get_json() or {}
+        url = data.get("url")
+        debug_mode = data.get("debug_mode", False)
+        force = data.get("force", False)
+
+        if not url:
+            return jsonify({"success": False, "message": "缺少文章 URL 参数"}), 400
+
+        email_service = EmailService(debug_mode=debug_mode)
+        result = email_service.push_article(url, force=force)
+
+        status_code = 200 if result.get("success") else 400
+        return jsonify(result), status_code
+
+    except FileNotFoundError as e:
+        return jsonify({"success": False, "message": f"配置文件错误: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": f"推送失败: {str(e)}"}), 500
+
+
+@app.route("/api/email/preview-latest")
+def email_preview_latest():
+    """预览最新文章邮件（不发送）"""
+    try:
+        email_service = EmailService()
+        result = email_service.preview_latest()
+
+        status_code = 200 if result.get("success") else 400
+        return jsonify(result), status_code
+
+    except FileNotFoundError as e:
+        return jsonify({"success": False, "message": f"配置文件错误: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": f"预览失败: {str(e)}"}), 500
+
+
+@app.route("/api/email/preview-article")
+def email_preview_article():
+    """预览指定文章邮件（不发送）"""
+    try:
+        url = request.args.get("url")
+        if not url:
+            return jsonify({"success": False, "message": "缺少文章 URL 参数"}), 400
+
+        email_service = EmailService()
+        result = email_service.preview_article(url)
+
+        status_code = 200 if result.get("success") else 400
+        return jsonify(result), status_code
+
+    except FileNotFoundError as e:
+        return jsonify({"success": False, "message": f"配置文件错误: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": f"预览失败: {str(e)}"}), 500
 
 
 # ============ WebSocket 事件 ============
