@@ -23,6 +23,7 @@ from services.hugo_service import HugoServerManager
 from services.post_service import PostService
 from services.git_service import GitService
 from services.ai_service import AIService
+from services.email_service import EmailService
 from routes import register_ai_routes
 
 # 初始化 Flask 应用
@@ -54,23 +55,50 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 hugo_manager = HugoServerManager(app.config["HUGO_ROOT"], socketio)
 post_service = PostService(app.config["CONTENT_DIR"], use_cache=True)
 git_service = GitService(app.config["HUGO_ROOT"])
-ai_service = AIService(
-    api_key=app.config.get("AI_API_KEY", ""),
-    base_url=app.config.get("AI_BASE_URL", "https://api.deepseek.com"),
-    model_name=app.config.get("AI_MODEL", "deepseek-chat"),
-    post_service=post_service,
-    git_service=git_service,
-    hugo_manager=hugo_manager,
-)
 
-# 在应用启动时初始化缓存
-print("正在初始化文章缓存...")
-if post_service.cache_service:
-    post_service.cache_service.initialize()
-print("缓存初始化完成")
+# Lazy AI service init to avoid import errors when API key is missing in tests
+ai_service = None
 
-# 注册 AI 路由
-ai_blueprint = register_ai_routes(ai_service)
+
+class _DisabledAIService:
+    """Mock AI service for when API key is not configured."""
+
+    def __init__(self):
+        self.enabled = False
+        self.deps = None
+        self.model = None
+        self.agent = None
+
+
+def get_ai_service():
+    """Get or lazily initialize AI service."""
+    global ai_service
+    if ai_service is None:
+        from services.ai_service import AIService
+
+        api_key = app.config.get("AI_API_KEY", "")
+        if not api_key:
+            print("⚠ AI service disabled: AI_API_KEY not configured")
+            ai_service = _DisabledAIService()
+        else:
+            print("✓ Initializing AI service...")
+            try:
+                ai_service = AIService(
+                    api_key=api_key,
+                    base_url=app.config.get("AI_BASE_URL", "https://api.deepseek.com"),
+                    model_name=app.config.get("AI_MODEL", "deepseek-chat"),
+                    post_service=post_service,
+                    git_service=git_service,
+                    hugo_manager=hugo_manager,
+                )
+            except Exception as e:
+                print(f"⚠ AI service initialization failed: {e}")
+                ai_service = _DisabledAIService()
+    return ai_service
+
+
+# Register AI routes with lazy initialization
+ai_blueprint = register_ai_routes(get_ai_service)
 app.register_blueprint(ai_blueprint)
 
 
@@ -484,6 +512,89 @@ def publish_system():
         return jsonify(
             {"success": False, "message": f"系统发布失败: {str(e)}", "steps": {}}
         ), 500
+
+
+# ============ 邮件推送 API ============
+
+
+@app.route("/api/email/push-latest", methods=["POST"])
+def email_push_latest():
+    """推送最新文章到订阅者"""
+    try:
+        data = request.get_json() or {}
+        debug_mode = data.get("debug_mode", False)
+        force = data.get("force", False)
+
+        email_service = EmailService(debug_mode=debug_mode)
+        result = email_service.push_latest(force=force)
+
+        status_code = 200 if result.get("success") else 400
+        return jsonify(result), status_code
+
+    except FileNotFoundError as e:
+        return jsonify({"success": False, "message": f"配置文件错误: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": f"推送失败: {str(e)}"}), 500
+
+
+@app.route("/api/email/push-article", methods=["POST"])
+def email_push_article():
+    """推送指定文章到订阅者"""
+    try:
+        data = request.get_json() or {}
+        url = data.get("url")
+        debug_mode = data.get("debug_mode", False)
+        force = data.get("force", False)
+
+        if not url:
+            return jsonify({"success": False, "message": "缺少文章 URL 参数"}), 400
+
+        email_service = EmailService(debug_mode=debug_mode)
+        result = email_service.push_article(url, force=force)
+
+        status_code = 200 if result.get("success") else 400
+        return jsonify(result), status_code
+
+    except FileNotFoundError as e:
+        return jsonify({"success": False, "message": f"配置文件错误: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": f"推送失败: {str(e)}"}), 500
+
+
+@app.route("/api/email/preview-latest")
+def email_preview_latest():
+    """预览最新文章邮件（不发送）"""
+    try:
+        email_service = EmailService()
+        result = email_service.preview_latest()
+
+        status_code = 200 if result.get("success") else 400
+        return jsonify(result), status_code
+
+    except FileNotFoundError as e:
+        return jsonify({"success": False, "message": f"配置文件错误: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": f"预览失败: {str(e)}"}), 500
+
+
+@app.route("/api/email/preview-article")
+def email_preview_article():
+    """预览指定文章邮件（不发送）"""
+    try:
+        url = request.args.get("url")
+        if not url:
+            return jsonify({"success": False, "message": "缺少文章 URL 参数"}), 400
+
+        email_service = EmailService()
+        result = email_service.preview_article(url)
+
+        status_code = 200 if result.get("success") else 400
+        return jsonify(result), status_code
+
+    except FileNotFoundError as e:
+        return jsonify({"success": False, "message": f"配置文件错误: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": f"预览失败: {str(e)}"}), 500
 
 
 # ============ WebSocket 事件 ============

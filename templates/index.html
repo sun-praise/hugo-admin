@@ -102,6 +102,20 @@
                 </svg>
                 <span class="font-medium" x-text="publishing ? '发布中...' : '系统发布'"></span>
             </button>
+
+            <button @click="pushLatestEmail()" class="flex items-center justify-center p-4 border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors" :disabled="pushingEmail">
+                <svg class="w-6 h-6 text-indigo-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+                <span class="font-medium" x-text="pushingEmail ? '推送中...' : '推送最新文章'"></span>
+            </button>
+
+            <button @click="pushSpecificEmail()" class="flex items-center justify-center p-4 border-2 border-gray-200 rounded-lg hover:border-teal-500 hover:bg-teal-50 transition-colors" :disabled="pushingEmail">
+                <svg class="w-6 h-6 text-teal-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                </svg>
+                <span class="font-medium">推送指定文章</span>
+            </button>
         </div>
     </div>
 
@@ -149,6 +163,7 @@ function dashboard() {
         },
         recentPosts: [],
         publishing: false,
+        pushingEmail: false,
 
         async init() {
             await this.loadStats();
@@ -267,6 +282,109 @@ function dashboard() {
                 console.error(error);
             } finally {
                 this.publishing = false;
+            }
+        },
+
+        async pushLatestEmail() {
+            this.pushingEmail = true;
+            try {
+                const previewResponse = await fetch('/api/email/preview-latest');
+                const previewData = await previewResponse.json();
+
+                if (!previewData.success) {
+                    utils.showNotification('获取预览失败: ' + previewData.message, 'error');
+                    this.pushingEmail = false;
+                    return;
+                }
+
+                const preview = previewData.data;
+                const alreadySent = preview.is_already_sent ? '（该文章已推送过）' : '';
+                const confirmed = confirm(
+                    `确定要推送最新文章给订阅者吗？${alreadySent}\n\n` +
+                    `标题：${preview.post.title}\n` +
+                    `链接：${preview.post.link}\n\n` +
+                    `邮件主题：${preview.subject}`
+                );
+
+                if (!confirmed) {
+                    this.pushingEmail = false;
+                    return;
+                }
+
+                const force = preview.is_already_sent ? 
+                    confirm('该文章已推送过，是否强制再次推送？') : false;
+
+                const response = await fetch('/api/email/push-latest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ force: force, debug_mode: false })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    utils.showNotification('邮件推送成功！订阅者将收到最新文章通知', 'success');
+                } else {
+                    utils.showNotification('推送失败: ' + result.message, 'error');
+                }
+            } catch (error) {
+                utils.showNotification('邮件推送失败', 'error');
+                console.error(error);
+            } finally {
+                this.pushingEmail = false;
+            }
+        },
+
+        async pushSpecificEmail() {
+            const url = prompt('请输入要推送的文章 URL 或路径：\n\n例如：\n- https://svtter.cn/post/xxx/\n- /post/xxx/');
+            if (!url) return;
+
+            this.pushingEmail = true;
+            try {
+                const previewResponse = await fetch('/api/email/preview-article?url=' + encodeURIComponent(url));
+                const previewData = await previewResponse.json();
+
+                if (!previewData.success) {
+                    utils.showNotification('获取预览失败: ' + previewData.message, 'error');
+                    this.pushingEmail = false;
+                    return;
+                }
+
+                const preview = previewData.data;
+                const alreadySent = preview.is_already_sent ? '（该文章已推送过）' : '';
+                const confirmed = confirm(
+                    `确定要推送这篇文章给订阅者吗？${alreadySent}\n\n` +
+                    `标题：${preview.post.title}\n` +
+                    `链接：${preview.post.link}\n\n` +
+                    `邮件主题：${preview.subject}`
+                );
+
+                if (!confirmed) {
+                    this.pushingEmail = false;
+                    return;
+                }
+
+                const force = preview.is_already_sent ? 
+                    confirm('该文章已推送过，是否强制再次推送？') : false;
+
+                const response = await fetch('/api/email/push-article', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url, force: force, debug_mode: false })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    utils.showNotification('邮件推送成功！订阅者将收到文章通知', 'success');
+                } else {
+                    utils.showNotification('推送失败: ' + result.message, 'error');
+                }
+            } catch (error) {
+                utils.showNotification('邮件推送失败', 'error');
+                console.error(error);
+            } finally {
+                this.pushingEmail = false;
             }
         }
     };

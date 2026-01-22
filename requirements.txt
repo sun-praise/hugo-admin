@@ -23,6 +23,12 @@ pydantic-ai>=1.10.0,<1.31.0
 openai>=1.99.9,<2.0.0
 python-dotenv>=1.1.0
 
+# HTTP 请求
+requests>=2.32.0
+
+# RSS Feed 解析
+feedparser>=6.0.12
+
 # 已有依赖(tasks.py 中使用)
 # 这些依赖应该已经安装
 # invoke
