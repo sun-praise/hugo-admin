@@ -28,33 +28,40 @@ class AIService:
         git_service: GitService,
         hugo_manager: HugoServerManager,
     ):
-        # 创建 DeepSeek provider 并传递 API key
-        deepseek_provider = DeepSeekProvider(api_key=api_key)
-
-        # 使用 DeepSeek provider 初始化模型
-        self.model = OpenAIChatModel(
-            model_name=model_name,
-            provider=deepseek_provider,
-        )
-
         self.deps = Deps(
             post_service=post_service,
             git_service=git_service,
             hugo_manager=hugo_manager,
         )
 
-        self.agent = Agent(
-            self.model,
-            deps_type=Deps,
-            system_prompt=(
-                "You are a helpful AI assistant for managing a Hugo blog."
-                "You can search, read, and write blog posts, check git status, and deploy the blog."
-                "Always explain what you are doing before calling tools that modify content or deploy changes."
-            ),
-        )
+        self.enabled = bool(api_key and api_key.strip())
+        self.model = None
+        self.agent = None
 
-        # Register tools
-        self._register_tools()
+        if self.enabled:
+            # 创建 DeepSeek provider 并传递 API key
+            deepseek_provider = DeepSeekProvider(api_key=api_key)
+
+            # 使用 DeepSeek provider 初始化模型
+            self.model = OpenAIChatModel(
+                model_name=model_name,
+                provider=deepseek_provider,
+            )
+
+            self.agent = Agent(
+                self.model,
+                deps_type=Deps,
+                system_prompt=(
+                    "You are a helpful AI assistant for managing a Hugo blog."
+                    "You can search, read, and write blog posts, check git status, and deploy the blog."
+                    "Always explain what you are doing before calling tools that modify content or deploy changes."
+                ),
+            )
+
+            # Register tools
+            self._register_tools()
+        else:
+            print("⚠ AI service disabled: DEEPSEEK_API_KEY not configured")
 
     def _register_tools(self):
         @self.agent.tool
