@@ -112,17 +112,18 @@ def stream_agent_as_sse_sync(agent, *, message: str, deps, history=None):
         stop_flag.set()
 
 
-def register_ai_routes(ai_service):
+def register_ai_routes(ai_service_factory):
     """
     注册 AI 相关路由
 
     Args:
-        ai_service: AIService 实例
+        ai_service_factory: Callable that returns AIService instance
     """
 
     @ai_bp.route("/chat", methods=["POST"])
     def ai_chat():
         """AI 聊天接口（支持流式响应，包括工具执行结果）"""
+        ai_service = ai_service_factory()
         if not ai_service.enabled:
             return jsonify(
                 {
