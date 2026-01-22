@@ -123,6 +123,14 @@ def register_ai_routes(ai_service):
     @ai_bp.route("/chat", methods=["POST"])
     def ai_chat():
         """AI 聊天接口（支持流式响应，包括工具执行结果）"""
+        if not ai_service.enabled:
+            return jsonify(
+                {
+                    "success": False,
+                    "message": "AI service is not configured. Set DEEPSEEK_API_KEY to enable.",
+                }
+            ), 503
+
         data = request.get_json()
         message = data.get("message")
         history = data.get("history", [])
