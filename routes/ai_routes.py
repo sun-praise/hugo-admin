@@ -7,14 +7,17 @@ import asyncio
 import json
 import queue
 import threading
+from typing import AsyncGenerator
+
 from flask import Blueprint, request, jsonify, Response
-from pydantic_ai.messages import (
-    PartDeltaEvent,
-    TextPartDelta,
-    FunctionToolCallEvent,
-    FunctionToolResultEvent,
+
+from claude_agent_sdk import (
+    AssistantMessage,
+    TextBlock,
+    ToolUseBlock,
+    ToolResultBlock,
 )
-from pydantic_ai import AgentRunResultEvent
+from claude_agent_sdk.types import StreamEvent
 
 # 创建 Blueprint
 ai_bp = Blueprint("ai", __name__, url_prefix="/api/ai")
@@ -28,17 +31,21 @@ def _sse_data_line(text: str) -> str:
     return f"data: {text}\n\n"
 
 
-def stream_agent_as_sse_sync(agent, *, message: str, deps, history=None):
+def stream_agent_as_sse_sync(
+    ai_service,
+    *,
+    message: str,
+    history=None,
+):
     """
-    将 PydanticAI agent 的事件流转换为同步 SSE 生成器
+    将 Claude Agent SDK 的事件流转换为同步 SSE 生成器
 
     使用后台线程运行异步事件流，通过队列桥接到同步生成器
     这样可以实时流式传输文本内容、工具调用和工具结果
 
     Args:
-        agent: PydanticAI Agent 实例
+        ai_service: AIService 实例
         message: 用户消息
-        deps: Agent 依赖
         history: 消息历史（可选）
 
     Yields:
@@ -50,40 +57,52 @@ def stream_agent_as_sse_sync(agent, *, message: str, deps, history=None):
 
     async def produce():
         try:
-            async for event in agent.run_stream_events(
-                message, deps=deps, message_history=history
-            ):
+            async for msg in ai_service.chat(message, history=history):
                 if stop_flag.is_set():
                     break
 
-                # 1) 流式传输模型文本增量
-                if isinstance(event, PartDeltaEvent) and isinstance(
-                    event.delta, TextPartDelta
-                ):
-                    q.put(_sse_data_line(event.delta.content_delta))
+                # 1) 流式传输文本内容
+                if isinstance(msg, AssistantMessage):
+                    for block in msg.content:
+                        if isinstance(block, TextBlock):
+                            # For streaming, TextBlock may contain partial text
+                            q.put(_sse_data_line(block.text))
 
                 # 2) 流式传输工具调用
-                elif isinstance(event, FunctionToolCallEvent):
-                    payload = {
-                        "type": "tool_call",
-                        "tool": event.part.tool_name,
-                        "args": event.part.args,
-                        "tool_call_id": event.part.tool_call_id,
-                    }
-                    q.put(_sse_data_line(json.dumps(payload, ensure_ascii=False)))
+                elif isinstance(msg, AssistantMessage):
+                    for block in msg.content:
+                        if isinstance(block, ToolUseBlock):
+                            payload = {
+                                "type": "tool_call",
+                                "tool": block.name,
+                                "args": block.input,
+                                "tool_call_id": block.id,
+                            }
+                            q.put(
+                                _sse_data_line(json.dumps(payload, ensure_ascii=False))
+                            )
 
                 # 3) 流式传输工具结果
-                elif isinstance(event, FunctionToolResultEvent):
-                    payload = {
-                        "type": "tool_result",
-                        "tool_call_id": event.tool_call_id,
-                        "result": event.result.content,
-                    }
-                    q.put(_sse_data_line(json.dumps(payload, ensure_ascii=False)))
+                # Note: ToolResultBlock comes in UserMessage, not AssistantMessage
+                elif hasattr(msg, "content") and isinstance(msg.content, list):
+                    for block in msg.content:
+                        if isinstance(block, ToolResultBlock):
+                            payload = {
+                                "type": "tool_result",
+                                "tool_call_id": block.tool_use_id,
+                                "result": block.content,
+                            }
+                            q.put(
+                                _sse_data_line(json.dumps(payload, ensure_ascii=False))
+                            )
 
-                # 4) 运行完成（保证最终事件）
-                elif isinstance(event, AgentRunResultEvent):
-                    q.put(DONE_SENTINEL)
+                # 4) 流式传输部分更新（增量）
+                elif isinstance(msg, StreamEvent):
+                    # StreamEvent has an 'event' dict field
+                    if msg.event.get("event") in ["done", "end"]:
+                        q.put(DONE_SENTINEL)
+                        break
+
         except Exception as e:
             error_payload = json.dumps(
                 {"type": "error", "error": str(e)}, ensure_ascii=False
@@ -141,9 +160,8 @@ def register_ai_routes(ai_service_factory):
 
         def generate():
             yield from stream_agent_as_sse_sync(
-                ai_service.agent,
+                ai_service,
                 message=message,
-                deps=ai_service.deps,
                 history=history,
             )
 
