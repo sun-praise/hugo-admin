@@ -66,8 +66,12 @@ class _DisabledAIService:
     def __init__(self):
         self.enabled = False
         self.deps = None
-        self.model = None
-        self.agent = None
+        self.mcp_server = None
+        self.options = None
+        self.model_name = None
+
+    async def chat(self, message, history=None):
+        raise RuntimeError("AI service is disabled")
 
 
 def get_ai_service():
