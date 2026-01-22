@@ -97,27 +97,6 @@ def get_ai_service():
     return ai_service
 
 
-def init_ai_service():
-    """Initialize AI service lazily to avoid import-time errors in tests."""
-    global ai_service
-    if ai_service is None:
-        from services.ai_service import AIService
-
-        api_key = app.config.get("AI_API_KEY", "")
-        if not api_key:
-            print("⚠ AI service disabled: AI_API_KEY not configured")
-
-        ai_service = AIService(
-            api_key=api_key,
-            base_url=app.config.get("AI_BASE_URL", "https://api.deepseek.com"),
-            model_name=app.config.get("AI_MODEL", "deepseek-chat"),
-            post_service=post_service,
-            git_service=git_service,
-            hugo_manager=hugo_manager,
-        )
-    return ai_service
-
-
 # Register AI routes with lazy initialization
 ai_blueprint = register_ai_routes(get_ai_service)
 app.register_blueprint(ai_blueprint)
