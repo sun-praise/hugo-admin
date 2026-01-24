@@ -5,8 +5,6 @@
 """
 
 from typing import Dict, List, Any, Optional
-from datetime import datetime, timezone, timedelta
-import uuid
 import re
 
 from models.database import Database
@@ -64,8 +62,6 @@ class ChatHistoryService:
         Returns:
             包含消息信息的字典
         """
-        now = datetime.now(timezone(timedelta(hours=8))).timestamp()
-
         msg = self.db.add_chat_message(
             session_id=session_id,
             role=role,
