@@ -30,10 +30,10 @@ jobs:
       run: uv sync --dev
 
     - name: Run flake8
-      run: uv run flake8 .
+      run: uv run flake8 . --exclude=.venv,.git,__pycache__,site
 
     - name: Run black check
-      run: uv run black --check .
+      run: uv run black --check . --exclude='\.venv|\.git|site'
 
   test:
     runs-on: ubuntu-latest
