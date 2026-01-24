@@ -3,11 +3,13 @@
 数据库模型定义
 使用 SQLite 存储文章缓存数据
 """
+
 import sqlite3
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import json
+import uuid
 
 
 class Database:
@@ -78,6 +80,45 @@ class Database:
         cursor.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_categories ON posts(categories)
+        """
+        )
+
+        # 聊天会话表
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS chat_sessions (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL
+            )
+        """
+        )
+
+        # 聊天消息表
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                message_type TEXT DEFAULT 'text',
+                created_at REAL NOT NULL,
+                FOREIGN KEY (session_id) REFERENCES chat_sessions(id)
+            )
+        """
+        )
+
+        # 创建聊天相关索引
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_session_id ON chat_messages(session_id)
+        """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_updated_at ON chat_sessions(updated_at)
         """
         )
 
@@ -309,3 +350,176 @@ class Database:
         data["tags"] = json.loads(data["tags"])
         data["categories"] = json.loads(data["categories"])
         return data
+
+    def create_chat_session(self, title: str) -> Dict[str, Any]:
+        """
+        创建聊天会话
+
+        Args:
+            title: 会话标题
+
+        Returns:
+            会话数据字典
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        session_id = uuid.uuid4().hex
+        now = datetime.now().timestamp()
+
+        cursor.execute(
+            """
+            INSERT INTO chat_sessions (id, title, created_at, updated_at)
+            VALUES (?, ?, ?, ?)
+        """,
+            (session_id, title, now, now),
+        )
+
+        conn.commit()
+        conn.close()
+
+        return {
+            "id": session_id,
+            "title": title,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+    def add_chat_message(
+        self,
+        session_id: str,
+        role: str,
+        content: str,
+        message_type: str = "text",
+    ) -> Dict[str, Any]:
+        """
+        添加聊天消息
+
+        Args:
+            session_id: 会话 ID
+            role: 消息角色 (user/assistant)
+            content: 消息内容
+            message_type: 消息类型，默认为 'text'
+
+        Returns:
+            消息数据字典
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        now = datetime.now().timestamp()
+
+        cursor.execute(
+            """
+            INSERT INTO chat_messages
+            (session_id, role, content, message_type, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """,
+            (session_id, role, content, message_type, now),
+        )
+
+        message_id = cursor.lastrowid
+
+        cursor.execute(
+            """
+            UPDATE chat_sessions SET updated_at = ? WHERE id = ?
+        """,
+            (now, session_id),
+        )
+
+        conn.commit()
+        conn.close()
+
+        return {
+            "id": message_id,
+            "session_id": session_id,
+            "role": role,
+            "content": content,
+            "message_type": message_type,
+            "created_at": now,
+        }
+
+    def get_chat_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """
+        获取聊天会话
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            会话数据字典或 None
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM chat_sessions WHERE id = ?", (session_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return dict(row)
+        return None
+
+    def list_chat_sessions(self) -> List[Dict[str, Any]]:
+        """
+        列出所有聊天会话
+
+        Returns:
+            会话列表，按 updated_at 降序排列
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM chat_sessions ORDER BY updated_at DESC")
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [dict(row) for row in rows]
+
+    def get_chat_messages(self, session_id: str) -> List[Dict[str, Any]]:
+        """
+        获取聊天会话的所有消息
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            消息列表，按 created_at 升序排列
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "SELECT * FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC",
+            (session_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [dict(row) for row in rows]
+
+    def delete_chat_session(self, session_id: str):
+        """
+        删除聊天会话及其所有消息
+
+        Args:
+            session_id: 会话 ID
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("DELETE FROM chat_messages WHERE session_id = ?", (session_id,))
+        cursor.execute("DELETE FROM chat_sessions WHERE id = ?", (session_id,))
+
+        conn.commit()
+        conn.close()
+
+    def update_chat_session_title(self, session_id: str, title: str):
+        """更新聊天会话标题"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE chat_sessions SET title = ? WHERE id = ?", (title, session_id)
+        )
+        conn.commit()
+        conn.close()
