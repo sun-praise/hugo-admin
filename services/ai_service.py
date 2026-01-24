@@ -91,31 +91,38 @@ class AIService:
             self.mcp_server = None
             self.options = None
 
+    def _mcp_text(self, text: str) -> Dict[str, Any]:
+        """Wrap text in MCP content format."""
+        return {"content": [{"type": "text", "text": text}]}
+
     def _create_tools(self):
         """Create all tools for the Hugo blog assistant."""
 
         deps = self.deps
+        mcp_text = self._mcp_text
 
         @tool("search_posts", "Search for blog posts", {"query": str})
         async def search_posts(args: Dict[str, Any]) -> Dict[str, Any]:
-            """Search for blog posts.
-
-            Args:
-                query: Search query string.
-            """
             query = args.get("query", "")
-            return deps.post_service.get_posts(query=query)
+            result = deps.post_service.get_posts(query=query, per_page=10)
+
+            if not result["posts"]:
+                return mcp_text(f"未找到匹配 '{query}' 的文章")
+
+            lines = [f"找到 {result['total']} 篇文章：\n"]
+            for post in result["posts"]:
+                lines.append(f"- **{post['title']}**")
+                lines.append(f"  路径: `{post['path']}`")
+                lines.append(f"  日期: {post['date']}\n")
+            return mcp_text("\n".join(lines))
 
         @tool("read_post", "Read the content of a blog post", {"file_path": str})
         async def read_post(args: Dict[str, Any]) -> Dict[str, Any]:
-            """Read the content of a blog post.
-
-            Args:
-                file_path: Relative path to the post file.
-            """
             file_path = args["file_path"]
             success, content = deps.post_service.read_file(file_path)
-            return {"success": success, "content": content, "path": file_path}
+            if success:
+                return mcp_text(f"文件 `{file_path}` 内容：\n\n{content}")
+            return mcp_text(f"读取失败: {content}")
 
         @tool(
             "write_post",
@@ -123,21 +130,24 @@ class AIService:
             {"file_path": str, "content": str},
         )
         async def write_post(args: Dict[str, Any]) -> Dict[str, Any]:
-            """Create or update a blog post.
-
-            Args:
-                file_path: Relative path to the post file.
-                content: Markdown content of the post.
-            """
             file_path = args["file_path"]
             content = args["content"]
             success, message = deps.post_service.save_file(file_path, content)
-            return {"success": success, "message": message}
+            if success:
+                return mcp_text(f"✅ 文件 `{file_path}` 保存成功")
+            return mcp_text(f"❌ 保存失败: {message}")
 
         @tool("git_status", "Check the current git status of the blog repository", {})
         async def git_status(args: Dict[str, Any]) -> Dict[str, Any]:
-            """Check the current git status of the blog repository."""
-            return deps.git_service.get_status()
+            status = deps.git_service.get_status()
+            lines = ["Git 仓库状态：\n"]
+            lines.append(f"- 分支: `{status.get('branch', 'unknown')}`")
+            lines.append(f"- 是否干净: {'是' if status.get('clean') else '否'}")
+            if status.get("changes"):
+                lines.append(f"- 变更文件数: {len(status['changes'])}")
+                for change in status["changes"][:10]:
+                    lines.append(f"  - {change}")
+            return mcp_text("\n".join(lines))
 
         @tool(
             "deploy_blog",
@@ -145,34 +155,27 @@ class AIService:
             {"commit_message": str},
         )
         async def deploy_blog(args: Dict[str, Any]) -> Dict[str, Any]:
-            """Deploy the blog by committing and pushing changes.
-
-            Args:
-                commit_message: Message for the git commit.
-            """
             commit_message = args.get("commit_message", "Update via AI Assistant")
-            return deps.git_service.publish_system(commit_message)
+            result = deps.git_service.publish_system(commit_message)
+            if result.get("success"):
+                return mcp_text(f"✅ 部署成功！提交信息: {commit_message}")
+            return mcp_text(f"❌ 部署失败: {result.get('message', '未知错误')}")
 
         @tool("manage_server", "Start or stop the Hugo preview server", {"action": str})
         async def manage_server(args: Dict[str, Any]) -> Dict[str, Any]:
-            """Start or stop the Hugo preview server.
-
-            Args:
-                action: 'start' or 'stop'.
-            """
             action = args["action"]
             if action == "start":
                 success, message = deps.hugo_manager.start()
             elif action == "stop":
                 success, message = deps.hugo_manager.stop()
             else:
-                return {"success": False, "message": f"Unknown action: {action}"}
+                return mcp_text(f"❌ 未知操作: {action}，请使用 'start' 或 'stop'")
 
-            return {
-                "success": success,
-                "message": message,
-                "status": deps.hugo_manager.get_status(),
-            }
+            status = deps.hugo_manager.get_status()
+            icon = "✅" if success else "❌"
+            return mcp_text(
+                f"{icon} {message}\n服务器状态: {'运行中' if status.get('running') else '已停止'}"
+            )
 
         return [
             search_posts,
