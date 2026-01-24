@@ -376,7 +376,7 @@
     </style>
 
     <!-- AI Chat Assistant Component -->
-    <div x-data="aiChatAssistant()" class="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+    <div x-data="aiChatAssistant()" x-init="loadSessions()" class="fixed bottom-6 right-6 z-50 flex flex-col items-end">
         <!-- Chat Window -->
         <div x-show="isOpen" 
              x-transition:enter="transition ease-out duration-300"
@@ -389,6 +389,39 @@
                 <div class="flex items-center space-x-2">
                     <div class="w-2 h-2 bg-green-500 rounded-full"></div>
                     <span class="font-medium text-sm">AI 助手</span>
+                    <div class="relative" x-data="{ showMenu: false }">
+                        <button @click="showMenu = !showMenu" class="ml-2 text-gray-400 hover:text-white text-xs flex items-center">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <div x-show="showMenu" @click.away="showMenu = false" x-cloak
+                             class="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50 py-1 text-gray-800 text-sm max-h-64 overflow-y-auto">
+                            <button @click="createSession(); showMenu = false" class="w-full px-3 py-2 text-left hover:bg-gray-100 flex items-center text-blue-600">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                </svg>
+                                新对话
+                            </button>
+                            <div class="border-t border-gray-200 my-1"></div>
+                            <template x-for="s in sessions" :key="s.session_id">
+                                <div class="flex items-center hover:bg-gray-100 group">
+                                    <button @click="selectSession(s.session_id); showMenu = false" 
+                                            class="flex-1 px-3 py-2 text-left truncate"
+                                            :class="s.session_id === currentSessionId ? 'bg-blue-50 text-blue-600' : ''">
+                                        <span x-text="s.title || '新对话'"></span>
+                                    </button>
+                                    <button @click.stop="deleteSession(s.session_id)" 
+                                            class="px-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </template>
+                            <div x-show="sessions.length === 0" class="px-3 py-2 text-gray-400 text-center">暂无历史</div>
+                        </div>
+                    </div>
                 </div>
                 <button @click="isOpen = false" class="text-gray-400 hover:text-white">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -474,6 +507,55 @@
                     { role: 'assistant', content: '您好！我是您的 Hugo 博客 AI 助手。我可以帮您搜索文章、查看 Git 状态、部署博客或者回答相关问题。' }
                 ],
                 isLoading: false,
+                currentSessionId: null,
+                sessions: [],
+
+                async loadSessions() {
+                    try {
+                        const res = await fetch('/api/ai/sessions');
+                        if (res.ok) {
+                            const data = await res.json();
+                            this.sessions = data.sessions || [];
+                        }
+                    } catch (e) { console.error('Failed to load sessions:', e); }
+                },
+
+                async createSession() {
+                    try {
+                        const res = await fetch('/api/ai/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+                        if (res.ok) {
+                            const data = await res.json();
+                            this.currentSessionId = data.session_id;
+                            this.messages = [{ role: 'assistant', content: '您好！我是您的 Hugo 博客 AI 助手。我可以帮您搜索文章、查看 Git 状态、部署博客或者回答相关问题。' }];
+                            await this.loadSessions();
+                        }
+                    } catch (e) { console.error('Failed to create session:', e); }
+                },
+
+                async selectSession(sessionId) {
+                    try {
+                        const res = await fetch(`/api/ai/sessions/${sessionId}`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            this.currentSessionId = sessionId;
+                            this.messages = data.messages && data.messages.length > 0 
+                                ? data.messages.map(m => ({ role: m.role, content: m.content }))
+                                : [{ role: 'assistant', content: '您好！我是您的 Hugo 博客 AI 助手。' }];
+                        }
+                    } catch (e) { console.error('Failed to load session:', e); }
+                },
+
+                async deleteSession(sessionId) {
+                    if (!confirm('确定要删除这个对话吗？')) return;
+                    try {
+                        await fetch(`/api/ai/sessions/${sessionId}`, { method: 'DELETE' });
+                        if (this.currentSessionId === sessionId) {
+                            this.currentSessionId = null;
+                            this.messages = [{ role: 'assistant', content: '您好！我是您的 Hugo 博客 AI 助手。' }];
+                        }
+                        await this.loadSessions();
+                    } catch (e) { console.error('Failed to delete session:', e); }
+                },
 
                 formatToolCard(tool, args) {
                     const argsStr = typeof args === 'string' ? args : JSON.stringify(args, null, 2);
@@ -527,6 +609,10 @@
                 async sendMessage() {
                     if (!this.userInput.trim() || this.isLoading) return;
 
+                    if (!this.currentSessionId) {
+                        await this.createSession();
+                    }
+
                     const userMessage = this.userInput;
                     this.messages.push({ role: 'user', content: userMessage });
                     this.userInput = '';
@@ -540,7 +626,8 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ 
                                 message: userMessage,
-                                history: this.messages.slice(0, -1) // Excluding current user message
+                                history: this.messages.slice(0, -1),
+                                session_id: this.currentSessionId
                             })
                         });
 
