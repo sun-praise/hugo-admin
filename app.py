@@ -4,8 +4,6 @@ Hugo Blog Web 管理界面
 简单轻量的 Flask 应用，用于管理 Hugo 博客
 """
 
-import os
-import sys
 from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
@@ -15,14 +13,12 @@ from flask import (
     jsonify,
     request,
     send_from_directory,
-    Response,
 )
 from flask_socketio import SocketIO, emit
 
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
 from services.git_service import GitService
-from services.ai_service import AIService
 from services.email_service import EmailService
 from routes import register_ai_routes
 
@@ -342,13 +338,16 @@ def publish_article():
     data = request.get_json()
 
     if not data or "file_path" not in data:
-        return jsonify(
-            {
-                "success": False,
-                "error": "缺少 file_path 参数",
-                "error_code": "MISSING_PARAMETER",
-            }
-        ), 400
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "缺少 file_path 参数",
+                    "error_code": "MISSING_PARAMETER",
+                }
+            ),
+            400,
+        )
 
     file_path = data["file_path"]
     success, message, operation_id = post_service.publish_article(file_path)
@@ -373,9 +372,12 @@ def publish_article():
         else:
             status_code = 400
 
-        return jsonify(
-            {"success": False, "error": message, "error_code": "PUBLISH_FAILED"}
-        ), status_code
+        return (
+            jsonify(
+                {"success": False, "error": message, "error_code": "PUBLISH_FAILED"}
+            ),
+            status_code,
+        )
 
 
 @app.route("/api/article/status")
@@ -384,25 +386,31 @@ def get_article_status():
     file_path = request.args.get("file_path")
 
     if not file_path:
-        return jsonify(
-            {
-                "success": False,
-                "error": "缺少 file_path 参数",
-                "error_code": "MISSING_PARAMETER",
-            }
-        ), 400
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "缺少 file_path 参数",
+                    "error_code": "MISSING_PARAMETER",
+                }
+            ),
+            400,
+        )
 
     status = post_service.get_publish_status(file_path)
 
     if "error" in status:
         status_code = 404 if "不存在" in status["error"] else 400
-        return jsonify(
-            {
-                "success": False,
-                "error": status["error"],
-                "error_code": "STATUS_CHECK_FAILED",
-            }
-        ), status_code
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": status["error"],
+                    "error_code": "STATUS_CHECK_FAILED",
+                }
+            ),
+            status_code,
+        )
 
     return jsonify({"success": True, "status": status})
 
@@ -413,13 +421,16 @@ def get_bulk_article_status():
     data = request.get_json()
 
     if not data or "file_paths" not in data:
-        return jsonify(
-            {
-                "success": False,
-                "error": "缺少 file_paths 参数",
-                "error_code": "MISSING_PARAMETER",
-            }
-        ), 400
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "缺少 file_paths 参数",
+                    "error_code": "MISSING_PARAMETER",
+                }
+            ),
+            400,
+        )
 
     file_paths = data["file_paths"]
     results = []
@@ -437,16 +448,19 @@ def bulk_publish_articles():
     data = request.get_json()
 
     if not data or "file_paths" not in data:
-        return jsonify(
-            {
-                "success": False,
-                "error": "缺少 file_paths 参数",
-                "error_code": "MISSING_PARAMETER",
-            }
-        ), 400
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "缺少 file_paths 参数",
+                    "error_code": "MISSING_PARAMETER",
+                }
+            ),
+            400,
+        )
 
     file_paths = data["file_paths"]
-    stop_on_error = data.get("stop_on_first_error", False)
+    _stop_on_error = data.get("stop_on_first_error", False)  # noqa: F841
 
     try:
         result = post_service.bulk_publish_articles(file_paths)
@@ -461,13 +475,16 @@ def bulk_publish_articles():
 
         return jsonify(result), status_code
     except Exception as e:
-        return jsonify(
-            {
-                "success": False,
-                "error": f"批量发布失败: {str(e)}",
-                "error_code": "BULK_PUBLISH_FAILED",
-            }
-        ), 500
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": f"批量发布失败: {str(e)}",
+                    "error_code": "BULK_PUBLISH_FAILED",
+                }
+            ),
+            500,
+        )
 
 
 # ============ Git / 系统发布相关 API ============
@@ -480,9 +497,7 @@ def git_status():
         status = git_service.get_status()
         return jsonify(status)
     except Exception as e:
-        return jsonify(
-            {"success": False, "message": f"获取 Git 状态失败: {str(e)}"}
-        ), 500
+        return jsonify({"success": False, "message": f"获取 Git 状态失败: {str(e)}"}), 500
 
 
 @app.route("/api/git/commits")
@@ -493,9 +508,7 @@ def git_commits():
         result = git_service.get_recent_commits(count)
         return jsonify(result)
     except Exception as e:
-        return jsonify(
-            {"success": False, "message": f"获取提交记录失败: {str(e)}"}
-        ), 500
+        return jsonify({"success": False, "message": f"获取提交记录失败: {str(e)}"}), 500
 
 
 @app.route("/api/publish/system", methods=["POST"])
@@ -513,9 +526,10 @@ def publish_system():
             return jsonify(result), 400
 
     except Exception as e:
-        return jsonify(
-            {"success": False, "message": f"系统发布失败: {str(e)}", "steps": {}}
-        ), 500
+        return (
+            jsonify({"success": False, "message": f"系统发布失败: {str(e)}", "steps": {}}),
+            500,
+        )
 
 
 # ============ 邮件推送 API ============

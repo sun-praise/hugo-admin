@@ -3,7 +3,7 @@
 Git 操作服务
 负责 Hugo 博客的 git 提交和推送操作
 """
-import os
+
 import subprocess
 from pathlib import Path
 from datetime import datetime
@@ -38,13 +38,13 @@ class GitService:
             tuple: (success, stdout, stderr)
         """
         try:
-            full_command = ['git'] + command
+            full_command = ["git"] + command
             result = subprocess.run(
                 full_command,
                 cwd=self.repo_path,
                 capture_output=True,
                 text=True,
-                check=check
+                check=check,
             )
             return True, result.stdout, result.stderr
         except subprocess.CalledProcessError as e:
@@ -61,7 +61,7 @@ class GitService:
         Returns:
             bool: 是否为 git 仓库
         """
-        git_dir = self.repo_path / '.git'
+        git_dir = self.repo_path / ".git"
         return git_dir.exists() and git_dir.is_dir()
 
     def get_status(self):
@@ -79,18 +79,18 @@ class GitService:
         """
         if not self.is_git_repo():
             return {
-                'success': False,
-                'has_changes': False,
-                'message': '当前目录不是有效的 git 仓库'
+                "success": False,
+                "has_changes": False,
+                "message": "当前目录不是有效的 git 仓库",
             }
 
         # 获取状态
-        success, stdout, stderr = self._run_git_command(['status', '--porcelain'])
+        success, stdout, stderr = self._run_git_command(["status", "--porcelain"])
         if not success:
             return {
-                'success': False,
-                'has_changes': False,
-                'message': f'获取 git 状态失败: {stderr}'
+                "success": False,
+                "has_changes": False,
+                "message": f"获取 git 状态失败: {stderr}",
             }
 
         # 解析状态输出
@@ -98,7 +98,7 @@ class GitService:
         unstaged = []
         untracked = []
 
-        for line in stdout.strip().split('\n'):
+        for line in stdout.strip().split("\n"):
             if not line:
                 continue
 
@@ -106,22 +106,22 @@ class GitService:
             filepath = line[3:].strip()
 
             # 第一个字符表示暂存区状态，第二个字符表示工作区状态
-            if status[0] != ' ' and status[0] != '?':
+            if status[0] != " " and status[0] != "?":
                 staged.append(filepath)
-            if status[1] != ' ':
+            if status[1] != " ":
                 unstaged.append(filepath)
-            if status == '??':
+            if status == "??":
                 untracked.append(filepath)
 
         has_changes = bool(staged or unstaged or untracked)
 
         return {
-            'success': True,
-            'has_changes': has_changes,
-            'staged': staged,
-            'unstaged': unstaged,
-            'untracked': untracked,
-            'message': '获取状态成功'
+            "success": True,
+            "has_changes": has_changes,
+            "staged": staged,
+            "unstaged": unstaged,
+            "untracked": untracked,
+            "message": "获取状态成功",
         }
 
     def add_all(self):
@@ -131,7 +131,7 @@ class GitService:
         Returns:
             tuple: (success, message)
         """
-        success, stdout, stderr = self._run_git_command(['add', '-A'])
+        success, stdout, stderr = self._run_git_command(["add", "-A"])
         if success:
             return True, "已添加所有改动到暂存区"
         else:
@@ -148,9 +148,11 @@ class GitService:
             tuple: (success, message)
         """
         if message is None:
-            message = f"Update blog content - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            message = (
+                f"Update blog content - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
 
-        success, stdout, stderr = self._run_git_command(['commit', '-m', message])
+        success, stdout, stderr = self._run_git_command(["commit", "-m", message])
         if success:
             return True, f"提交成功: {message}"
         else:
@@ -159,7 +161,7 @@ class GitService:
                 return False, "没有需要提交的改动"
             return False, f"提交失败: {stderr}"
 
-    def push(self, remote='origin', branch=None, set_upstream=False):
+    def push(self, remote="origin", branch=None, set_upstream=False):
         """
         推送到远程仓库
 
@@ -173,15 +175,17 @@ class GitService:
         """
         # 获取当前分支
         if branch is None:
-            success, stdout, stderr = self._run_git_command(['branch', '--show-current'])
+            success, stdout, stderr = self._run_git_command(
+                ["branch", "--show-current"]
+            )
             if not success:
                 return False, f"获取当前分支失败: {stderr}"
             branch = stdout.strip()
 
         # 构建 push 命令
-        push_command = ['push']
+        push_command = ["push"]
         if set_upstream:
-            push_command.extend(['-u', remote, branch])
+            push_command.extend(["-u", remote, branch])
         else:
             push_command.extend([remote, branch])
 
@@ -207,64 +211,48 @@ class GitService:
         """
         if not self.is_git_repo():
             return {
-                'success': False,
-                'steps': {},
-                'message': '当前目录不是有效的 git 仓库'
+                "success": False,
+                "steps": {},
+                "message": "当前目录不是有效的 git 仓库",
             }
 
         steps = {}
 
         # 1. 检查状态
         status = self.get_status()
-        steps['check_status'] = status
-        if not status['success']:
-            return {
-                'success': False,
-                'steps': steps,
-                'message': status['message']
-            }
+        steps["check_status"] = status
+        if not status["success"]:
+            return {"success": False, "steps": steps, "message": status["message"]}
 
-        if not status['has_changes']:
-            return {
-                'success': False,
-                'steps': steps,
-                'message': '没有需要发布的改动'
-            }
+        if not status["has_changes"]:
+            return {"success": False, "steps": steps, "message": "没有需要发布的改动"}
 
         # 2. 添加所有改动
         add_success, add_message = self.add_all()
-        steps['add'] = {'success': add_success, 'message': add_message}
+        steps["add"] = {"success": add_success, "message": add_message}
         if not add_success:
-            return {
-                'success': False,
-                'steps': steps,
-                'message': add_message
-            }
+            return {"success": False, "steps": steps, "message": add_message}
 
         # 3. 提交
         commit_success, commit_msg = self.commit(commit_message)
-        steps['commit'] = {'success': commit_success, 'message': commit_msg}
+        steps["commit"] = {"success": commit_success, "message": commit_msg}
         if not commit_success:
-            return {
-                'success': False,
-                'steps': steps,
-                'message': commit_msg
-            }
+            return {"success": False, "steps": steps, "message": commit_msg}
 
         # 4. 推送
         push_success, push_message = self.push()
-        steps['push'] = {'success': push_success, 'message': push_message}
+        steps["push"] = {"success": push_success, "message": push_message}
         if not push_success:
             return {
-                'success': False,
-                'steps': steps,
-                'message': f"推送失败: {push_message}"
+                "success": False,
+                "steps": steps,
+                "message": f"推送失败: {push_message}",
             }
 
         return {
-            'success': True,
-            'steps': steps,
-            'message': '系统发布成功，GitHub Actions 将自动构建站点'
+            "success": True,
+            "steps": steps,
+            "message": "系统发布成功，GitHub Actions 将自动构建站点",
         }
 
     def get_recent_commits(self, count=10):
@@ -279,41 +267,40 @@ class GitService:
         """
         if not self.is_git_repo():
             return {
-                'success': False,
-                'commits': [],
-                'message': '当前目录不是有效的 git 仓库'
+                "success": False,
+                "commits": [],
+                "message": "当前目录不是有效的 git 仓库",
             }
 
-        success, stdout, stderr = self._run_git_command([
-            'log',
-            f'-{count}',
-            '--pretty=format:%H|%an|%ae|%ad|%s',
-            '--date=iso'
-        ])
+        success, stdout, stderr = self._run_git_command(
+            ["log", f"-{count}", "--pretty=format:%H|%an|%ae|%ad|%s", "--date=iso"]
+        )
 
         if not success:
             return {
-                'success': False,
-                'commits': [],
-                'message': f'获取提交记录失败: {stderr}'
+                "success": False,
+                "commits": [],
+                "message": f"获取提交记录失败: {stderr}",
             }
 
         commits = []
-        for line in stdout.strip().split('\n'):
+        for line in stdout.strip().split("\n"):
             if not line:
                 continue
-            parts = line.split('|')
+            parts = line.split("|")
             if len(parts) >= 5:
-                commits.append({
-                    'hash': parts[0],
-                    'author': parts[1],
-                    'email': parts[2],
-                    'date': parts[3],
-                    'message': parts[4]
-                })
+                commits.append(
+                    {
+                        "hash": parts[0],
+                        "author": parts[1],
+                        "email": parts[2],
+                        "date": parts[3],
+                        "message": parts[4],
+                    }
+                )
 
         return {
-            'success': True,
-            'commits': commits,
-            'message': f'成功获取 {len(commits)} 条提交记录'
+            "success": True,
+            "commits": commits,
+            "message": f"成功获取 {len(commits)} 条提交记录",
         }

@@ -9,12 +9,7 @@ from claude_agent_sdk import (
     create_sdk_mcp_server,
     ClaudeAgentOptions,
     ClaudeSDKClient,
-    AssistantMessage,
-    TextBlock,
-    ToolUseBlock,
-    ToolResultBlock,
 )
-from claude_agent_sdk.types import StreamEvent
 
 from services.post_service import PostService
 from services.git_service import GitService
@@ -85,9 +80,10 @@ class AIService:
                     "ANTHROPIC_MODEL": model_name,
                 },
                 system_prompt=(
-                    "You are a helpful AI assistant for managing a Hugo blog."
-                    "You can search, read, and write blog posts, check git status, and deploy the blog."
-                    "Always explain what you are doing before calling tools that modify content or deploy changes."
+                    "You are a helpful AI assistant for managing a Hugo blog. "
+                    "You can search, read, and write blog posts, check git "
+                    "status, and deploy the blog. Always explain what you are "
+                    "doing before calling tools that modify content or deploy."
                 ),
             )
         else:

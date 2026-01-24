@@ -3,9 +3,8 @@
 Hugo 服务器管理服务
 负责启动、停止和监控 Hugo 开发服务器
 """
-import os
+
 import subprocess
-import signal
 import psutil
 import threading
 import time
@@ -50,7 +49,14 @@ class HugoServerManager:
 
         try:
             # 构建命令
-            cmd = ["hugo", "server", "--bind=0.0.0.0", "-b", "http://192.168.2.14", "--disableFastRender"]
+            cmd = [
+                "hugo",
+                "server",
+                "--bind=0.0.0.0",
+                "-b",
+                "http://192.168.2.14",
+                "--disableFastRender",
+            ]
             if debug:
                 cmd.append("-D")
 
@@ -62,7 +68,7 @@ class HugoServerManager:
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
-                universal_newlines=True
+                universal_newlines=True,
             )
 
             self.pid = self.process.pid
@@ -133,20 +139,20 @@ class HugoServerManager:
                 self.pid = None
 
         status = {
-            'running': self.is_running,
-            'pid': self.pid,
-            'uptime': None,
-            'cpu_percent': None,
-            'memory_mb': None
+            "running": self.is_running,
+            "pid": self.pid,
+            "uptime": None,
+            "cpu_percent": None,
+            "memory_mb": None,
         }
 
         # 如果正在运行，获取详细信息
         if self.is_running and self.pid:
             try:
                 proc = psutil.Process(self.pid)
-                status['uptime'] = self._format_uptime(proc.create_time())
-                status['cpu_percent'] = proc.cpu_percent(interval=0.1)
-                status['memory_mb'] = round(proc.memory_info().rss / 1024 / 1024, 2)
+                status["uptime"] = self._format_uptime(proc.create_time())
+                status["cpu_percent"] = proc.cpu_percent(interval=0.1)
+                status["memory_mb"] = round(proc.memory_info().rss / 1024 / 1024, 2)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
 
@@ -186,7 +192,7 @@ class HugoServerManager:
             return
 
         try:
-            for line in iter(self.process.stdout.readline, ''):
+            for line in iter(self.process.stdout.readline, ""):
                 if self.stop_log_thread:
                     break
 
@@ -207,21 +213,21 @@ class HugoServerManager:
             level: 日志级别 (INFO, SUCCESS, WARNING, ERROR)
         """
         log_entry = {
-            'timestamp': datetime.now().strftime("%H:%M:%S"),
-            'level': level,
-            'message': message
+            "timestamp": datetime.now().strftime("%H:%M:%S"),
+            "level": level,
+            "message": message,
         }
 
         self.logs.append(log_entry)
 
         # 限制日志数量
         if len(self.logs) > self.max_logs:
-            self.logs = self.logs[-self.max_logs:]
+            self.logs = self.logs[-self.max_logs :]
 
         # 通过 WebSocket 推送日志
         if self.socketio:
             try:
-                self.socketio.emit('server_log', log_entry)
+                self.socketio.emit("server_log", log_entry)
             except Exception:
                 pass  # 忽略推送失败
 

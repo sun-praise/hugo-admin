@@ -144,7 +144,8 @@ class AIServiceTester:
                     "ANTHROPIC_API_KEY": self.api_key,
                     "ANTHROPIC_MODEL": self.model_name,
                 },
-                system_prompt="You are a math assistant. Use multiply tool when asked to multiply.",
+                system_prompt="You are a math assistant. "
+                "Use multiply tool when asked to multiply.",
             )
 
             async with ClaudeSDKClient(options=options) as client:

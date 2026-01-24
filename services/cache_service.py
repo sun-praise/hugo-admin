@@ -3,9 +3,9 @@
 文章缓存服务
 负责管理文章数据的缓存，检测文件变化并增量更新
 """
-import sys
+
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 # 导入内部模块
 from utils.blog_parser import BlogPost, get_blog_posts
@@ -26,7 +26,7 @@ class CacheService:
         self.content_dir = Path(content_dir)
 
         if db_path is None:
-            db_path = Path(__file__).parent.parent / 'data' / 'cache.db'
+            db_path = Path(__file__).parent.parent / "data" / "cache.db"
 
         self.db = Database(str(db_path))
         self._initialized = False
@@ -66,7 +66,7 @@ class CacheService:
             else:
                 # 检查是否有修改
                 cached_post = self.db.get_post(file_path)
-                if cached_post and cached_post['mod_time'] != post.mod_time:
+                if cached_post and cached_post["mod_time"] != post.mod_time:
                     to_update.append(post)
 
         # 更新缓存
@@ -91,8 +91,14 @@ class CacheService:
         """
         self.initialize(force_rebuild=False)
 
-    def get_posts(self, query: str = '', category: str = '', tag: str = '',
-                  page: int = 1, per_page: int = 20) -> Dict[str, Any]:
+    def get_posts(
+        self,
+        query: str = "",
+        category: str = "",
+        tag: str = "",
+        page: int = 1,
+        per_page: int = 20,
+    ) -> Dict[str, Any]:
         """
         获取文章列表
 
@@ -114,7 +120,7 @@ class CacheService:
         if query or category or tag:
             all_posts = self.db.search_posts(query, category, tag)
         else:
-            all_posts = self.db.get_all_posts(order_by='date DESC')
+            all_posts = self.db.get_all_posts(order_by="date DESC")
 
         # 计算分页
         total = len(all_posts)
@@ -127,28 +133,33 @@ class CacheService:
 
         # 转换为 API 格式
         from datetime import datetime
+
         posts_data = []
         for post in page_posts:
-            posts_data.append({
-                'title': post['title'],
-                'path': post['relative_path'],
-                'full_path': post['file_path'],
-                'date': post['date'][:10] if post['date'] else '',
-                'description': post['description'],
-                'excerpt': post['excerpt'],
-                'tags': post['tags'],
-                'categories': post['categories'],
-                'mod_time': datetime.fromtimestamp(post['mod_time']).strftime("%Y-%m-%d %H:%M")
-            })
+            posts_data.append(
+                {
+                    "title": post["title"],
+                    "path": post["relative_path"],
+                    "full_path": post["file_path"],
+                    "date": post["date"][:10] if post["date"] else "",
+                    "description": post["description"],
+                    "excerpt": post["excerpt"],
+                    "tags": post["tags"],
+                    "categories": post["categories"],
+                    "mod_time": datetime.fromtimestamp(post["mod_time"]).strftime(
+                        "%Y-%m-%d %H:%M"
+                    ),
+                }
+            )
 
         return {
-            'posts': posts_data,
-            'total': total,
-            'page': page,
-            'per_page': per_page,
-            'total_pages': total_pages,
-            'has_next': page < total_pages,
-            'has_prev': page > 1
+            "posts": posts_data,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1,
         }
 
     def get_all_tags(self) -> List[Dict[str, Any]]:
@@ -217,15 +228,15 @@ class CacheService:
             post: BlogPost 实例
         """
         post_data = {
-            'file_path': str(post.file_path),
-            'relative_path': str(post.relative_path),
-            'title': post.title,
-            'date': post.date,
-            'description': post.description,
-            'excerpt': post.excerpt,
-            'tags': post.tags,
-            'categories': post.categories,
-            'mod_time': post.mod_time
+            "file_path": str(post.file_path),
+            "relative_path": str(post.relative_path),
+            "title": post.title,
+            "date": post.date,
+            "description": post.description,
+            "excerpt": post.excerpt,
+            "tags": post.tags,
+            "categories": post.categories,
+            "mod_time": post.mod_time,
         }
 
         self.db.upsert_post(post_data)
@@ -242,8 +253,8 @@ class CacheService:
         categories = self.db.get_all_categories()
 
         return {
-            'total_posts': len(all_posts),
-            'total_tags': len(tags),
-            'total_categories': len(categories),
-            'initialized': self._initialized
+            "total_posts": len(all_posts),
+            "total_tags": len(tags),
+            "total_categories": len(categories),
+            "initialized": self._initialized,
         }
