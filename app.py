@@ -16,6 +16,7 @@ from flask import (
 )
 from flask_socketio import SocketIO, emit
 
+from models.database import Database
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
 from services.git_service import GitService
@@ -52,9 +53,6 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 hugo_manager = HugoServerManager(app.config["HUGO_ROOT"], socketio)
 post_service = PostService(app.config["CONTENT_DIR"], use_cache=True)
 git_service = GitService(app.config["HUGO_ROOT"])
-
-from pathlib import Path
-from models.database import Database
 
 db_path = Path(app.config["CONTENT_DIR"]) / ".admin" / "cache.db"
 db = Database(str(db_path))

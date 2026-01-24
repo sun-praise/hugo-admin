@@ -6,7 +6,6 @@ AI 助手相关路由
 import json
 import queue
 import threading
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import anyio
@@ -295,7 +294,7 @@ def register_ai_routes(ai_service_factory):
                         chat_history_service.add_message(
                             session_id, "assistant", assistant_response
                         )
-                    except Exception as e:
+                    except Exception:
                         # Log error but don't break the stream
                         pass
 

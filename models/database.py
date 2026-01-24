@@ -411,7 +411,8 @@ class Database:
 
         cursor.execute(
             """
-            INSERT INTO chat_messages (session_id, role, content, message_type, created_at)
+            INSERT INTO chat_messages
+            (session_id, role, content, message_type, created_at)
             VALUES (?, ?, ?, ?, ?)
         """,
             (session_id, role, content, message_type, now),
