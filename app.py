@@ -16,10 +16,12 @@ from flask import (
 )
 from flask_socketio import SocketIO, emit
 
+from models.database import Database
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
 from services.git_service import GitService
 from services.email_service import EmailService
+from services.chat_history_service import ChatHistoryService
 from routes import register_ai_routes
 
 # 初始化 Flask 应用
@@ -51,6 +53,11 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 hugo_manager = HugoServerManager(app.config["HUGO_ROOT"], socketio)
 post_service = PostService(app.config["CONTENT_DIR"], use_cache=True)
 git_service = GitService(app.config["HUGO_ROOT"])
+
+db_path = Path(app.config["CONTENT_DIR"]) / ".admin" / "cache.db"
+db = Database(str(db_path))
+chat_history_service = ChatHistoryService(db)
+app.chat_history_service = chat_history_service
 
 # Lazy AI service init to avoid import errors when API key is missing in tests
 ai_service = None
