@@ -8,6 +8,10 @@
 
 [English](#english) | [中文](#chinese)
 
+## Screenshot / 截图
+
+![Hugo Admin Dashboard](screenshot.png)
+
 <a name="english"></a>
 ## English
 
