@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-01-24
+
+### Added
+- Email push notification integration (#9)
+- Migrated from PydanticAI to Claude Agent SDK with DeepSeek support
+
+### Changed
+- Migrated dependencies to pyproject.toml for uv sync compatibility
+
 ## [1.2.0] - 2026-01-10
 
 ### Added
