@@ -142,7 +142,7 @@ class EmailService:
             try:
                 with open(self.sent_file, "r", encoding="utf-8") as f:
                     return json.load(f)
-            except:
+            except (json.JSONDecodeError, IOError):
                 return {}
         return {}
 

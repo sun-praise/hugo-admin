@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  hugo-admin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        HUGO_VERSION: "0.121.1"
+    container_name: hugo-admin
+    ports:
+      - "5050:5050"  # Hugo Admin 管理界面
+      - "1313:1313"  # Hugo 预览服务器
+    volumes:
+      # 挂载 Hugo 博客内容目录（需要根据实际情况调整）
+      - ./content:/app/content
+      - ./public:/app/public
+      - ./static:/app/static
+      - ./config.toml:/app/config.toml:ro
+      # 可选：挂载自定义配置
+      # - ./config_local.py:/app/config_local.py:ro
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - FLASK_ENV=${FLASK_ENV:-development}
+      - HUGO_ROOT=/app
+      - CONTENT_DIR=/app/content
+      - PUBLIC_DIR=/app/public
+    restart: unless-stopped
+    networks:
+      - hugo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5050/api/server/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  hugo-network:
+    driver: bridge

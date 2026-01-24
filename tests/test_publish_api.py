@@ -5,8 +5,6 @@
 
 import pytest
 import tempfile
-import os
-import json
 from pathlib import Path
 import frontmatter
 

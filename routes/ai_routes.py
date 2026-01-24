@@ -7,7 +7,6 @@ import asyncio
 import json
 import queue
 import threading
-from typing import AsyncGenerator
 
 from flask import Blueprint, request, jsonify, Response
 
@@ -144,12 +143,16 @@ def register_ai_routes(ai_service_factory):
         """AI 聊天接口（支持流式响应，包括工具执行结果）"""
         ai_service = ai_service_factory()
         if not ai_service.enabled:
-            return jsonify(
-                {
-                    "success": False,
-                    "message": "AI service is not configured. Set DEEPSEEK_API_KEY to enable.",
-                }
-            ), 503
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "AI service not configured. "
+                        "Set DEEPSEEK_API_KEY to enable.",
+                    }
+                ),
+                503,
+            )
 
         data = request.get_json()
         message = data.get("message")

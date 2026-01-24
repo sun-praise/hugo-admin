@@ -5,18 +5,15 @@
 复用 tasks.py 中的 BlogPost 类
 """
 
-import os
-import sys
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
-import yaml
 import uuid
 import fcntl
 import time
 import frontmatter
 
 # 导入内部模块
-from utils.blog_parser import BlogPost, get_blog_posts, filter_posts_by_search
+from utils.blog_parser import get_blog_posts, filter_posts_by_search
 from services.cache_service import CacheService
 
 
@@ -440,7 +437,7 @@ class PostService:
             # 格式化为 RFC3339 格式，不带引号
             date_str = now.strftime("%Y-%m-%dT%H:%M:%S+08:00")
 
-            frontmatter = {
+            _frontmatter = {  # noqa: F841
                 "title": title,
                 "date": date_str,
                 "draft": True,
@@ -452,7 +449,7 @@ class PostService:
             content = "---\n"
             content += f"title: {title}\n"
             content += f"date: {date_str}\n"
-            content += f"draft: true\n"
+            content += "draft: true\n"
             content += "categories: []\n"
             content += "tags: []\n"
             content += "---\n\n"
