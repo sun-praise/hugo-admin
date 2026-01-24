@@ -1,0 +1,76 @@
+[project]
+name = "hugo-admin"
+version = "0.1.0"
+description = "A lightweight web-based admin interface for managing Hugo static sites"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Svtter" }
+]
+keywords = ["hugo", "admin", "cms", "markdown", "flask"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Flask",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "Flask==3.0.0",
+    "flask-socketio==5.3.5",
+    "Werkzeug==3.0.1",
+    "python-socketio==5.10.0",
+    "python-engineio==4.8.0",
+    "psutil==5.9.6",
+    "PyYAML>=6.0.2",
+    "python-frontmatter==1.1.0",
+    "anthropic>=0.49.0",
+    "claude-agent-sdk>=0.1.0",
+    "python-dotenv>=1.1.0",
+    "requests>=2.32.0",
+    "feedparser>=6.0.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==7.4.3",
+    "pytest-cov==4.1.0",
+    "flake8==6.1.0",
+    "black==23.12.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/Svtter/hugo-admin"
+Repository = "https://github.com/Svtter/hugo-admin"
+Issues = "https://github.com/Svtter/hugo-admin/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["services", "models", "routes", "utils"]
+
+[dependency-groups]
+dev = [
+    "pytest==7.4.3",
+    "pytest-cov==4.1.0",
+    "flake8==6.1.0",
+    "black==23.12.1",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py39", "py310", "py311", "py312"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v"
