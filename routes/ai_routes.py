@@ -6,10 +6,11 @@ AI 助手相关路由
 import json
 import queue
 import threading
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import anyio
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, jsonify, Response, current_app
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -163,6 +164,65 @@ def register_ai_routes(ai_service_factory):
         ai_service_factory: Callable that returns AIService instance
     """
 
+    @ai_bp.route("/sessions", methods=["GET"])
+    def list_sessions():
+        """列出所有聊天会话"""
+        try:
+            chat_history_service = current_app.chat_history_service
+            sessions = chat_history_service.list_sessions()
+            return jsonify({"success": True, "sessions": sessions}), 200
+        except Exception as e:
+            return (
+                jsonify({"success": False, "message": str(e)}),
+                500,
+            )
+
+    @ai_bp.route("/sessions", methods=["POST"])
+    def create_session():
+        """创建新的聊天会话"""
+        try:
+            chat_history_service = current_app.chat_history_service
+            data = request.get_json() or {}
+            title = data.get("title")
+            session = chat_history_service.create_session(title)
+            return jsonify({"success": True, **session}), 201
+        except Exception as e:
+            return (
+                jsonify({"success": False, "message": str(e)}),
+                500,
+            )
+
+    @ai_bp.route("/sessions/<session_id>", methods=["GET"])
+    def get_session(session_id):
+        """获取特定会话及其消息"""
+        try:
+            chat_history_service = current_app.chat_history_service
+            session_data = chat_history_service.get_session(session_id)
+            if not session_data:
+                return (
+                    jsonify({"success": False, "message": "Session not found"}),
+                    404,
+                )
+            return jsonify({"success": True, **session_data}), 200
+        except Exception as e:
+            return (
+                jsonify({"success": False, "message": str(e)}),
+                500,
+            )
+
+    @ai_bp.route("/sessions/<session_id>", methods=["DELETE"])
+    def delete_session(session_id):
+        """删除聊天会话"""
+        try:
+            chat_history_service = current_app.chat_history_service
+            chat_history_service.delete_session(session_id)
+            return jsonify({"success": True, "message": "Session deleted"}), 200
+        except Exception as e:
+            return (
+                jsonify({"success": False, "message": str(e)}),
+                500,
+            )
+
     @ai_bp.route("/chat", methods=["POST"])
     def ai_chat():
         """AI 聊天接口（支持流式响应，包括工具执行结果）"""
@@ -182,16 +242,62 @@ def register_ai_routes(ai_service_factory):
         data = request.get_json()
         message = data.get("message")
         history = data.get("history", [])
+        session_id = data.get("session_id")
 
         if not message:
             return jsonify({"success": False, "message": "缺少消息内容"}), 400
 
+        # Save user message to session if session_id provided
+        if session_id:
+            try:
+                chat_history_service = current_app.chat_history_service
+                chat_history_service.add_message(session_id, "user", message)
+            except Exception as e:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": f"Failed to save message: {str(e)}",
+                        }
+                    ),
+                    500,
+                )
+
         def generate():
-            yield from stream_agent_as_sse_sync(
-                ai_service,
-                message=message,
-                history=history,
-            )
+            assistant_response = ""
+            try:
+                for chunk in stream_agent_as_sse_sync(
+                    ai_service,
+                    message=message,
+                    history=history,
+                ):
+                    yield chunk
+                    # Extract text from SSE data lines for session storage
+                    if chunk.startswith("data: ") and chunk != "data: [DONE]\n\n":
+                        try:
+                            data_str = chunk[6:-2]  # Remove "data: " and "\n\n"
+                            if data_str and data_str != "[DONE]":
+                                payload = json.loads(data_str)
+                                if isinstance(payload, str):
+                                    assistant_response += payload
+                                elif (
+                                    isinstance(payload, dict)
+                                    and payload.get("type") == "text"
+                                ):
+                                    assistant_response += payload.get("content", "")
+                        except (json.JSONDecodeError, KeyError):
+                            pass
+            finally:
+                # Save assistant response to session if session_id provided
+                if session_id and assistant_response:
+                    try:
+                        chat_history_service = current_app.chat_history_service
+                        chat_history_service.add_message(
+                            session_id, "assistant", assistant_response
+                        )
+                    except Exception as e:
+                        # Log error but don't break the stream
+                        pass
 
         return Response(generate(), mimetype="text/event-stream")
 

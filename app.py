@@ -20,6 +20,7 @@ from services.hugo_service import HugoServerManager
 from services.post_service import PostService
 from services.git_service import GitService
 from services.email_service import EmailService
+from services.chat_history_service import ChatHistoryService
 from routes import register_ai_routes
 
 # 初始化 Flask 应用
@@ -51,6 +52,14 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 hugo_manager = HugoServerManager(app.config["HUGO_ROOT"], socketio)
 post_service = PostService(app.config["CONTENT_DIR"], use_cache=True)
 git_service = GitService(app.config["HUGO_ROOT"])
+
+from pathlib import Path
+from models.database import Database
+
+db_path = Path(app.config["CONTENT_DIR"]) / ".admin" / "cache.db"
+db = Database(str(db_path))
+chat_history_service = ChatHistoryService(db)
+app.chat_history_service = chat_history_service
 
 # Lazy AI service init to avoid import errors when API key is missing in tests
 ai_service = None
@@ -497,7 +506,9 @@ def git_status():
         status = git_service.get_status()
         return jsonify(status)
     except Exception as e:
-        return jsonify({"success": False, "message": f"获取 Git 状态失败: {str(e)}"}), 500
+        return jsonify(
+            {"success": False, "message": f"获取 Git 状态失败: {str(e)}"}
+        ), 500
 
 
 @app.route("/api/git/commits")
@@ -508,7 +519,9 @@ def git_commits():
         result = git_service.get_recent_commits(count)
         return jsonify(result)
     except Exception as e:
-        return jsonify({"success": False, "message": f"获取提交记录失败: {str(e)}"}), 500
+        return jsonify(
+            {"success": False, "message": f"获取提交记录失败: {str(e)}"}
+        ), 500
 
 
 @app.route("/api/publish/system", methods=["POST"])
@@ -527,7 +540,9 @@ def publish_system():
 
     except Exception as e:
         return (
-            jsonify({"success": False, "message": f"系统发布失败: {str(e)}", "steps": {}}),
+            jsonify(
+                {"success": False, "message": f"系统发布失败: {str(e)}", "steps": {}}
+            ),
             500,
         )
 
