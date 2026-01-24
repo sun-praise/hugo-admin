@@ -3,6 +3,7 @@
 """
 测试 API 和统计功能
 """
+
 import sys
 from pathlib import Path
 
@@ -12,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from services.post_service import PostService
 
 # 初始化服务
-content_dir = Path(__file__).parent.parent / 'content'
+content_dir = Path(__file__).parent.parent / "content"
 post_service = PostService(content_dir)
 
 # 测试获取文章
@@ -33,7 +34,7 @@ print("=" * 50)
 tags = post_service.get_all_tags()
 print(f"总标签数: {len(tags)}")
 if tags:
-    print(f"前 10 个标签:")
+    print("前 10 个标签:")
     for tag in tags[:10]:
         print(f"  - {tag['name']}: {tag['count']} 篇")
 print()
@@ -45,7 +46,7 @@ print("=" * 50)
 categories = post_service.get_all_categories()
 print(f"总分类数: {len(categories)}")
 if categories:
-    print(f"所有分类:")
+    print("所有分类:")
     for cat in categories:
         print(f"  - {cat['name']}: {cat['count']} 篇")
 print()
@@ -54,7 +55,7 @@ print()
 print("=" * 50)
 print("前 5 篇文章")
 print("=" * 50)
-for i, post in enumerate(result['posts'][:5], 1):
+for i, post in enumerate(result["posts"][:5], 1):
     print(f"{i}. {post['title']}")
     print(f"   路径: {post['path']}")
     print(f"   日期: {post['date']}")

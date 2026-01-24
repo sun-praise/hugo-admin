@@ -8,7 +8,6 @@ Hugo 博客文章解析器
 import pathlib
 import re
 from datetime import datetime, date
-from pathlib import Path
 
 try:
     import frontmatter
@@ -75,10 +74,10 @@ class BlogPost:
                         self.date = datetime.fromisoformat(
                             date_value.replace("Z", "+00:00")
                         )
-                    except:
+                    except ValueError:
                         try:
                             self.date = datetime.strptime(date_value, "%Y-%m-%d")
-                        except:
+                        except ValueError:
                             self.date = None
                 else:
                     self.date = date_value

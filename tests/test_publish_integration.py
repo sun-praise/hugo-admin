@@ -5,7 +5,6 @@
 
 import pytest
 import tempfile
-import os
 from pathlib import Path
 import frontmatter
 
@@ -65,7 +64,7 @@ This is a workflow test.
         assert response.status_code == 200
         data = response.get_json()
         assert data["success"] is True
-        operation_id = data["operation_id"]
+        _operation_id = data["operation_id"]  # noqa: F841
 
         # 步骤 3: 验证更新后的状态
         response = client.get(f"/api/article/status?file_path={str(article_path)}")
@@ -82,12 +81,14 @@ This is a workflow test.
     def test_publish_error_handling(self, client, temp_content_dir):
         """测试发布错误处理"""
         invalid_article = temp_content_dir / "invalid.md"
-        invalid_article.write_text("""---
+        invalid_article.write_text(
+            """---
 draft: true
 ---
 
 No title here.
-""")
+"""
+        )
 
         response = client.post(
             "/api/article/publish", json={"file_path": str(invalid_article)}
@@ -99,13 +100,15 @@ No title here.
         """测试并发发布尝试"""
         # 创建测试文章
         article_path = temp_content_dir / "concurrent-test.md"
-        article_path.write_text("""---
+        article_path.write_text(
+            """---
 title: Concurrent Test
 draft: true
 ---
 
 Content for concurrent test.
-""")
+"""
+        )
 
         # 这个测试主要验证文件锁机制不会导致死锁
         # 在实际的并发环境中，这需要更复杂的测试设置
