@@ -270,6 +270,31 @@ class EmailService:
 
         return subject, body
 
+    @staticmethod
+    def normalize_listmonk_template_vars(content):
+        """
+        兼容旧版模板变量写法。
+
+        listmonk 在模板中通过函数暴露部分变量（例如 UnsubscribeURL），
+        旧写法 `{{ .UnsubscribeURL }}` 会导致渲染失败。
+        """
+        if not content:
+            return content
+
+        replacements = {
+            r"{{\s*\.UnsubscribeURL\s*}}": "{{ UnsubscribeURL }}",
+            r"{{\s*\.MessageURL\s*}}": "{{ MessageURL }}",
+            r"{{\s*\.TrackView\s*}}": "{{ TrackView }}",
+        }
+
+        normalized = content
+        for pattern, replacement in replacements.items():
+            normalized = re.sub(pattern, replacement, normalized)
+
+        # 兼容 `{{ .TrackLink "..." }}` -> `{{ TrackLink "..." }}`
+        normalized = re.sub(r"{{\s*\.TrackLink(\s+[^}]*)}}", r"{{ TrackLink\1}}", normalized)
+        return normalized
+
     def preview_email(self, post):
         """
         预览邮件内容（不发送）
@@ -303,6 +328,7 @@ class EmailService:
         """
         try:
             subject, body = self.create_email_content(post)
+            body = self.normalize_listmonk_template_vars(body)
 
             # 创建邮件对象
             msg = MIMEMultipart("alternative")
