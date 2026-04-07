@@ -5,17 +5,17 @@
 移植自 rss2email-automation/send_latest_post.py
 """
 
-import re
 import json
+import re
 import smtplib
-from pathlib import Path
 from datetime import datetime
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from pathlib import Path
 
-import yaml
-import requests
 import feedparser
+import requests
+import yaml
 
 
 class EmailService:
@@ -202,39 +202,39 @@ class EmailService:
         </head>
         <body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
             <div style="max-width: 600px; margin: 20px auto; background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden;">
-                
+
                 <!-- 邮件头部 -->
                 <div style="background: linear-gradient(135deg, #007cba 0%, #0056b3 100%); padding: 30px; text-align: center;">
                     <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 600;">📖 Svtter's Blog</h1>
                     <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0; font-size: 14px;">有新文章发布啦！</p>
                 </div>
-                
+
                 <!-- 文章内容 -->
                 <div style="padding: 30px;">
                     <div style="border-left: 4px solid #007cba; padding-left: 20px; margin-bottom: 25px;">
                         <h2 style="color: #333; margin: 0 0 10px 0; font-size: 22px; line-height: 1.4;">{post["title"]}</h2>
                         <p style="color: #666; font-size: 14px; margin: 0;">
-                            📅 {post.get("published", "")} &nbsp;&nbsp; 
+                            📅 {post.get("published", "")} &nbsp;&nbsp;
                             👁️ <a href="https://svtter.cn" style="color: #007cba; text-decoration: none;">svtter.cn</a>
                         </p>
                     </div>
-                    
+
                     {category_html}
-                    
+
                     <div style="background: #f8f9fa; padding: 25px; border-radius: 8px; border: 1px solid #e9ecef; margin: 20px 0;">
                         <div style="color: #333; line-height: 1.7; font-size: 15px;">
                             {clean_summary}
                         </div>
                     </div>
-                    
+
                     <div style="text-align: center; margin: 35px 0;">
-                        <a href="{post["link"]}" 
-                           style="display: inline-block; 
-                                  background: linear-gradient(135deg, #007cba 0%, #0056b3 100%); 
-                                  color: white; 
-                                  padding: 15px 35px; 
-                                  text-decoration: none; 
-                                  border-radius: 25px; 
+                        <a href="{post["link"]}"
+                           style="display: inline-block;
+                                  background: linear-gradient(135deg, #007cba 0%, #0056b3 100%);
+                                  color: white;
+                                  padding: 15px 35px;
+                                  text-decoration: none;
+                                  border-radius: 25px;
                                   font-weight: 600;
                                   font-size: 16px;
                                   box-shadow: 0 3px 10px rgba(0, 124, 186, 0.3);
@@ -242,26 +242,26 @@ class EmailService:
                             📖 立即阅读全文
                         </a>
                     </div>
-                    
+
                     <div style="background: #e8f4fd; padding: 20px; border-radius: 8px; margin-top: 30px;">
                         <p style="color: #1565c0; font-size: 14px; margin: 0; text-align: center;">
                             💡 喜欢这篇文章？别忘了分享给朋友们！
                         </p>
                     </div>
                 </div>
-                
+
                 <!-- 邮件底部 -->
                 <div style="background: #f8f9fa; padding: 25px; border-top: 1px solid #e9ecef; text-align: center;">
                     <p style="color: #666; font-size: 13px; margin: 0 0 10px 0;">
                         您收到此邮件是因为您订阅了 <a href="https://svtter.cn" style="color: #007cba; text-decoration: none;">Svtter's Blog</a>
                     </p>
                     <p style="color: #999; font-size: 12px; margin: 0;">
-                        <a href="{self.api_url}/subscription/form" style="color: #999; text-decoration: none;">管理订阅</a> | 
+                        <a href="{self.api_url}/subscription/form" style="color: #999; text-decoration: none;">管理订阅</a> |
                         <a href="https://svtter.cn" style="color: #999; text-decoration: none;">访问博客</a>
                     </p>
                 </div>
             </div>
-            
+
             <!-- 邮件底部空白 -->
             <div style="height: 20px;"></div>
         </body>

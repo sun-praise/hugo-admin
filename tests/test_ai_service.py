@@ -23,15 +23,15 @@ from pathlib import Path
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from dotenv import load_dotenv
 from claude_agent_sdk import (
-    tool,
-    create_sdk_mcp_server,
+    AssistantMessage,
     ClaudeAgentOptions,
     ClaudeSDKClient,
-    AssistantMessage,
     TextBlock,
+    create_sdk_mcp_server,
+    tool,
 )
+from dotenv import load_dotenv
 
 # 设置日志
 logging.basicConfig(
@@ -231,10 +231,10 @@ class AIServiceTester:
 
         try:
             from config import Config
-            from services.post_service import PostService
+            from services.ai_service import AIService
             from services.git_service import GitService
             from services.hugo_service import HugoServerManager
-            from services.ai_service import AIService
+            from services.post_service import PostService
 
             # 尝试加载本地配置
             try:

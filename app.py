@@ -4,31 +4,26 @@ Hugo Blog Web 管理界面
 简单轻量的 Flask 应用，用于管理 Hugo 博客
 """
 
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
 from dotenv import load_dotenv
-from flask import (
-    Flask,
-    render_template,
-    jsonify,
-    request,
-    send_from_directory,
-)
+from flask import Flask, jsonify, render_template, request, send_from_directory
 from flask_socketio import SocketIO, emit
 from werkzeug.exceptions import BadRequest
 
 from models.database import Database
+from routes import register_ai_routes
+from services.chat_history_service import ChatHistoryService
+from services.email_service import EmailService
+from services.git_service import GitService
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
-from services.git_service import GitService
-from services.email_service import EmailService
-from services.chat_history_service import ChatHistoryService
 from services.settings_service import (
     SettingsService,
-    SettingsValidationError,
     SettingsStorageError,
+    SettingsValidationError,
 )
-from routes import register_ai_routes
 
 # 初始化 Flask 应用
 load_dotenv()
@@ -635,7 +630,10 @@ def git_status():
         status = git_service.get_status()
         return jsonify(status)
     except Exception as e:
-        return jsonify({"success": False, "message": f"获取 Git 状态失败: {str(e)}"}), 500
+        return (
+            jsonify({"success": False, "message": f"获取 Git 状态失败: {str(e)}"}),
+            500,
+        )
 
 
 @app.route("/api/git/commits")
@@ -646,7 +644,10 @@ def git_commits():
         result = git_service.get_recent_commits(count)
         return jsonify(result)
     except Exception as e:
-        return jsonify({"success": False, "message": f"获取提交记录失败: {str(e)}"}), 500
+        return (
+            jsonify({"success": False, "message": f"获取提交记录失败: {str(e)}"}),
+            500,
+        )
 
 
 @app.route("/api/publish/system", methods=["POST"])
@@ -665,7 +666,9 @@ def publish_system():
 
     except Exception as e:
         return (
-            jsonify({"success": False, "message": f"系统发布失败: {str(e)}", "steps": {}}),
+            jsonify(
+                {"success": False, "message": f"系统发布失败: {str(e)}", "steps": {}}
+            ),
             500,
         )
 

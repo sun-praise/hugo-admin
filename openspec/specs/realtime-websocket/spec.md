@@ -24,4 +24,3 @@ The system SHALL correctly parse and display SSE streaming responses from the AI
 #### Scenario: Stream completion
 - **WHEN** the stream ends with [DONE] marker
 - **THEN** the loading indicator stops and message is complete
-

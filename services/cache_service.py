@@ -5,11 +5,12 @@
 """
 
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
+from models.database import Database
 
 # 导入内部模块
 from utils.blog_parser import BlogPost, get_blog_posts
-from models.database import Database
 
 
 class CacheService:

@@ -30,11 +30,8 @@ jobs:
     - name: Install dependencies
       run: uv sync --dev
 
-    - name: Run flake8
-      run: uv run flake8 .
-
-    - name: Run black check
-      run: uv run black --check . --exclude='/(\.venv|\.git|site|\.pytest_cache|\.ruff_cache)/'
+    - name: Run pre-commit
+      uses: pre-commit/action@v3.0.1
 
   test:
     runs-on: ubuntu-latest
