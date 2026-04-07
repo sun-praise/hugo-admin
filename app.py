@@ -635,9 +635,7 @@ def git_status():
         status = git_service.get_status()
         return jsonify(status)
     except Exception as e:
-        return jsonify(
-            {"success": False, "message": f"获取 Git 状态失败: {str(e)}"}
-        ), 500
+        return jsonify({"success": False, "message": f"获取 Git 状态失败: {str(e)}"}), 500
 
 
 @app.route("/api/git/commits")
@@ -648,9 +646,7 @@ def git_commits():
         result = git_service.get_recent_commits(count)
         return jsonify(result)
     except Exception as e:
-        return jsonify(
-            {"success": False, "message": f"获取提交记录失败: {str(e)}"}
-        ), 500
+        return jsonify({"success": False, "message": f"获取提交记录失败: {str(e)}"}), 500
 
 
 @app.route("/api/publish/system", methods=["POST"])
@@ -669,9 +665,7 @@ def publish_system():
 
     except Exception as e:
         return (
-            jsonify(
-                {"success": False, "message": f"系统发布失败: {str(e)}", "steps": {}}
-            ),
+            jsonify({"success": False, "message": f"系统发布失败: {str(e)}", "steps": {}}),
             500,
         )
 
