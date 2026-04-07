@@ -15,6 +15,7 @@ from flask import (
     send_from_directory,
 )
 from flask_socketio import SocketIO, emit
+from werkzeug.exceptions import BadRequest
 
 from models.database import Database
 from services.hugo_service import HugoServerManager
@@ -22,7 +23,11 @@ from services.post_service import PostService
 from services.git_service import GitService
 from services.email_service import EmailService
 from services.chat_history_service import ChatHistoryService
-from services.settings_service import SettingsService
+from services.settings_service import (
+    SettingsService,
+    SettingsValidationError,
+    SettingsStorageError,
+)
 from routes import register_ai_routes
 
 # 初始化 Flask 应用
@@ -47,10 +52,12 @@ app.config["CONTENT_DIR"] = app.config.get(
     "CONTENT_DIR", app.config["HUGO_ROOT"] / "content"
 )
 ENV_AI_API_KEY = app.config.get("AI_API_KEY", "")
+SESSION_AI_API_KEY = ""
 
 # 初始化可持久化设置（优先级高于环境变量）
 settings_service = SettingsService(
-    Path(app.config["CONTENT_DIR"]) / ".admin" / "settings.json",
+    Path(app.config["HUGO_ROOT"]) / ".admin" / "settings.json",
+    legacy_settings_file=Path(app.config["CONTENT_DIR"]) / ".admin" / "settings.json",
     defaults={
         "AI_BASE_URL": app.config.get("AI_BASE_URL", "https://api.deepseek.com"),
         "AI_MODEL": app.config.get("AI_MODEL", "deepseek-chat"),
@@ -61,8 +68,8 @@ try:
     persisted_settings = settings_service.get_settings()
     app.config["AI_BASE_URL"] = persisted_settings["ai"]["base_url"]
     app.config["AI_MODEL"] = persisted_settings["ai"]["model"]
-    app.config["AI_API_KEY"] = persisted_settings["ai"].get("api_key") or ENV_AI_API_KEY
-except ValueError as e:
+    app.config["AI_API_KEY"] = ENV_AI_API_KEY
+except (SettingsValidationError, SettingsStorageError) as e:
     print(f"⚠ 设置文件读取失败，继续使用默认配置: {e}")
 
 # 初始化 SocketIO
@@ -85,23 +92,27 @@ ai_service = None
 def _to_public_settings(settings):
     """将设置转换为前端可展示格式，并补充密钥来源信息"""
     public_settings = settings_service.to_public_settings(settings)
-    stored_api_key = settings["ai"].get("api_key", "")
+
+    global SESSION_AI_API_KEY
+    session_api_key = SESSION_AI_API_KEY
     has_env_api_key = bool(ENV_AI_API_KEY)
 
-    if stored_api_key:
-        source = "settings"
+    if session_api_key:
+        source = "session"
         configured = True
+        api_key_hint = settings_service._mask_api_key(session_api_key)
     elif has_env_api_key:
         source = "env"
         configured = True
+        api_key_hint = ""
     else:
         source = "none"
         configured = False
+        api_key_hint = ""
 
     public_settings["ai"]["api_key_source"] = source
     public_settings["ai"]["api_key_configured"] = configured
-    if source != "settings":
-        public_settings["ai"]["api_key_hint"] = ""
+    public_settings["ai"]["api_key_hint"] = api_key_hint
 
     return public_settings
 
@@ -189,6 +200,9 @@ def test_page():
 @app.route("/content/<path:filename>")
 def serve_content_files(filename):
     """提供 content 目录下的静态文件（如图片）"""
+    if any(part.startswith(".") for part in Path(filename).parts):
+        return jsonify({"success": False, "message": "访问被拒绝"}), 403
+
     content_dir = app.config["CONTENT_DIR"]
     return send_from_directory(content_dir, filename)
 
@@ -205,27 +219,56 @@ def get_settings():
     try:
         settings = settings_service.get_settings()
         return jsonify({"success": True, "settings": _to_public_settings(settings)})
-    except ValueError as e:
+    except (SettingsValidationError, SettingsStorageError) as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
 
 @app.route("/api/settings", methods=["PUT"])
 def update_settings():
     """更新应用设置"""
-    data = request.get_json(silent=True) or {}
+    if not request.is_json:
+        return jsonify({"success": False, "message": "请求体必须是 JSON 对象"}), 400
+
+    try:
+        data = request.get_json(silent=False)
+    except BadRequest:
+        return jsonify({"success": False, "message": "请求体不是合法 JSON"}), 400
+
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "message": "请求体必须是 JSON 对象"}), 400
+
     payload = data.get("settings", data)
 
     if not isinstance(payload, dict):
         return jsonify({"success": False, "message": "设置格式无效"}), 400
 
+    settings_payload = payload
+    incoming_session_api_key = None
+    ai_payload = payload.get("ai")
+    if isinstance(ai_payload, dict) and "api_key" in ai_payload:
+        api_key = ai_payload.get("api_key")
+        if not isinstance(api_key, str):
+            return jsonify({"success": False, "message": "AI API Key 格式无效"}), 400
+
+        incoming_session_api_key = api_key.strip()
+        settings_payload = dict(payload)
+        settings_payload["ai"] = dict(ai_payload)
+        settings_payload["ai"].pop("api_key", None)
+
     try:
-        updated_settings = settings_service.update_settings(payload)
-    except ValueError as e:
+        updated_settings = settings_service.update_settings(settings_payload)
+    except SettingsValidationError as e:
         return jsonify({"success": False, "message": str(e)}), 400
+    except SettingsStorageError as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+    global SESSION_AI_API_KEY
+    if incoming_session_api_key is not None:
+        SESSION_AI_API_KEY = incoming_session_api_key
 
     app.config["AI_BASE_URL"] = updated_settings["ai"]["base_url"]
     app.config["AI_MODEL"] = updated_settings["ai"]["model"]
-    app.config["AI_API_KEY"] = updated_settings["ai"].get("api_key") or ENV_AI_API_KEY
+    app.config["AI_API_KEY"] = SESSION_AI_API_KEY or ENV_AI_API_KEY
 
     # 触发 AI 服务使用新配置重新初始化
     global ai_service

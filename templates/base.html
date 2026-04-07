@@ -361,19 +361,19 @@
                         placeholder="留空则保持当前来源"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                    <p x-show="apiKeySource === 'settings'" class="mt-2 text-xs text-gray-500">
-                        当前使用已保存密钥
+                    <p x-show="apiKeySource === 'session'" class="mt-2 text-xs text-gray-500">
+                        当前使用会话密钥（重启后失效）
                         <span x-show="apiKeyHint" x-text="'（' + apiKeyHint + '）'"></span>
                     </p>
                     <p x-show="apiKeySource === 'env'" class="mt-2 text-xs text-gray-500">当前使用环境变量中的密钥</p>
                     <p x-show="apiKeySource === 'none'" class="mt-2 text-xs text-gray-500">当前未配置 AI API Key</p>
                     <button
                         type="button"
-                        x-show="apiKeySource === 'settings'"
+                        x-show="apiKeySource === 'session'"
                         @click="form.ai.api_key = ''; apiKeyTouched = true"
                         class="mt-2 text-sm text-red-600 hover:text-red-700"
                     >
-                        清除已保存密钥
+                        清除会话密钥
                     </button>
                 </div>
 
