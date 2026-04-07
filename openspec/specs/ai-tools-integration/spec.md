@@ -17,4 +17,3 @@ The AI Agent SHALL have controlled access to existing blog management services.
 - **When** the user says "Start the preview server"
 - **Then** the agent should call `hugo_manager.start()`
 - **And** provide a link to the preview URL.
-

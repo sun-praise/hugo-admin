@@ -9,9 +9,10 @@ from pathlib import Path
 # 添加父目录到路径以访问项目模块
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from models.database import Database
-import tempfile
 import os
+import tempfile
+
+from models.database import Database
 
 print("=" * 60)
 print("测试数据库缓存功能")

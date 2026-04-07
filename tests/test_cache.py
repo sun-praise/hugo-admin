@@ -13,9 +13,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 def test_database():
     """测试数据库基本功能"""
-    from models.database import Database
-    import tempfile
     import os
+    import tempfile
+
+    from models.database import Database
 
     print("=" * 50)
     print("测试数据库基本功能")
@@ -87,9 +88,10 @@ def test_cache_service():
     print("=" * 50)
 
     try:
-        from services.cache_service import CacheService
-        import tempfile
         import os
+        import tempfile
+
+        from services.cache_service import CacheService
 
         # 使用临时数据库
         with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as f:

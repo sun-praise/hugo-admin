@@ -599,7 +599,7 @@
     <!-- AI Chat Assistant Component -->
     <div x-data="aiChatAssistant()" x-init="loadSessions()" class="fixed bottom-6 right-6 z-50 flex flex-col items-end">
         <!-- Chat Window -->
-        <div x-show="isOpen" 
+        <div x-show="isOpen"
              x-transition:enter="transition ease-out duration-300"
              x-transition:enter-start="opacity-0 scale-90 translate-y-10"
              x-transition:enter-end="opacity-100 scale-100 translate-y-0"
@@ -627,12 +627,12 @@
                             <div class="border-t border-gray-200 my-1"></div>
                             <template x-for="s in sessions" :key="s.session_id">
                                 <div class="flex items-center hover:bg-gray-100 group">
-                                    <button @click="selectSession(s.session_id); showMenu = false" 
+                                    <button @click="selectSession(s.session_id); showMenu = false"
                                             class="flex-1 px-3 py-2 text-left truncate"
                                             :class="s.session_id === currentSessionId ? 'bg-blue-50 text-blue-600' : ''">
                                         <span x-text="s.title || '新对话'"></span>
                                     </button>
-                                    <button @click.stop="deleteSession(s.session_id)" 
+                                    <button @click.stop="deleteSession(s.session_id)"
                                             class="px-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -657,7 +657,7 @@
                     <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
                         <div :class="msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-200 rounded-bl-none'"
                              class="max-w-[85%] px-4 py-2 rounded-2xl shadow-sm text-sm">
-                            <div class="ai-prose max-w-none break-words" 
+                            <div class="ai-prose max-w-none break-words"
                                  :class="msg.role === 'user' ? 'text-white' : ''"
                                  x-html="renderMarkdown(msg.content)"></div>
                         </div>
@@ -677,12 +677,12 @@
             <!-- Input Area -->
             <form @submit.prevent="sendMessage" class="p-4 bg-white border-t border-gray-200">
                 <div class="flex space-x-2">
-                    <input type="text" 
-                           x-model="userInput" 
+                    <input type="text"
+                           x-model="userInput"
                            placeholder="输入指令，例如：搜索文章..."
                            class="flex-1 bg-gray-100 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500"
                            :disabled="isLoading">
-                    <button type="submit" 
+                    <button type="submit"
                             :disabled="isLoading || !userInput.trim()"
                             class="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -694,7 +694,7 @@
         </div>
 
         <!-- Floating Button -->
-        <button @click="isOpen = !isOpen" 
+        <button @click="isOpen = !isOpen"
                 class="bg-gray-900 text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform flex items-center justify-center relative">
             <svg x-show="!isOpen" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
@@ -759,7 +759,7 @@
                         if (res.ok) {
                             const data = await res.json();
                             this.currentSessionId = sessionId;
-                            this.messages = data.messages && data.messages.length > 0 
+                            this.messages = data.messages && data.messages.length > 0
                                 ? data.messages.map(m => ({ role: m.role, content: m.content }))
                                 : [{ role: 'assistant', content: '您好！我是您的 Hugo 博客 AI 助手。' }];
                         }
@@ -821,7 +821,7 @@
                     div.textContent = str;
                     return div.innerHTML;
                 },
-                
+
                 renderMarkdown(content) {
                     const normalized = content.replace(/\\n/g, '\n');
                     return marked.parse(normalized);
@@ -838,14 +838,14 @@
                     this.messages.push({ role: 'user', content: userMessage });
                     this.userInput = '';
                     this.isLoading = true;
-                    
+
                     this.$nextTick(() => this.scrollToBottom());
 
                     try {
                         const response = await fetch('/api/ai/chat', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ 
+                            body: JSON.stringify({
                                 message: userMessage,
                                 history: this.messages.slice(0, -1),
                                 session_id: this.currentSessionId
@@ -905,9 +905,9 @@
                         }
                     } catch (error) {
                         console.error('Chat error:', error);
-                        this.messages.push({ 
-                            role: 'assistant', 
-                            content: '抱歉，处理您的请求时发生了错误：' + error.message 
+                        this.messages.push({
+                            role: 'assistant',
+                            content: '抱歉，处理您的请求时发生了错误：' + error.message
                         });
                     } finally {
                         this.isLoading = false;
