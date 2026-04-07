@@ -24,6 +24,7 @@ class TestSettingsAPI:
 
             original_settings_service = app_module.settings_service
             original_content_dir = app_module.app.config.get("CONTENT_DIR")
+            original_hugo_root = app_module.app.config.get("HUGO_ROOT")
             original_ai_base_url = app_module.app.config.get("AI_BASE_URL")
             original_ai_model = app_module.app.config.get("AI_MODEL")
             original_ai_api_key = app_module.app.config.get("AI_API_KEY")
@@ -54,6 +55,7 @@ class TestSettingsAPI:
 
             app_module.settings_service = original_settings_service
             app_module.app.config["CONTENT_DIR"] = original_content_dir
+            app_module.app.config["HUGO_ROOT"] = original_hugo_root
             app_module.app.config["AI_BASE_URL"] = original_ai_base_url
             app_module.app.config["AI_MODEL"] = original_ai_model
             app_module.app.config["AI_API_KEY"] = original_ai_api_key
@@ -72,6 +74,8 @@ class TestSettingsAPI:
         assert data["success"] is True
         assert data["settings"]["ai"]["base_url"]
         assert data["settings"]["ai"]["model"]
+        assert "hugo" in data["settings"]
+        assert "base_dir" in data["settings"]["hugo"]
 
     def test_update_settings_persists_and_refreshes_ai_service(self, client):
         """保存设置后应写入文件并重置 AI 服务"""
@@ -235,3 +239,31 @@ class TestSettingsAPI:
 
         response = test_client.get("/content/images/.admin/secret.txt")
         assert response.status_code == 403
+
+    def test_update_settings_rejects_invalid_hugo_base_dir(self, client):
+        """不合法的 Hugo 根目录应返回 400"""
+        test_client, _ = client
+
+        response = test_client.put(
+            "/api/settings",
+            json={"hugo": {"base_dir": "/nonexistent/path/that/does/not/exist"}},
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["success"] is False
+        assert "Hugo" in data["message"]
+
+    def test_update_settings_rejects_relative_hugo_base_dir(self, client):
+        """相对路径的 Hugo 根目录应返回 400"""
+        test_client, _ = client
+
+        response = test_client.put(
+            "/api/settings",
+            json={"hugo": {"base_dir": "relative/path"}},
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["success"] is False
+        assert "绝对路径" in data["message"]

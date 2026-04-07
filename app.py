@@ -88,6 +88,10 @@ def _to_public_settings(settings):
     """将设置转换为前端可展示格式，并补充密钥来源信息"""
     public_settings = settings_service.to_public_settings(settings)
 
+    public_settings["hugo"]["base_dir"] = public_settings["hugo"]["base_dir"] or str(
+        app.config.get("HUGO_ROOT", "")
+    )
+
     global SESSION_AI_API_KEY
     session_api_key = SESSION_AI_API_KEY
     has_env_api_key = bool(ENV_AI_API_KEY)
@@ -186,6 +190,12 @@ def server_page():
     return render_template("server.html")
 
 
+@app.route("/settings")
+def settings_page():
+    """设置页面"""
+    return render_template("settings.html")
+
+
 @app.route("/test")
 def test_page():
     """测试页面"""
@@ -221,6 +231,7 @@ def get_settings():
 @app.route("/api/settings", methods=["PUT"])
 def update_settings():
     """更新应用设置"""
+    global SESSION_AI_API_KEY, ai_service, post_service, git_service, hugo_manager
     if not request.is_json:
         return jsonify({"success": False, "message": "请求体必须是 JSON 对象"}), 400
 
@@ -257,7 +268,6 @@ def update_settings():
     except SettingsStorageError as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
-    global SESSION_AI_API_KEY
     if incoming_session_api_key is not None:
         SESSION_AI_API_KEY = incoming_session_api_key
 
@@ -265,8 +275,28 @@ def update_settings():
     app.config["AI_MODEL"] = updated_settings["ai"]["model"]
     app.config["AI_API_KEY"] = SESSION_AI_API_KEY or ENV_AI_API_KEY
 
-    # 触发 AI 服务使用新配置重新初始化
-    global ai_service
+    new_hugo_root = updated_settings.get("hugo", {}).get("base_dir", "")
+    if new_hugo_root and str(app.config["HUGO_ROOT"]) != new_hugo_root:
+        new_root = Path(new_hugo_root)
+        app.config["HUGO_ROOT"] = new_root
+        app.config["CONTENT_DIR"] = new_root / "content"
+        post_service = PostService(app.config["CONTENT_DIR"], use_cache=True)
+        git_service = GitService(new_root)
+        hugo_manager = HugoServerManager(new_root, socketio)
+        settings_service = SettingsService(
+            new_root / ".admin" / "settings.json",
+            legacy_settings_file=Path(app.config["CONTENT_DIR"])
+            / ".admin"
+            / "settings.json",
+            defaults={
+                "AI_BASE_URL": app.config.get(
+                    "AI_BASE_URL", "https://api.deepseek.com"
+                ),
+                "AI_MODEL": app.config.get("AI_MODEL", "deepseek-chat"),
+                "HUGO_BASE_DIR": str(new_root),
+            },
+        )
+
     ai_service = None
 
     return jsonify(
