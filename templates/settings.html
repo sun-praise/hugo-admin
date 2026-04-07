@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}设置 - Hugo Blog 管理{% endblock %}
+{% block page_title %}设置{% endblock %}
+
+{% block content %}
+<div x-data="settingsPage()" x-init="fetchSettings()" x-cloak>
+    <div class="max-w-3xl space-y-6">
+        <!-- Hugo Blog 配置 -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold mb-4">Hugo Blog</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">博客根目录</label>
+                    <input
+                        type="text"
+                        x-model.trim="form.hugo.base_dir"
+                        placeholder="/path/to/hugo-blog"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                    >
+                    <p class="mt-2 text-xs text-gray-500">Hugo 项目的根目录，需包含 config.toml / config.yaml 等配置文件。修改后将重新加载所有服务。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI 助手配置 -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold mb-4">AI 助手</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">AI Base URL</label>
+                    <input
+                        type="text"
+                        x-model.trim="form.ai.base_url"
+                        placeholder="https://api.deepseek.com"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                    >
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">AI Model</label>
+                    <input
+                        type="text"
+                        x-model.trim="form.ai.model"
+                        placeholder="deepseek-chat"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                    >
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">AI API Key（可选）</label>
+                    <input
+                        type="password"
+                        x-model.trim="form.ai.api_key"
+                        @input="apiKeyTouched = true"
+                        placeholder="留空则保持当前来源"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                    >
+                    <p x-show="apiKeySource === 'session'" class="mt-2 text-xs text-gray-500">
+                        当前使用会话密钥（重启后失效）
+                        <span x-show="apiKeyHint" x-text="'（' + apiKeyHint + '）'"></span>
+                    </p>
+                    <p x-show="apiKeySource === 'env'" class="mt-2 text-xs text-gray-500">当前使用环境变量中的密钥</p>
+                    <p x-show="apiKeySource === 'none'" class="mt-2 text-xs text-gray-500">当前未配置 AI API Key</p>
+                    <button
+                        type="button"
+                        x-show="apiKeySource === 'session'"
+                        @click="form.ai.api_key = ''; apiKeyTouched = true"
+                        class="mt-2 text-sm text-red-600 hover:text-red-700"
+                    >
+                        清除会话密钥
+                    </button>
+                </div>
+
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                    未保存密钥时会自动回退到环境变量（<code>DEEPSEEK_API_KEY</code> 或 <code>AI_API_KEY</code>）。
+                </div>
+            </div>
+        </div>
+
+        <!-- 错误提示 -->
+        <p x-show="errorMessage" x-text="errorMessage" class="text-sm text-red-600"></p>
+
+        <!-- 保存按钮 -->
+        <div class="flex justify-end">
+            <button
+                type="button"
+                @click="saveSettings"
+                :disabled="saving || loading"
+                :class="{'opacity-50 cursor-not-allowed': saving || loading}"
+                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+                <span x-text="saving ? '保存中...' : '保存设置'"></span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function settingsPage() {
+    return {
+        loading: false,
+        saving: false,
+        errorMessage: '',
+        apiKeyTouched: false,
+        apiKeySource: 'none',
+        apiKeyHint: '',
+        form: {
+            hugo: {
+                base_dir: ''
+            },
+            ai: {
+                base_url: '',
+                model: '',
+                api_key: ''
+            }
+        },
+
+        applySettings(settings) {
+            const ai = settings.ai || {};
+            this.form.ai.base_url = ai.base_url || 'https://api.deepseek.com';
+            this.form.ai.model = ai.model || 'deepseek-chat';
+            this.form.ai.api_key = '';
+            this.apiKeyTouched = false;
+            this.apiKeySource = ai.api_key_source || 'none';
+            this.apiKeyHint = ai.api_key_hint || '';
+
+            const hugo = settings.hugo || {};
+            this.form.hugo.base_dir = hugo.base_dir || '';
+        },
+
+        async fetchSettings() {
+            this.loading = true;
+            this.errorMessage = '';
+
+            try {
+                const response = await fetch('/api/settings');
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || '加载设置失败');
+                }
+
+                this.applySettings(data.settings || {});
+            } catch (error) {
+                this.errorMessage = error.message;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async saveSettings() {
+            if (this.saving || this.loading) {
+                return;
+            }
+
+            this.saving = true;
+            this.errorMessage = '';
+
+            try {
+                const payload = {
+                    hugo: {
+                        base_dir: this.form.hugo.base_dir
+                    },
+                    ai: {
+                        base_url: this.form.ai.base_url,
+                        model: this.form.ai.model
+                    }
+                };
+
+                if (this.apiKeyTouched) {
+                    payload.ai.api_key = this.form.ai.api_key;
+                }
+
+                const response = await fetch('/api/settings', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || '保存设置失败');
+                }
+
+                this.applySettings(data.settings || {});
+                utils.showNotification('设置已保存', 'success');
+            } catch (error) {
+                this.errorMessage = error.message;
+                utils.showNotification(error.message, 'error');
+            } finally {
+                this.saving = false;
+            }
+        }
+    };
+}
+</script>
+{% endblock %}
