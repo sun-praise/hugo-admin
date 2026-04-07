@@ -89,7 +89,8 @@ class SettingsService:
                         and not (p / "hugo.yaml").exists()
                     ):
                         raise SettingsValidationError(
-                            f"目录中未找到 Hugo 配置文件 (config.toml/yaml 或 hugo.toml/yaml): {base_dir}"
+                            "目录中未找到 Hugo 配置文件 "
+                            f"(config.toml/yaml 或 hugo.toml/yaml): {base_dir}"
                         )
                 current["hugo"]["base_dir"] = base_dir.strip()
 

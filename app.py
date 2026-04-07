@@ -231,13 +231,8 @@ def get_settings():
 @app.route("/api/settings", methods=["PUT"])
 def update_settings():
     """更新应用设置"""
-    global \
-        SESSION_AI_API_KEY, \
-        ai_service, \
-        post_service, \
-        git_service, \
-        hugo_manager, \
-        settings_service
+    global SESSION_AI_API_KEY  # noqa: E501
+    global ai_service, post_service, git_service, hugo_manager, settings_service
     if not request.is_json:
         return jsonify({"success": False, "message": "请求体必须是 JSON 对象"}), 400
 
