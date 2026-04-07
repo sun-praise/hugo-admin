@@ -50,6 +50,9 @@ Thumbs.db
 
 # Hugo Admin specific
 config_local.py
+.admin/settings.json
+content/.admin/settings.json
+**/.admin/settings.json
 
 # Test coverage
 .coverage
