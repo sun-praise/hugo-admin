@@ -15,7 +15,7 @@ on:
 
 jobs:
   lint:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
 
@@ -37,7 +37,7 @@ jobs:
       run: uv run black --check . --exclude='/(\.venv|\.git|site|\.pytest_cache|\.ruff_cache)/'
 
   test:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: lint
     strategy:
       matrix:
