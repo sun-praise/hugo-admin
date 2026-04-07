@@ -44,7 +44,10 @@ class SettingsService:
             "ai": {
                 "base_url": ai_settings.get("base_url", "https://api.deepseek.com"),
                 "model": ai_settings.get("model", "deepseek-chat"),
-            }
+            },
+            "hugo": {
+                "base_dir": settings.get("hugo", {}).get("base_dir", ""),
+            },
         }
 
     def update_settings(self, updates):
@@ -63,6 +66,33 @@ class SettingsService:
                 current["ai"]["base_url"] = ai_updates["base_url"]
             if "model" in ai_updates:
                 current["ai"]["model"] = ai_updates["model"]
+
+            hugo_updates = updates.get("hugo", {})
+            if "hugo" in updates and not isinstance(hugo_updates, dict):
+                raise SettingsValidationError("Hugo 设置格式无效")
+
+            if "base_dir" in hugo_updates:
+                base_dir = hugo_updates["base_dir"]
+                if not isinstance(base_dir, str):
+                    raise SettingsValidationError("Hugo 根目录必须是字符串")
+                if base_dir.strip():
+                    base_dir = base_dir.strip()
+                    p = Path(base_dir)
+                    if not p.is_absolute():
+                        raise SettingsValidationError("Hugo 根目录必须是绝对路径")
+                    if not p.is_dir():
+                        raise SettingsValidationError(f"Hugo 根目录不存在: {base_dir}")
+                    if (
+                        not (p / "config.toml").exists()
+                        and not (p / "config.yaml").exists()
+                        and not (p / "hugo.toml").exists()
+                        and not (p / "hugo.yaml").exists()
+                    ):
+                        raise SettingsValidationError(
+                            "目录中未找到 Hugo 配置文件 "
+                            f"(config.toml/yaml 或 hugo.toml/yaml): {base_dir}"
+                        )
+                current["hugo"]["base_dir"] = base_dir.strip()
 
             normalized = self._normalize_and_validate(current)
             self._write_settings_file(normalized)
@@ -133,6 +163,7 @@ class SettingsService:
         settings = self._default_settings()
         file_settings = self._read_file_settings()
         ai_from_file = file_settings.get("ai", {})
+        hugo_from_file = file_settings.get("hugo", {})
         needs_sanitize = False
 
         if isinstance(ai_from_file, dict):
@@ -142,6 +173,10 @@ class SettingsService:
                 settings["ai"]["model"] = ai_from_file["model"]
             if "api_key" in ai_from_file:
                 needs_sanitize = True
+
+        if isinstance(hugo_from_file, dict):
+            if "base_dir" in hugo_from_file:
+                settings["hugo"]["base_dir"] = hugo_from_file["base_dir"]
 
         normalized = self._normalize_and_validate(settings)
         if not file_exists or needs_sanitize:
@@ -155,7 +190,10 @@ class SettingsService:
                 "base_url": self.defaults.get("AI_BASE_URL")
                 or "https://api.deepseek.com",
                 "model": self.defaults.get("AI_MODEL") or "deepseek-chat",
-            }
+            },
+            "hugo": {
+                "base_dir": self.defaults.get("HUGO_BASE_DIR") or "",
+            },
         }
 
     def _read_file_settings(self):
@@ -198,11 +236,22 @@ class SettingsService:
 
         model = model.strip()
 
+        hugo_settings = settings.get("hugo", {})
+        if not isinstance(hugo_settings, dict):
+            hugo_settings = {}
+
+        hugo_base_dir = hugo_settings.get("base_dir", "")
+        if not isinstance(hugo_base_dir, str):
+            hugo_base_dir = ""
+
         return {
             "ai": {
                 "base_url": base_url,
                 "model": model,
-            }
+            },
+            "hugo": {
+                "base_dir": hugo_base_dir.strip(),
+            },
         }
 
     @staticmethod
