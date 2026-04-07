@@ -18,4 +18,3 @@ The system SHALL provide an AI agent capable of reasoning and executing tools to
 - **When** the user says "Create a new post about PydanticAI"
 - **Then** the agent should call the `create_post` tool with `title="PydanticAI"`
 - **And** confirm the successful creation with the file path.
-

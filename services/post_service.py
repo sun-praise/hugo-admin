@@ -5,16 +5,18 @@
 复用 tasks.py 中的 BlogPost 类
 """
 
-from pathlib import Path
-from datetime import datetime, timezone, timedelta
-import uuid
 import fcntl
 import time
+import uuid
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
 import frontmatter
 
-# 导入内部模块
-from utils.blog_parser import get_blog_posts, filter_posts_by_search
 from services.cache_service import CacheService
+
+# 导入内部模块
+from utils.blog_parser import filter_posts_by_search, get_blog_posts
 
 
 class PostService:
@@ -260,9 +262,9 @@ class PostService:
                     "title": post.title,
                     "path": str(post.relative_path),
                     "full_path": str(post.file_path),
-                    "date": post.date.strftime("%Y-%m-%d")
-                    if post.date
-                    else "",  # date 是 datetime 对象
+                    "date": (
+                        post.date.strftime("%Y-%m-%d") if post.date else ""
+                    ),  # date 是 datetime 对象
                     "description": post.description,
                     "excerpt": post.excerpt,
                     "tags": post.tags,  # 已经是列表

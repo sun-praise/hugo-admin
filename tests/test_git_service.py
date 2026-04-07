@@ -3,10 +3,11 @@
 GitService 功能测试
 """
 
-import pytest
+import subprocess
 import tempfile
 from pathlib import Path
-import subprocess
+
+import pytest
 
 from services.git_service import GitService
 

@@ -9,15 +9,9 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 import anyio
-from flask import Blueprint, request, jsonify, Response, current_app
-
-from claude_agent_sdk import (
-    AssistantMessage,
-    TextBlock,
-    ToolUseBlock,
-    ToolResultBlock,
-)
+from claude_agent_sdk import AssistantMessage, TextBlock, ToolResultBlock, ToolUseBlock
 from claude_agent_sdk.types import StreamEvent
+from flask import Blueprint, Response, current_app, jsonify, request
 
 # 创建 Blueprint
 ai_bp = Blueprint("ai", __name__, url_prefix="/api/ai")
