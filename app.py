@@ -22,6 +22,7 @@ from services.post_service import PostService
 from services.git_service import GitService
 from services.email_service import EmailService
 from services.chat_history_service import ChatHistoryService
+from services.settings_service import SettingsService
 from routes import register_ai_routes
 
 # 初始化 Flask 应用
@@ -45,6 +46,24 @@ app.config["HUGO_ROOT"] = app.config.get("HUGO_ROOT", Path(__file__).parent.pare
 app.config["CONTENT_DIR"] = app.config.get(
     "CONTENT_DIR", app.config["HUGO_ROOT"] / "content"
 )
+ENV_AI_API_KEY = app.config.get("AI_API_KEY", "")
+
+# 初始化可持久化设置（优先级高于环境变量）
+settings_service = SettingsService(
+    Path(app.config["CONTENT_DIR"]) / ".admin" / "settings.json",
+    defaults={
+        "AI_BASE_URL": app.config.get("AI_BASE_URL", "https://api.deepseek.com"),
+        "AI_MODEL": app.config.get("AI_MODEL", "deepseek-chat"),
+    },
+)
+
+try:
+    persisted_settings = settings_service.get_settings()
+    app.config["AI_BASE_URL"] = persisted_settings["ai"]["base_url"]
+    app.config["AI_MODEL"] = persisted_settings["ai"]["model"]
+    app.config["AI_API_KEY"] = persisted_settings["ai"].get("api_key") or ENV_AI_API_KEY
+except ValueError as e:
+    print(f"⚠ 设置文件读取失败，继续使用默认配置: {e}")
 
 # 初始化 SocketIO
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -61,6 +80,30 @@ app.chat_history_service = chat_history_service
 
 # Lazy AI service init to avoid import errors when API key is missing in tests
 ai_service = None
+
+
+def _to_public_settings(settings):
+    """将设置转换为前端可展示格式，并补充密钥来源信息"""
+    public_settings = settings_service.to_public_settings(settings)
+    stored_api_key = settings["ai"].get("api_key", "")
+    has_env_api_key = bool(ENV_AI_API_KEY)
+
+    if stored_api_key:
+        source = "settings"
+        configured = True
+    elif has_env_api_key:
+        source = "env"
+        configured = True
+    else:
+        source = "none"
+        configured = False
+
+    public_settings["ai"]["api_key_source"] = source
+    public_settings["ai"]["api_key_configured"] = configured
+    if source != "settings":
+        public_settings["ai"]["api_key_hint"] = ""
+
+    return public_settings
 
 
 class _DisabledAIService:
@@ -151,6 +194,51 @@ def serve_content_files(filename):
 
 
 # ============ API 路由 ============
+
+
+# --- 应用设置 API ---
+
+
+@app.route("/api/settings")
+def get_settings():
+    """获取应用设置"""
+    try:
+        settings = settings_service.get_settings()
+        return jsonify({"success": True, "settings": _to_public_settings(settings)})
+    except ValueError as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/settings", methods=["PUT"])
+def update_settings():
+    """更新应用设置"""
+    data = request.get_json(silent=True) or {}
+    payload = data.get("settings", data)
+
+    if not isinstance(payload, dict):
+        return jsonify({"success": False, "message": "设置格式无效"}), 400
+
+    try:
+        updated_settings = settings_service.update_settings(payload)
+    except ValueError as e:
+        return jsonify({"success": False, "message": str(e)}), 400
+
+    app.config["AI_BASE_URL"] = updated_settings["ai"]["base_url"]
+    app.config["AI_MODEL"] = updated_settings["ai"]["model"]
+    app.config["AI_API_KEY"] = updated_settings["ai"].get("api_key") or ENV_AI_API_KEY
+
+    # 触发 AI 服务使用新配置重新初始化
+    global ai_service
+    ai_service = None
+
+    return jsonify(
+        {
+            "success": True,
+            "message": "设置已保存",
+            "settings": _to_public_settings(updated_settings),
+        }
+    )
+
 
 # --- Hugo 服务器管理 API ---
 
@@ -504,7 +592,9 @@ def git_status():
         status = git_service.get_status()
         return jsonify(status)
     except Exception as e:
-        return jsonify({"success": False, "message": f"获取 Git 状态失败: {str(e)}"}), 500
+        return jsonify(
+            {"success": False, "message": f"获取 Git 状态失败: {str(e)}"}
+        ), 500
 
 
 @app.route("/api/git/commits")
@@ -515,7 +605,9 @@ def git_commits():
         result = git_service.get_recent_commits(count)
         return jsonify(result)
     except Exception as e:
-        return jsonify({"success": False, "message": f"获取提交记录失败: {str(e)}"}), 500
+        return jsonify(
+            {"success": False, "message": f"获取提交记录失败: {str(e)}"}
+        ), 500
 
 
 @app.route("/api/publish/system", methods=["POST"])
@@ -534,7 +626,9 @@ def publish_system():
 
     except Exception as e:
         return (
-            jsonify({"success": False, "message": f"系统发布失败: {str(e)}", "steps": {}}),
+            jsonify(
+                {"success": False, "message": f"系统发布失败: {str(e)}", "steps": {}}
+            ),
             500,
         )
 
