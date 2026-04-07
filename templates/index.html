@@ -311,7 +311,7 @@ function dashboard() {
                     return;
                 }
 
-                const force = preview.is_already_sent ? 
+                const force = preview.is_already_sent ?
                     confirm('该文章已推送过，是否强制再次推送？') : false;
 
                 const response = await fetch('/api/email/push-latest', {
@@ -364,7 +364,7 @@ function dashboard() {
                     return;
                 }
 
-                const force = preview.is_already_sent ? 
+                const force = preview.is_already_sent ?
                     confirm('该文章已推送过，是否强制再次推送？') : false;
 
                 const response = await fetch('/api/email/push-article', {

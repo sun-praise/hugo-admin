@@ -18,4 +18,3 @@ The system SHALL provide a floating chat box in the web interface for interactin
 - **Then** the message should appear in the chat history
 - **And** a loading indicator should appear
 - **And** the AI's response should be rendered (supporting Markdown).
-
