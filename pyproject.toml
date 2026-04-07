@@ -1,6 +1,6 @@
 [project]
 name = "hugo-admin"
-version = "1.2.1"
+version = "1.3.0"
 description = "A lightweight web-based admin interface for managing Hugo static sites"
 readme = "README.md"
 license = { text = "Apache-2.0" }
