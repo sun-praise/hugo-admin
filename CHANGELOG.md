@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-04-07
+
+### Added
+- Added a dedicated settings page with Hugo base directory configuration.
+- Added AI chat session management and history support for chat continuity.
+- Added REST endpoints and UI for managing chat sessions.
+
+### Changed
+- Reworked settings interactions from popup-based UI to a dedicated settings page.
+- Moved AI configuration from environment-only settings into the sidebar/settings page.
+- Integrated pre-commit checks into CI and applied automated style fixes.
+
+### Fixed
+- Fixed a settings service variable scope issue that could raise `UnboundLocalError`.
+- Fixed settings sidebar interactions and Docker/CI reliability issues.
+- Improved config storage and validation robustness.
+
 ## [1.2.1] - 2026-01-24
 
 ### Added
