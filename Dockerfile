@@ -27,14 +27,11 @@ RUN curl -L "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}
     && hugo version \
     && hugo version | grep -i extended
 
-# 复制依赖文件
-COPY requirements.txt .
-
-# 安装 Python 依赖
-RUN pip install --no-cache-dir -r requirements.txt
-
 # 复制应用代码
 COPY . .
+
+# 安装 Python 依赖（兼容移除 requirements.txt 后的依赖管理方式）
+RUN pip install --no-cache-dir .
 
 # 创建必要的目录
 RUN mkdir -p /app/content /app/public /app/static /app/templates
