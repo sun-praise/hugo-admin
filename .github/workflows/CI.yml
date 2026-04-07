@@ -26,8 +26,7 @@ jobs:
         uses: Svtter/opencode-actions/review@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          model: opencode-go/glm-5
-          
+
           # only one is enough.
           zhipu-api-key: ${{ secrets.ZHIPU_API_KEY }}
           opencode-go-api-key: ${{ secrets.OPENCODE_GO_API_KEY }}
