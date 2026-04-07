@@ -64,3 +64,6 @@ site
 
 .serena
 test-report.md
+
+# ignore opencode werid file
+.opencode/package-lock.json
