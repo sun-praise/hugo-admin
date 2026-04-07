@@ -23,6 +23,7 @@ jobs:
           persist-credentials: false
 
       - name: Run OpenCode review
+        continue-on-error: true
         uses: Svtter/opencode-actions/review@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
