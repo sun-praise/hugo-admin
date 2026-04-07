@@ -292,7 +292,9 @@ class EmailService:
             normalized = re.sub(pattern, replacement, normalized)
 
         # 兼容 `{{ .TrackLink "..." }}` -> `{{ TrackLink "..." }}`
-        normalized = re.sub(r"{{\s*\.TrackLink(\s+[^}]*)}}", r"{{ TrackLink\1}}", normalized)
+        normalized = re.sub(
+            r"{{\s*\.TrackLink(\s+[^}]*)}}", r"{{ TrackLink\1}}", normalized
+        )
         return normalized
 
     def preview_email(self, post):
