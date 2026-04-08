@@ -131,17 +131,24 @@
             </template>
             <template x-for="post in recentPosts" :key="post.path">
                 <div class="border-b border-gray-200 pb-3 last:border-b-0">
-                    <a :href="'/editor/' + post.path" class="block hover:bg-gray-50 rounded p-2 -m-2">
-                        <h4 class="font-medium text-gray-900 mb-1" x-text="post.title"></h4>
-                        <p class="text-sm text-gray-600 mb-2" x-text="post.excerpt"></p>
-                        <div class="flex items-center space-x-4 text-xs text-gray-500">
-                            <span x-text="post.date"></span>
-                            <span class="flex items-center space-x-1">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-                                </svg>
-                                <span x-text="post.tags.join(', ')"></span>
-                            </span>
+                    <a :href="'/editor/' + post.path" class="flex hover:bg-gray-50 rounded p-2 -m-2">
+                        <img x-show="post.cover_url"
+                             :src="post.cover_url"
+                             :alt="post.title"
+                             class="w-16 h-12 object-cover rounded mr-3 flex-shrink-0 bg-gray-100"
+                             onerror="this.style.display='none'">
+                        <div class="flex-1 min-w-0">
+                            <h4 class="font-medium text-gray-900 mb-1 truncate" x-text="post.title"></h4>
+                            <p class="text-sm text-gray-600 mb-1 line-clamp-1" x-text="post.excerpt"></p>
+                            <div class="flex items-center space-x-4 text-xs text-gray-500">
+                                <span x-text="post.date"></span>
+                                <span class="flex items-center space-x-1">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                                    </svg>
+                                    <span x-text="post.tags.join(', ')"></span>
+                                </span>
+                            </div>
                         </div>
                     </a>
                 </div>
