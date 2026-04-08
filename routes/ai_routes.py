@@ -5,6 +5,7 @@ AI 助手相关路由
 
 import json
 import queue
+import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
@@ -60,6 +61,7 @@ def stream_agent_as_sse_sync(
     *,
     message: str,
     history=None,
+    current_file=None,
 ):
     """
     将 Claude Agent SDK 的事件流转换为同步 SSE 生成器
@@ -71,6 +73,7 @@ def stream_agent_as_sse_sync(
         ai_service: AIService 实例
         message: 用户消息
         history: 消息历史（可选）
+        current_file: 当前聚焦的文章路径（可选）
 
     Yields:
         SSE 格式的数据行
@@ -78,6 +81,9 @@ def stream_agent_as_sse_sync(
     q = queue.Queue(maxsize=200)
     stop_flag = threading.Event()
     history = history or []
+
+    if current_file:
+        message = f"[当前聚焦文章: {current_file}]\n\n{message}"
 
     async def produce():
         """异步生成器：处理 AI 响应流"""
@@ -236,6 +242,12 @@ def register_ai_routes(ai_service_factory):
         message = data.get("message")
         history = data.get("history", [])
         session_id = data.get("session_id")
+        current_file = data.get("current_file")
+        if current_file is not None:
+            if not isinstance(current_file, str) or not re.match(
+                r"^[\w\-./]+$", current_file
+            ):
+                current_file = None
 
         if not message:
             return jsonify({"success": False, "message": "缺少消息内容"}), 400
@@ -263,6 +275,7 @@ def register_ai_routes(ai_service_factory):
                     ai_service,
                     message=message,
                     history=history,
+                    current_file=current_file,
                 ):
                     yield chunk
                     # Extract text from SSE data lines for session storage

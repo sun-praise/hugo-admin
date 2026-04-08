@@ -66,10 +66,7 @@ class AIService:
                 allowed_tools=[
                     "mcp__hugo-tools__search_posts",
                     "mcp__hugo-tools__read_post",
-                    "mcp__hugo-tools__write_post",
                     "mcp__hugo-tools__git_status",
-                    "mcp__hugo-tools__deploy_blog",
-                    "mcp__hugo-tools__manage_server",
                 ],
                 model=model_name,
                 include_partial_messages=True,  # Enable streaming
@@ -80,10 +77,10 @@ class AIService:
                     "ANTHROPIC_MODEL": model_name,
                 },
                 system_prompt=(
-                    "You are a helpful AI assistant for managing a Hugo blog. "
-                    "You can search, read, and write blog posts, check git "
-                    "status, and deploy the blog. Always explain what you are "
-                    "doing before calling tools that modify content or deploy."
+                    "You are a helpful read-only AI assistant for a Hugo blog. "
+                    "You can search and read blog posts. You cannot modify, "
+                    "create, deploy, or manage the blog in any way. "
+                    "Always explain what you are doing before calling tools."
                 ),
             )
         else:
