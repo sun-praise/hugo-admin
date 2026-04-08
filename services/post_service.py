@@ -210,6 +210,32 @@ class PostService:
         except Exception as e:
             return {"error": f"状态检查失败: {str(e)}", "file_path": str(file_path)}
 
+    @staticmethod
+    def _resolve_cover_url(relative_path, cover):
+        if not cover:
+            return ""
+        cover_str = str(cover).strip()
+        if not cover_str:
+            return ""
+        if cover_str.startswith(("http://", "https://", "/")):
+            return cover_str
+        post_dir = Path(relative_path).parent
+        resolved = post_dir / cover_str
+        try:
+            parts = resolved.parts
+            normalized = []
+            for part in parts:
+                if part == "..":
+                    if normalized:
+                        normalized.pop()
+                elif part != ".":
+                    normalized.append(part)
+            if not normalized:
+                return ""
+            return "/content/" + "/".join(normalized)
+        except (ValueError, IndexError):
+            return f"/content/{post_dir}/{cover_str}"
+
     def get_posts(self, query="", category="", tag="", page=1, per_page=20):
         """
         获取文章列表
@@ -269,6 +295,10 @@ class PostService:
                     "excerpt": post.excerpt,
                     "tags": post.tags,  # 已经是列表
                     "categories": post.categories,  # 已经是列表
+                    "cover": post.cover,
+                    "cover_url": self._resolve_cover_url(
+                        post.relative_path, post.cover
+                    ),
                     "mod_time": datetime.fromtimestamp(post.mod_time).strftime(
                         "%Y-%m-%d %H:%M"
                     ),
