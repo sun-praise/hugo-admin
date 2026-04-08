@@ -511,8 +511,9 @@
             return {
                 isOpen: false,
                 userInput: '',
+                currentFile: '{% if current_file %}{{ current_file }}{% endif %}',
                 messages: [
-                    { role: 'assistant', content: '您好！我是您的 Hugo 博客 AI 助手。我可以帮您搜索文章、查看 Git 状态、部署博客或者回答相关问题。' }
+                    { role: 'assistant', content: '您好！我是您的 Hugo 博客 AI 助手（只读模式）。我可以帮您搜索和阅读文章，或回答相关问题。' }
                 ],
                 isLoading: false,
                 currentSessionId: null,
@@ -534,7 +535,7 @@
                         if (res.ok) {
                             const data = await res.json();
                             this.currentSessionId = data.session_id;
-                            this.messages = [{ role: 'assistant', content: '您好！我是您的 Hugo 博客 AI 助手。我可以帮您搜索文章、查看 Git 状态、部署博客或者回答相关问题。' }];
+                            this.messages = [{ role: 'assistant', content: '您好！我是您的 Hugo 博客 AI 助手（只读模式）。我可以帮您搜索和阅读文章，或回答相关问题。' }];
                             await this.loadSessions();
                         }
                     } catch (e) { console.error('Failed to create session:', e); }
@@ -548,7 +549,7 @@
                             this.currentSessionId = sessionId;
                             this.messages = data.messages && data.messages.length > 0
                                 ? data.messages.map(m => ({ role: m.role, content: m.content }))
-                                : [{ role: 'assistant', content: '您好！我是您的 Hugo 博客 AI 助手。' }];
+                                : [{ role: 'assistant', content: '您好！我是您的 Hugo 博客 AI 助手（只读模式）。' }];
                         }
                     } catch (e) { console.error('Failed to load session:', e); }
                 },
@@ -559,7 +560,7 @@
                         await fetch(`/api/ai/sessions/${sessionId}`, { method: 'DELETE' });
                         if (this.currentSessionId === sessionId) {
                             this.currentSessionId = null;
-                            this.messages = [{ role: 'assistant', content: '您好！我是您的 Hugo 博客 AI 助手。' }];
+                            this.messages = [{ role: 'assistant', content: '您好！我是您的 Hugo 博客 AI 助手（只读模式）。' }];
                         }
                         await this.loadSessions();
                     } catch (e) { console.error('Failed to delete session:', e); }
@@ -635,7 +636,8 @@
                             body: JSON.stringify({
                                 message: userMessage,
                                 history: this.messages.slice(0, -1),
-                                session_id: this.currentSessionId
+                                session_id: this.currentSessionId,
+                                current_file: this.currentFile || undefined
                             })
                         });
 
