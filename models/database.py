@@ -25,6 +25,7 @@ class Database:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
+        self._migrate_db()
 
     def _get_connection(self):
         """获取数据库连接"""
@@ -48,6 +49,7 @@ class Database:
                 date TEXT,
                 description TEXT,
                 excerpt TEXT,
+                cover TEXT DEFAULT '',
                 tags TEXT,
                 categories TEXT,
                 mod_time REAL NOT NULL,
@@ -125,6 +127,20 @@ class Database:
         conn.commit()
         conn.close()
 
+    def _migrate_db(self):
+        """数据库迁移：为已有表添加新字段"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("PRAGMA table_info(posts)")
+        columns = {row[1] for row in cursor.fetchall()}
+
+        if "cover" not in columns:
+            cursor.execute("ALTER TABLE posts ADD COLUMN cover TEXT DEFAULT ''")
+            conn.commit()
+
+        conn.close()
+
     def get_post(self, file_path: str) -> Optional[Dict[str, Any]]:
         """
         获取单个文章
@@ -165,9 +181,9 @@ class Database:
         cursor.execute(
             """
             INSERT OR REPLACE INTO posts
-            (file_path, relative_path, title, date, description, excerpt,
+            (file_path, relative_path, title, date, description, excerpt, cover,
              tags, categories, mod_time, cached_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 post_data["file_path"],
@@ -176,6 +192,7 @@ class Database:
                 post_data.get("date", ""),
                 post_data.get("description", ""),
                 post_data.get("excerpt", ""),
+                post_data.get("cover", ""),
                 tags_json,
                 categories_json,
                 post_data["mod_time"],
@@ -521,5 +538,6 @@ class Database:
         cursor.execute(
             "UPDATE chat_sessions SET title = ? WHERE id = ?", (title, session_id)
         )
+
         conn.commit()
         conn.close()
