@@ -29,6 +29,7 @@ class BlogPost:
         self.draft = False
         self.content = ""
         self.excerpt = ""
+        self.cover = ""
         self.mod_time = None  # 文件修改时间
 
         # 解析文章
@@ -64,6 +65,20 @@ class BlogPost:
             self.title = metadata.get("title", "")
             self.description = metadata.get("description", "")
             self.draft = metadata.get("draft", False)
+
+            # 处理封面图
+            cover = metadata.get("cover", "")
+            if not cover:
+                cover = metadata.get("image", "")
+            if not cover:
+                images = metadata.get("images")
+                if isinstance(images, list):
+                    cover = images[0] if images else ""
+                elif isinstance(images, str):
+                    cover = images
+            if isinstance(cover, list):
+                cover = cover[0] if cover else ""
+            self.cover = str(cover).strip()
 
             # 处理日期
             date_value = metadata.get("date")
@@ -156,6 +171,7 @@ class BlogPost:
             "categories": self.categories,
             "draft": self.draft,
             "excerpt": self.excerpt,
+            "cover": self.cover,
             "content": self.content,
         }
 

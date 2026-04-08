@@ -65,9 +65,11 @@ class CacheService:
                 # 新文章或强制重建
                 to_update.append(post)
             else:
-                # 检查是否有修改
                 cached_post = self.db.get_post(file_path)
-                if cached_post and cached_post["mod_time"] != post.mod_time:
+                if cached_post and (
+                    cached_post["mod_time"] != post.mod_time
+                    or not cached_post.get("cover")
+                ):
                     to_update.append(post)
 
         # 更新缓存
@@ -91,6 +93,32 @@ class CacheService:
         检查文件变化并更新缓存
         """
         self.initialize(force_rebuild=False)
+
+    @staticmethod
+    def _resolve_cover_url(relative_path, cover):
+        if not cover:
+            return ""
+        cover_str = str(cover).strip()
+        if not cover_str:
+            return ""
+        if cover_str.startswith(("http://", "https://", "/")):
+            return cover_str
+        post_dir = Path(relative_path).parent
+        resolved = post_dir / cover_str
+        try:
+            parts = resolved.parts
+            normalized = []
+            for part in parts:
+                if part == "..":
+                    if normalized:
+                        normalized.pop()
+                elif part != ".":
+                    normalized.append(part)
+            if not normalized:
+                return ""
+            return "/content/" + "/".join(normalized)
+        except (ValueError, IndexError):
+            return f"/content/{post_dir}/{cover_str}"
 
     def get_posts(
         self,
@@ -147,6 +175,10 @@ class CacheService:
                     "excerpt": post["excerpt"],
                     "tags": post["tags"],
                     "categories": post["categories"],
+                    "cover": post.get("cover", ""),
+                    "cover_url": self._resolve_cover_url(
+                        post["relative_path"], post.get("cover", "")
+                    ),
                     "mod_time": datetime.fromtimestamp(post["mod_time"]).strftime(
                         "%Y-%m-%d %H:%M"
                     ),
@@ -237,6 +269,7 @@ class CacheService:
             "excerpt": post.excerpt,
             "tags": post.tags,
             "categories": post.categories,
+            "cover": post.cover,
             "mod_time": post.mod_time,
         }
 
