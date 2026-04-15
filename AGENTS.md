@@ -16,3 +16,5 @@ Use `@/openspec/AGENTS.md` to learn:
 Keep this managed block so 'openspec update' can refresh the instructions.
 
 <!-- OPENSPEC:END -->
+
+IMPORTANT: 不要在当前目录和 main 分支修改代码，在 .worktrees 目录下创建 git worktree 来修改。
