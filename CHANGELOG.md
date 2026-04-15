@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-04-15
+
+### Added
+- Cover image display in post list and dashboard recent posts (#26, #27)
+- GitHub icon link in sidebar footer (#29)
+- Docker image build workflow for GitHub Actions
+- Auto-read version from `__version__.py` in sidebar (#31)
+
+### Changed
+- AI assistant is now read-only with current article context injected (#28)
+- Docker image tag updated to `svtter/hugo-admin`
+
 ## [1.3.0] - 2026-04-07
 
 ### Added
