@@ -29,6 +29,14 @@ from services.settings_service import (
 load_dotenv()
 app = Flask(__name__)
 
+
+@app.context_processor
+def inject_version():
+    from __version__ import __version__
+
+    return {"app_version": __version__}
+
+
 # 加载配置
 try:
     from config_local import LocalConfig
