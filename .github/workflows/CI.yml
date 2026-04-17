@@ -27,7 +27,6 @@ jobs:
         uses: Svtter/opencode-actions/review@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          model: opencode/glm-5
 
           # only one is enough.
           zhipu-api-key: ${{ secrets.ZHIPU_API_KEY }}
