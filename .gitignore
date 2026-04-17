@@ -72,3 +72,6 @@ test-report.md
 .opencode/package-lock.json
 
 .worktrees
+
+# ignore ralph
+.ralph
