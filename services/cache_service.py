@@ -4,13 +4,14 @@
 负责管理文章数据的缓存，检测文件变化并增量更新
 """
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
 from models.database import Database
-
-# 导入内部模块
 from utils.blog_parser import BlogPost, get_blog_posts
+
+logger = logging.getLogger(__name__)
 
 
 class CacheService:
@@ -78,13 +79,23 @@ class CacheService:
 
         print(f"缓存初始化完成: 更新 {update_count} 篇, 删除 {delete_count} 篇")
 
-    def _incremental_update(self, cached_paths: set):
-        """
-        增量更新缓存：仅 stat 文件检查 mod_time，只解析变化的文件
+    def _make_relative_path(self, file_path):
+        try:
+            return Path(file_path).relative_to(self.content_dir)
+        except ValueError:
+            return Path(file_path)
 
-        Args:
-            cached_paths: 数据库中已缓存的文件路径集合
-        """
+    def _parse_and_cache(self, file_path):
+        try:
+            post = BlogPost(file_path)
+            if post.title or post.content:
+                post.relative_path = self._make_relative_path(file_path)
+                return post
+        except Exception as e:
+            logger.warning("Error processing %s: %s", file_path, e)
+        return None
+
+    def _incremental_update(self, cached_paths: set):
         post_dir = self.content_dir / "post"
         if not post_dir.exists():
             return
@@ -92,43 +103,26 @@ class CacheService:
         current_md_files = set()
         for md_file in post_dir.rglob("*.md"):
             if not md_file.is_dir():
-                current_md_files.add(str(md_file.resolve()))
+                current_md_files.add(str(md_file))
 
         to_delete = cached_paths - current_md_files
 
         to_update = []
         for file_path in current_md_files:
             if file_path not in cached_paths:
-                try:
-                    post = BlogPost(file_path)
-                    if post.title or post.content:
-                        try:
-                            post.relative_path = Path(file_path).relative_to(
-                                self.content_dir
-                            )
-                        except ValueError:
-                            post.relative_path = Path(file_path)
-                        to_update.append(post)
-                except Exception as e:
-                    print(f"Error processing {file_path}: {e}")
+                post = self._parse_and_cache(file_path)
+                if post:
+                    to_update.append(post)
             else:
                 try:
                     current_mod_time = Path(file_path).stat().st_mtime
                     cached_post = self.db.get_post(file_path)
-                    if cached_post and (
-                        cached_post["mod_time"] != current_mod_time
-                        or not cached_post.get("cover")
-                    ):
-                        post = BlogPost(file_path)
-                        try:
-                            post.relative_path = Path(file_path).relative_to(
-                                self.content_dir
-                            )
-                        except ValueError:
-                            post.relative_path = Path(file_path)
-                        to_update.append(post)
+                    if cached_post and cached_post["mod_time"] != current_mod_time:
+                        post = self._parse_and_cache(file_path)
+                        if post:
+                            to_update.append(post)
                 except OSError:
-                    pass
+                    logger.warning("Cannot stat %s, skipping", file_path)
 
         update_count = 0
         for post in to_update:
@@ -298,11 +292,7 @@ class CacheService:
         try:
             # 使用 BlogPost 类加载单个文件
             post = BlogPost(file_path)
-            # 设置相对路径
-            try:
-                post.relative_path = Path(file_path).relative_to(self.content_dir)
-            except ValueError:
-                post.relative_path = Path(file_path)
+            post.relative_path = self._make_relative_path(file_path)
             self._cache_post(post)
             print(f"更新缓存: {file_path}")
         except Exception as e:
