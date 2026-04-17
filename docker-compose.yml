@@ -17,6 +17,8 @@ services:
       - ./public:/app/public
       - ./static:/app/static
       - ./config.toml:/app/config.toml:ro
+      # 持久化缓存数据库，避免容器重启后缓存丢失
+      - ./data:/app/data
       # 可选：挂载自定义配置
       # - ./config_local.py:/app/config_local.py:ro
     environment:
