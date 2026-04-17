@@ -43,49 +43,104 @@ class CacheService:
         if self._initialized and not force_rebuild:
             return
 
-        print("正在初始化文章缓存...")
         if force_rebuild:
             print("强制重建缓存...")
+            self._full_rebuild()
+        else:
+            cached_paths = set(self.db.get_all_file_paths())
+            if cached_paths:
+                print("检测到已有缓存，执行增量更新...")
+                self._incremental_update(cached_paths)
+            else:
+                print("正在初始化文章缓存（首次扫描）...")
+                self._full_rebuild()
 
-        # 获取当前文件系统中的所有文章
+        self._initialized = True
+
+    def _full_rebuild(self):
+        """全量扫描并重建缓存"""
         current_posts = get_blog_posts(str(self.content_dir))
         current_paths = {str(post.file_path) for post in current_posts}
-
-        # 获取数据库中的所有文章路径
         cached_paths = set(self.db.get_all_file_paths())
 
-        # 找出需要更新和删除的文章
-        to_update = []
+        to_update = list(current_posts)
         to_delete = cached_paths - current_paths
 
-        for post in current_posts:
-            file_path = str(post.file_path)
-
-            if force_rebuild or file_path not in cached_paths:
-                # 新文章或强制重建
-                to_update.append(post)
-            else:
-                cached_post = self.db.get_post(file_path)
-                if cached_post and (
-                    cached_post["mod_time"] != post.mod_time
-                    or not cached_post.get("cover")
-                ):
-                    to_update.append(post)
-
-        # 更新缓存
         update_count = 0
         for post in to_update:
             self._cache_post(post)
             update_count += 1
 
-        # 删除不存在的文章
         delete_count = 0
         for file_path in to_delete:
             self.db.delete_post(file_path)
             delete_count += 1
 
-        self._initialized = True
         print(f"缓存初始化完成: 更新 {update_count} 篇, 删除 {delete_count} 篇")
+
+    def _incremental_update(self, cached_paths: set):
+        """
+        增量更新缓存：仅 stat 文件检查 mod_time，只解析变化的文件
+
+        Args:
+            cached_paths: 数据库中已缓存的文件路径集合
+        """
+        post_dir = self.content_dir / "post"
+        if not post_dir.exists():
+            return
+
+        current_md_files = set()
+        for md_file in post_dir.rglob("*.md"):
+            if not md_file.is_dir():
+                current_md_files.add(str(md_file.resolve()))
+
+        to_delete = cached_paths - current_md_files
+
+        to_update = []
+        for file_path in current_md_files:
+            if file_path not in cached_paths:
+                try:
+                    post = BlogPost(file_path)
+                    if post.title or post.content:
+                        try:
+                            post.relative_path = Path(file_path).relative_to(
+                                self.content_dir
+                            )
+                        except ValueError:
+                            post.relative_path = Path(file_path)
+                        to_update.append(post)
+                except Exception as e:
+                    print(f"Error processing {file_path}: {e}")
+            else:
+                try:
+                    current_mod_time = Path(file_path).stat().st_mtime
+                    cached_post = self.db.get_post(file_path)
+                    if cached_post and (
+                        cached_post["mod_time"] != current_mod_time
+                        or not cached_post.get("cover")
+                    ):
+                        post = BlogPost(file_path)
+                        try:
+                            post.relative_path = Path(file_path).relative_to(
+                                self.content_dir
+                            )
+                        except ValueError:
+                            post.relative_path = Path(file_path)
+                        to_update.append(post)
+                except OSError:
+                    pass
+
+        update_count = 0
+        for post in to_update:
+            self._cache_post(post)
+            update_count += 1
+
+        delete_count = 0
+        for file_path in to_delete:
+            self.db.delete_post(file_path)
+            delete_count += 1
+
+        print(f"缓存增量更新完成: 更新 {update_count} 篇, 删除 {delete_count} 篇")
 
     def refresh(self):
         """
