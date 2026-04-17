@@ -269,34 +269,21 @@ class CacheService:
         return self.db.get_all_categories()
 
     def invalidate_post(self, file_path: str):
-        """
-        使特定文章的缓存失效并重新加载
-
-        Args:
-            file_path: 文件路径（相对或绝对）
-        """
-        # 转换为绝对路径
         if not Path(file_path).is_absolute():
             file_path = str(self.content_dir / file_path)
 
-        file_path = str(Path(file_path).resolve())
-
-        # 检查文件是否存在
         if not Path(file_path).exists():
-            # 文件已删除，从缓存中移除
             self.db.delete_post(file_path)
-            print(f"从缓存中删除: {file_path}")
+            logger.info("从缓存中删除: %s", file_path)
             return
 
-        # 重新加载文章
         try:
-            # 使用 BlogPost 类加载单个文件
             post = BlogPost(file_path)
             post.relative_path = self._make_relative_path(file_path)
             self._cache_post(post)
-            print(f"更新缓存: {file_path}")
+            logger.info("更新缓存: %s", file_path)
         except Exception as e:
-            print(f"无法加载文章 {file_path}: {e}")
+            logger.warning("无法加载文章 %s: %s", file_path, e)
 
     def _cache_post(self, post: BlogPost):
         """
