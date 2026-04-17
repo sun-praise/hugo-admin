@@ -4,17 +4,20 @@
 负责管理文章数据的缓存，检测文件变化并增量更新
 """
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
 from models.database import Database
-
-# 导入内部模块
 from utils.blog_parser import BlogPost, get_blog_posts
+
+logger = logging.getLogger(__name__)
 
 
 class CacheService:
     """文章缓存服务"""
+
+    POST_SUBDIR = "post"
 
     def __init__(self, content_dir: str, db_path: str = None):
         """
@@ -43,49 +46,103 @@ class CacheService:
         if self._initialized and not force_rebuild:
             return
 
-        print("正在初始化文章缓存...")
         if force_rebuild:
-            print("强制重建缓存...")
+            logger.info("强制重建缓存...")
+            self._full_rebuild()
+        else:
+            cached_paths = set(self.db.get_all_file_paths())
+            if cached_paths:
+                logger.info("检测到已有缓存，执行增量更新...")
+                self._incremental_update(cached_paths)
+            else:
+                logger.info("正在初始化文章缓存（首次扫描）...")
+                self._full_rebuild()
 
-        # 获取当前文件系统中的所有文章
+        self._initialized = True
+
+    def _full_rebuild(self):
+        """全量扫描并重建缓存"""
         current_posts = get_blog_posts(str(self.content_dir))
         current_paths = {str(post.file_path) for post in current_posts}
-
-        # 获取数据库中的所有文章路径
         cached_paths = set(self.db.get_all_file_paths())
 
-        # 找出需要更新和删除的文章
-        to_update = []
+        to_update = list(current_posts)
         to_delete = cached_paths - current_paths
 
-        for post in current_posts:
-            file_path = str(post.file_path)
-
-            if force_rebuild or file_path not in cached_paths:
-                # 新文章或强制重建
-                to_update.append(post)
-            else:
-                cached_post = self.db.get_post(file_path)
-                if cached_post and (
-                    cached_post["mod_time"] != post.mod_time
-                    or not cached_post.get("cover")
-                ):
-                    to_update.append(post)
-
-        # 更新缓存
         update_count = 0
         for post in to_update:
             self._cache_post(post)
             update_count += 1
 
-        # 删除不存在的文章
         delete_count = 0
         for file_path in to_delete:
             self.db.delete_post(file_path)
             delete_count += 1
 
-        self._initialized = True
-        print(f"缓存初始化完成: 更新 {update_count} 篇, 删除 {delete_count} 篇")
+        logger.info(
+            "缓存初始化完成: 更新 %d 篇, 删除 %d 篇", update_count, delete_count
+        )
+
+    def _make_relative_path(self, file_path):
+        try:
+            return Path(file_path).relative_to(self.content_dir)
+        except ValueError:
+            return Path(file_path)
+
+    def _parse_and_cache(self, file_path):
+        try:
+            post = BlogPost(file_path)
+            if post.title or post.content:
+                post.relative_path = self._make_relative_path(file_path)
+                return post
+        except Exception as e:
+            logger.warning("Error processing %s: %s", file_path, e)
+        return None
+
+    def _incremental_update(self, cached_paths: set):
+        post_dir = self.content_dir / self.POST_SUBDIR
+        if not post_dir.exists():
+            return
+
+        current_md_files = set()
+        for md_file in post_dir.rglob("*.md"):
+            if not md_file.is_dir():
+                current_md_files.add(str(md_file))
+
+        to_delete = cached_paths - current_md_files
+
+        cached_posts_by_path = {p["file_path"]: p for p in self.db.get_all_posts()}
+
+        to_update = []
+        for file_path in current_md_files:
+            if file_path not in cached_paths:
+                post = self._parse_and_cache(file_path)
+                if post:
+                    to_update.append(post)
+            else:
+                try:
+                    current_mod_time = Path(file_path).stat().st_mtime
+                    cached_post = cached_posts_by_path.get(file_path)
+                    if cached_post and cached_post["mod_time"] != current_mod_time:
+                        post = self._parse_and_cache(file_path)
+                        if post:
+                            to_update.append(post)
+                except OSError:
+                    logger.warning("Cannot stat %s, skipping", file_path)
+
+        update_count = 0
+        for post in to_update:
+            self._cache_post(post)
+            update_count += 1
+
+        delete_count = 0
+        for file_path in to_delete:
+            self.db.delete_post(file_path)
+            delete_count += 1
+
+        logger.info(
+            "缓存增量更新完成: 更新 %d 篇, 删除 %d 篇", update_count, delete_count
+        )
 
     def refresh(self):
         """
@@ -220,38 +277,21 @@ class CacheService:
         return self.db.get_all_categories()
 
     def invalidate_post(self, file_path: str):
-        """
-        使特定文章的缓存失效并重新加载
-
-        Args:
-            file_path: 文件路径（相对或绝对）
-        """
-        # 转换为绝对路径
         if not Path(file_path).is_absolute():
             file_path = str(self.content_dir / file_path)
 
-        file_path = str(Path(file_path).resolve())
-
-        # 检查文件是否存在
         if not Path(file_path).exists():
-            # 文件已删除，从缓存中移除
             self.db.delete_post(file_path)
-            print(f"从缓存中删除: {file_path}")
+            logger.info("从缓存中删除: %s", file_path)
             return
 
-        # 重新加载文章
         try:
-            # 使用 BlogPost 类加载单个文件
             post = BlogPost(file_path)
-            # 设置相对路径
-            try:
-                post.relative_path = Path(file_path).relative_to(self.content_dir)
-            except ValueError:
-                post.relative_path = Path(file_path)
+            post.relative_path = self._make_relative_path(file_path)
             self._cache_post(post)
-            print(f"更新缓存: {file_path}")
+            logger.info("更新缓存: %s", file_path)
         except Exception as e:
-            print(f"无法加载文章 {file_path}: {e}")
+            logger.warning("无法加载文章 %s: %s", file_path, e)
 
     def _cache_post(self, post: BlogPost):
         """
