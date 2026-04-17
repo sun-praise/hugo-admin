@@ -188,7 +188,84 @@ def test_path_consistency():
             os.unlink(db_path)
 
 
+def test_incremental_post_dir_missing():
+    """增量更新：post_dir 不存在时应保留已有缓存（不误删）"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        content_dir = Path(tmpdir)
+        post_dir = content_dir / "post"
+        _create_md_file(post_dir, "a.md", "Alpha")
+
+        svc, db_path = _cache_service_with_tmp(content_dir)
+        try:
+            svc.initialize()
+            assert len(svc.db.get_all_posts()) == 1
+
+            import shutil
+
+            shutil.rmtree(post_dir)
+
+            svc._initialized = False
+            svc.initialize()
+
+            titles = [p["title"] for p in svc.db.get_all_posts()]
+            assert "Alpha" in titles
+        finally:
+            os.unlink(db_path)
+
+
+def test_incremental_unreadable_file_skips():
+    """增量更新：文件不可读时应跳过并保留旧缓存"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        content_dir = Path(tmpdir)
+        post_dir = content_dir / "post"
+        f1 = _create_md_file(post_dir, "a.md", "Alpha")
+
+        svc, db_path = _cache_service_with_tmp(content_dir)
+        try:
+            svc.initialize()
+            original_mod_time = svc.db.get_all_posts()[0]["mod_time"]
+
+            time.sleep(0.05)
+            os.chmod(f1, 0o000)
+
+            svc._initialized = False
+            svc.initialize()
+
+            assert svc.db.get_all_posts()[0]["mod_time"] == original_mod_time
+        finally:
+            os.chmod(f1, 0o644)
+            os.unlink(db_path)
+
+
+def test_incremental_mtime_precision():
+    """增量更新：极短时间内修改文件应仍能被检测"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        content_dir = Path(tmpdir)
+        post_dir = content_dir / "post"
+        f1 = _create_md_file(post_dir, "a.md", "Alpha")
+
+        svc, db_path = _cache_service_with_tmp(content_dir)
+        try:
+            svc.initialize()
+
+            f1.write_text(
+                "---\ntitle: Alpha V2\ndate: 2025-01-01\n---\n\nv2\n",
+                encoding="utf-8",
+            )
+            time.sleep(0.01)
+
+            svc._initialized = False
+            svc.initialize()
+
+            posts = svc.db.get_all_posts()
+            assert len(posts) == 1
+            assert posts[0]["title"] == "Alpha V2"
+        finally:
+            os.unlink(db_path)
+
+
 def test_database():
+    """测试数据库基本功能"""
     """测试数据库基本功能"""
     import os
     import tempfile

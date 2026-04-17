@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 class CacheService:
     """文章缓存服务"""
 
+    POST_SUBDIR = "post"
+
     def __init__(self, content_dir: str, db_path: str = None):
         """
         初始化缓存服务
@@ -45,15 +47,15 @@ class CacheService:
             return
 
         if force_rebuild:
-            print("强制重建缓存...")
+            logger.info("强制重建缓存...")
             self._full_rebuild()
         else:
             cached_paths = set(self.db.get_all_file_paths())
             if cached_paths:
-                print("检测到已有缓存，执行增量更新...")
+                logger.info("检测到已有缓存，执行增量更新...")
                 self._incremental_update(cached_paths)
             else:
-                print("正在初始化文章缓存（首次扫描）...")
+                logger.info("正在初始化文章缓存（首次扫描）...")
                 self._full_rebuild()
 
         self._initialized = True
@@ -77,7 +79,9 @@ class CacheService:
             self.db.delete_post(file_path)
             delete_count += 1
 
-        print(f"缓存初始化完成: 更新 {update_count} 篇, 删除 {delete_count} 篇")
+        logger.info(
+            "缓存初始化完成: 更新 %d 篇, 删除 %d 篇", update_count, delete_count
+        )
 
     def _make_relative_path(self, file_path):
         try:
@@ -96,7 +100,7 @@ class CacheService:
         return None
 
     def _incremental_update(self, cached_paths: set):
-        post_dir = self.content_dir / "post"
+        post_dir = self.content_dir / self.POST_SUBDIR
         if not post_dir.exists():
             return
 
@@ -107,6 +111,8 @@ class CacheService:
 
         to_delete = cached_paths - current_md_files
 
+        cached_posts_by_path = {p["file_path"]: p for p in self.db.get_all_posts()}
+
         to_update = []
         for file_path in current_md_files:
             if file_path not in cached_paths:
@@ -116,7 +122,7 @@ class CacheService:
             else:
                 try:
                     current_mod_time = Path(file_path).stat().st_mtime
-                    cached_post = self.db.get_post(file_path)
+                    cached_post = cached_posts_by_path.get(file_path)
                     if cached_post and cached_post["mod_time"] != current_mod_time:
                         post = self._parse_and_cache(file_path)
                         if post:
@@ -134,7 +140,9 @@ class CacheService:
             self.db.delete_post(file_path)
             delete_count += 1
 
-        print(f"缓存增量更新完成: 更新 {update_count} 篇, 删除 {delete_count} 篇")
+        logger.info(
+            "缓存增量更新完成: 更新 %d 篇, 删除 %d 篇", update_count, delete_count
+        )
 
     def refresh(self):
         """
