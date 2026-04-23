@@ -38,6 +38,7 @@ RUN mkdir -p /app/content /app/public /app/static /app/templates
 
 # 暴露端口
 EXPOSE 5050
+EXPOSE 1313
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
