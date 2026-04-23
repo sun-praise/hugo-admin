@@ -12,6 +12,8 @@ from pathlib import Path
 
 import psutil
 
+from config import Config
+
 
 class HugoServerManager:
     """Hugo 服务器管理器"""
@@ -55,7 +57,7 @@ class HugoServerManager:
                 "server",
                 "--bind=0.0.0.0",
                 "-b",
-                "http://192.168.2.14",
+                Config.HUGO_SERVER_BASE_URL,
                 "--disableFastRender",
             ]
             if debug:
