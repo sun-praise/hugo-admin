@@ -27,6 +27,7 @@ services:
       - HUGO_ROOT=/app
       - CONTENT_DIR=/app/content
       - PUBLIC_DIR=/app/public
+      - HUGO_SERVER_BASE_URL=${HUGO_SERVER_BASE_URL:-http://localhost:1313}
     restart: unless-stopped
     networks:
       - hugo-network
