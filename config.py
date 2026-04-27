@@ -24,7 +24,7 @@ class Config:
     # Hugo 配置
     HUGO_SERVER_HOST = "0.0.0.0"
     HUGO_SERVER_PORT = 1313
-    HUGO_SERVER_BASE_URL = "http://192.168.2.14"
+    HUGO_SERVER_BASE_URL = os.environ.get("HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313")
 
     # 文件上传配置
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
