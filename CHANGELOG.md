@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-04-29
+
+### Fixed
+- Persist cache across restarts (#34)
+- Resolve path inconsistency and improve incremental update in cache_service
+- Remove `.resolve()` from invalidate_post for path consistency
+- Extract POST_SUBDIR constant, batch DB query, replace print with logger, add edge-case tests
+
+### Known Issues
+- #36 上传图片后文章列表不显示封面图
+
 ## [1.4.0] - 2026-04-15
 
 ### Added
