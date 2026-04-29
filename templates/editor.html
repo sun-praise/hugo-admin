@@ -764,7 +764,7 @@ function editor() {
 
             // 立即阻止浏览器默认粘贴行为，防止同时插入 base64 图片
             event.preventDefault();
-            event.stopImmediatePropagation();
+            event.stopPropagation();
 
             this._isPasting = true;
 
@@ -781,7 +781,7 @@ function editor() {
                         // 检查是否有当前文件
                         if (!this.currentFile) {
                             utils.showNotification('请先选择或创建一篇文章', 'error');
-                            return;
+                            break;
                         }
 
                         // 显示上传提示
@@ -790,13 +790,18 @@ function editor() {
                         try {
                             // 上传图片
                             const formData = new FormData();
-                            formData.append('file', file, `clipboard-${Date.now()}.png`);
+                            const ext = file.type.split('/')[1] || 'png';
+                            formData.append('file', file, `clipboard-${Date.now()}.${ext}`);
                             formData.append('article_path', this.currentFile);
 
                             const response = await fetch('/api/image/upload', {
                                 method: 'POST',
                                 body: formData
                             });
+
+                            if (!response.ok) {
+                                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
 
                             const data = await response.json();
                             if (data.success) {
