@@ -741,61 +741,84 @@ function editor() {
         },
 
         async handlePaste(event) {
+            // 防止重复处理（事件监听器重复绑定或快速触发）
+            if (this._isPasting) {
+                event.preventDefault();
+                return;
+            }
+
             // 检查剪贴板中是否有图片
             const items = event.clipboardData?.items;
             if (!items) return;
 
+            // 先检查是否包含图片，提前阻止默认粘贴行为
             let hasImage = false;
             for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-
-                // 检查是否为图片类型
-                if (item.type.indexOf('image') !== -1) {
+                if (items[i].type.indexOf('image') !== -1) {
                     hasImage = true;
-                    event.preventDefault(); // 阻止默认粘贴行为
-
-                    // 获取图片文件
-                    const file = item.getAsFile();
-                    if (!file) continue;
-
-                    // 检查是否有当前文件
-                    if (!this.currentFile) {
-                        utils.showNotification('请先选择或创建一篇文章', 'error');
-                        return;
-                    }
-
-                    // 显示上传提示
-                    utils.showNotification('正在上传图片...', 'info');
-
-                    try {
-                        // 上传图片
-                        const formData = new FormData();
-                        formData.append('file', file, `clipboard-${Date.now()}.png`);
-                        formData.append('article_path', this.currentFile);
-
-                        const response = await fetch('/api/image/upload', {
-                            method: 'POST',
-                            body: formData
-                        });
-
-                        const data = await response.json();
-                        if (data.success) {
-                            // 插入图片 Markdown 语法到光标位置
-                            this.insertImageAtCursor(data.url);
-                            utils.showNotification('图片上传成功', 'success');
-
-                            // 刷新图片列表
-                            await this.loadImages();
-                        } else {
-                            utils.showNotification('图片上传失败: ' + data.message, 'error');
-                        }
-                    } catch (error) {
-                        console.error('Failed to upload image from clipboard:', error);
-                        utils.showNotification('图片上传失败', 'error');
-                    }
-
-                    break; // 只处理第一个图片
+                    break;
                 }
+            }
+
+            if (!hasImage) return;
+
+            // 立即阻止浏览器默认粘贴行为，防止同时插入 base64 图片
+            event.preventDefault();
+            event.stopImmediatePropagation();
+
+            this._isPasting = true;
+
+            try {
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+
+                    // 检查是否为图片类型
+                    if (item.type.indexOf('image') !== -1) {
+                        // 获取图片文件
+                        const file = item.getAsFile();
+                        if (!file) continue;
+
+                        // 检查是否有当前文件
+                        if (!this.currentFile) {
+                            utils.showNotification('请先选择或创建一篇文章', 'error');
+                            return;
+                        }
+
+                        // 显示上传提示
+                        utils.showNotification('正在上传图片...', 'info');
+
+                        try {
+                            // 上传图片
+                            const formData = new FormData();
+                            formData.append('file', file, `clipboard-${Date.now()}.png`);
+                            formData.append('article_path', this.currentFile);
+
+                            const response = await fetch('/api/image/upload', {
+                                method: 'POST',
+                                body: formData
+                            });
+
+                            const data = await response.json();
+                            if (data.success) {
+                                // 插入图片 Markdown 语法到光标位置
+                                this.insertImageAtCursor(data.url);
+                                utils.showNotification('图片上传成功', 'success');
+
+                                // 刷新图片列表
+                                await this.loadImages();
+                            } else {
+                                utils.showNotification('图片上传失败: ' + data.message, 'error');
+                            }
+                        } catch (error) {
+                            console.error('Failed to upload image from clipboard:', error);
+                            utils.showNotification('图片上传失败', 'error');
+                        }
+
+                        break; // 只处理第一个图片
+                    }
+                }
+            } finally {
+                this._isPasting = false;
             }
         },
 
