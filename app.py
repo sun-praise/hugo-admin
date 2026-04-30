@@ -422,17 +422,44 @@ def read_file():
         return jsonify({"success": False, "message": content}), 404
 
 
+@app.route("/api/file/read-with-frontmatter", methods=["POST"])
+def read_file_with_frontmatter():
+    """读取文件内容，分离 frontmatter 和正文"""
+    data = request.get_json()
+    file_path = data.get("path")
+
+    if not file_path:
+        return jsonify({"success": False, "message": "缺少文件路径"}), 400
+
+    success, content, fm = post_service.read_file_with_frontmatter(file_path)
+
+    if success:
+        return jsonify(
+            {
+                "success": True,
+                "content": content,
+                "frontmatter": fm,
+                "path": file_path,
+            }
+        )
+    else:
+        return jsonify({"success": False, "message": content}), 404
+
+
 @app.route("/api/file/save", methods=["POST"])
 def save_file():
     """保存文件内容"""
     data = request.get_json()
     file_path = data.get("path")
     content = data.get("content")
+    frontmatter_data = data.get("frontmatter")
 
     if not file_path or content is None:
         return jsonify({"success": False, "message": "缺少必要参数"}), 400
 
-    success, message = post_service.save_file(file_path, content)
+    success, message = post_service.save_file(
+        file_path, content, frontmatter_data=frontmatter_data
+    )
 
     return jsonify({"success": success, "message": message}), 200 if success else 500
 
