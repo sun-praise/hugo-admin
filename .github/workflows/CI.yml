@@ -24,10 +24,11 @@ jobs:
 
       - name: Run OpenCode review
         continue-on-error: true
-        uses: Svtter/opencode-actions/review@v1
+        uses: Svtter/opencode-actions/review@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
           # only one is enough.
           zhipu-api-key: ${{ secrets.ZHIPU_API_KEY }}
+          deepseek-api-key: ${{ secrets.DEEPSEEK_API_KEY }}
           opencode-go-api-key: ${{ secrets.OPENCODE_GO_API_KEY }}
