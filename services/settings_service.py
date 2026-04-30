@@ -85,14 +85,21 @@ class SettingsService:
                     if not p.is_dir():
                         raise SettingsValidationError(f"Hugo 根目录不存在: {base_dir}")
                     if (
-                        not (p / "config.toml").exists()
-                        and not (p / "config.yaml").exists()
-                        and not (p / "hugo.toml").exists()
-                        and not (p / "hugo.yaml").exists()
+                        not any(
+                            (p / f).exists()
+                            for f in (
+                                "config.toml",
+                                "config.yaml",
+                                "hugo.toml",
+                                "hugo.yaml",
+                                "config.json",
+                            )
+                        )
+                        and not (p / "config" / "_default" / "config.toml").exists()
+                        and not (p / "config" / "_default" / "config.yaml").exists()
                     ):
                         raise SettingsValidationError(
-                            "目录中未找到 Hugo 配置文件 "
-                            f"(config.toml/yaml 或 hugo.toml/yaml): {base_dir}"
+                            "目录中未找到 Hugo 配置文件: " f"{base_dir}"
                         )
                 current["hugo"]["base_dir"] = base_dir.strip()
 
