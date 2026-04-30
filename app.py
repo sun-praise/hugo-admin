@@ -64,6 +64,9 @@ settings_service = SettingsService(
     defaults={
         "AI_BASE_URL": app.config.get("AI_BASE_URL", "https://api.deepseek.com"),
         "AI_MODEL": app.config.get("AI_MODEL", "deepseek-chat"),
+        "HUGO_SERVER_URL": app.config.get(
+            "HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313"
+        ),
     },
 )
 
@@ -72,14 +75,18 @@ try:
     app.config["AI_BASE_URL"] = persisted_settings["ai"]["base_url"]
     app.config["AI_MODEL"] = persisted_settings["ai"]["model"]
     app.config["AI_API_KEY"] = ENV_AI_API_KEY
+    _hugo_server_url = persisted_settings.get("hugo", {}).get("server_url", "")
 except (SettingsValidationError, SettingsStorageError) as e:
     print(f"⚠ 设置文件读取失败，继续使用默认配置: {e}")
+    _hugo_server_url = ""
 
 # 初始化 SocketIO
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # 初始化服务
-hugo_manager = HugoServerManager(app.config["HUGO_ROOT"], socketio)
+hugo_manager = HugoServerManager(
+    app.config["HUGO_ROOT"], socketio, server_url=_hugo_server_url or None
+)
 post_service = PostService(app.config["CONTENT_DIR"], use_cache=True)
 git_service = GitService(app.config["HUGO_ROOT"])
 
@@ -99,6 +106,9 @@ def _to_public_settings(settings):
     public_settings["hugo"]["base_dir"] = public_settings["hugo"]["base_dir"] or str(
         app.config.get("HUGO_ROOT", "")
     )
+    public_settings["hugo"]["server_url"] = public_settings["hugo"].get(
+        "server_url", ""
+    ) or app.config.get("HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313")
 
     global SESSION_AI_API_KEY
     session_api_key = SESSION_AI_API_KEY
@@ -285,13 +295,16 @@ def update_settings():
     app.config["AI_API_KEY"] = SESSION_AI_API_KEY or ENV_AI_API_KEY
 
     new_hugo_root = updated_settings.get("hugo", {}).get("base_dir", "")
+    new_server_url = updated_settings.get("hugo", {}).get("server_url", "")
     if new_hugo_root and str(app.config["HUGO_ROOT"]) != new_hugo_root:
         new_root = Path(new_hugo_root)
         app.config["HUGO_ROOT"] = new_root
         app.config["CONTENT_DIR"] = new_root / "content"
         post_service = PostService(app.config["CONTENT_DIR"], use_cache=True)
         git_service = GitService(new_root)
-        hugo_manager = HugoServerManager(new_root, socketio)
+        hugo_manager = HugoServerManager(
+            new_root, socketio, server_url=new_server_url or None
+        )
         settings_service = SettingsService(
             new_root / ".admin" / "settings.json",
             legacy_settings_file=Path(app.config["CONTENT_DIR"])
@@ -303,7 +316,13 @@ def update_settings():
                 ),
                 "AI_MODEL": app.config.get("AI_MODEL", "deepseek-chat"),
                 "HUGO_BASE_DIR": str(new_root),
+                "HUGO_SERVER_URL": new_server_url
+                or app.config.get("HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313"),
             },
+        )
+    elif new_server_url != hugo_manager.server_url:
+        hugo_manager.server_url = new_server_url or app.config.get(
+            "HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313"
         )
 
     ai_service = None

@@ -39,6 +39,7 @@ class SettingsService:
     def to_public_settings(self, settings):
         """返回可安全暴露给前端的设置（隐藏敏感值）"""
         ai_settings = settings.get("ai", {})
+        hugo_settings = settings.get("hugo", {})
 
         return {
             "ai": {
@@ -46,7 +47,8 @@ class SettingsService:
                 "model": ai_settings.get("model", "deepseek-chat"),
             },
             "hugo": {
-                "base_dir": settings.get("hugo", {}).get("base_dir", ""),
+                "base_dir": hugo_settings.get("base_dir", ""),
+                "server_url": hugo_settings.get("server_url", ""),
             },
         }
 
@@ -93,6 +95,17 @@ class SettingsService:
                             f"(config.toml/yaml 或 hugo.toml/yaml): {base_dir}"
                         )
                 current["hugo"]["base_dir"] = base_dir.strip()
+
+            if "server_url" in hugo_updates:
+                server_url = hugo_updates["server_url"]
+                if not isinstance(server_url, str):
+                    raise SettingsValidationError("Hugo 服务器 URL 必须是字符串")
+                server_url = server_url.strip()
+                if server_url and not server_url.startswith(("http://", "https://")):
+                    raise SettingsValidationError(
+                        "Hugo 服务器 URL 必须以 http:// 或 https:// 开头"
+                    )
+                current["hugo"]["server_url"] = server_url
 
             normalized = self._normalize_and_validate(current)
             self._write_settings_file(normalized)
@@ -177,6 +190,8 @@ class SettingsService:
         if isinstance(hugo_from_file, dict):
             if "base_dir" in hugo_from_file:
                 settings["hugo"]["base_dir"] = hugo_from_file["base_dir"]
+            if "server_url" in hugo_from_file:
+                settings["hugo"]["server_url"] = hugo_from_file["server_url"]
 
         normalized = self._normalize_and_validate(settings)
         if not file_exists or needs_sanitize:
@@ -193,6 +208,7 @@ class SettingsService:
             },
             "hugo": {
                 "base_dir": self.defaults.get("HUGO_BASE_DIR") or "",
+                "server_url": self.defaults.get("HUGO_SERVER_URL") or "",
             },
         }
 
@@ -244,6 +260,10 @@ class SettingsService:
         if not isinstance(hugo_base_dir, str):
             hugo_base_dir = ""
 
+        hugo_server_url = hugo_settings.get("server_url", "")
+        if not isinstance(hugo_server_url, str):
+            hugo_server_url = ""
+
         return {
             "ai": {
                 "base_url": base_url,
@@ -251,6 +271,7 @@ class SettingsService:
             },
             "hugo": {
                 "base_dir": hugo_base_dir.strip(),
+                "server_url": hugo_server_url.strip(),
             },
         }
 

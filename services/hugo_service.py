@@ -18,16 +18,18 @@ from config import Config
 class HugoServerManager:
     """Hugo 服务器管理器"""
 
-    def __init__(self, hugo_root, socketio=None):
+    def __init__(self, hugo_root, socketio=None, server_url=None):
         """
         初始化 Hugo 服务器管理器
 
         Args:
             hugo_root: Hugo 项目根目录
             socketio: SocketIO 实例，用于推送日志
+            server_url: Hugo 服务器基础 URL (如 http://0.0.0.0:1313)
         """
         self.hugo_root = Path(hugo_root)
         self.socketio = socketio
+        self.server_url = server_url or Config.HUGO_SERVER_BASE_URL
         self.process = None
         self.pid = None
         self.is_running = False
@@ -57,7 +59,7 @@ class HugoServerManager:
                 "server",
                 "--bind=0.0.0.0",
                 "-b",
-                Config.HUGO_SERVER_BASE_URL,
+                self.server_url,
                 "--disableFastRender",
             ]
             if debug:
