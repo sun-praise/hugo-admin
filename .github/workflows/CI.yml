@@ -24,7 +24,7 @@ jobs:
 
       - name: Run OpenCode review
         continue-on-error: true
-        uses: Svtter/opencode-actions/review@v1
+        uses: Svtter/opencode-actions/review@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
