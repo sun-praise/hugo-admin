@@ -427,7 +427,7 @@
 
             <div class="fm-field">
                 <label>date</label>
-                <input type="text" x-model="fmEdit.date" placeholder="2024-01-01T00:00:00+08:00">
+                <input type="datetime-local" x-model="fmDateLocal" @change="fmEdit.date = fmDateLocal ? fmDateLocal.replace('T', ' ') + ':00+08:00' : ''">
             </div>
 
             <div class="fm-field">
@@ -513,6 +513,7 @@ function editor() {
         fmEdit: {},
         fmTagsStr: '',
         fmCategoriesStr: '',
+        fmDateLocal: '',
         fmExtraFields: [],
         images: [],
 
@@ -586,6 +587,16 @@ function editor() {
                 ? this.frontmatter.tags.join(', ') : (this.frontmatter.tags || '');
             this.fmCategoriesStr = Array.isArray(this.frontmatter.categories)
                 ? this.frontmatter.categories.join(', ') : (this.frontmatter.categories || '');
+
+            // Convert date to datetime-local format (YYYY-MM-DDTHH:MM)
+            this.fmDateLocal = '';
+            if (this.fmEdit.date) {
+                const d = new Date(this.fmEdit.date);
+                if (!isNaN(d.getTime())) {
+                    const pad = n => String(n).padStart(2, '0');
+                    this.fmDateLocal = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                }
+            }
 
             // Collect extra (non-core) fields
             const coreKeys = ['title', 'date', 'draft', 'tags', 'categories', 'cover', 'description'];
