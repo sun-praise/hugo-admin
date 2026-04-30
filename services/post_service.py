@@ -426,7 +426,12 @@ class PostService:
                 return False, f"文件不存在: {file_path}", {}
 
             post = frontmatter.load(str(file_path))
-            return True, post.content, dict(post.metadata)
+            metadata = {}
+            for k, v in post.metadata.items():
+                metadata[k] = (
+                    str(v) if not isinstance(v, (str, int, float, bool, list)) else v
+                )
+            return True, post.content, metadata
 
         except Exception as e:
             return False, f"读取文件失败: {str(e)}", {}
