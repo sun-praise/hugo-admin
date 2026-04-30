@@ -454,7 +454,7 @@ class PostService:
 
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            if frontmatter_data is not None:
+            if frontmatter_data is not None and frontmatter_data:
                 post = frontmatter.Post(content, **frontmatter_data)
                 file_content = frontmatter.dumps(post)
             else:
