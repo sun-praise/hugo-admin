@@ -722,8 +722,8 @@ function editor() {
 
                 const data = await response.json();
                 if (data.success) {
-                    this.content = data.content;
-                    this.originalContent = data.content;
+                    this.content = data.content || '';
+                    this.originalContent = this.content;
                     this.frontmatter = data.frontmatter || {};
                     this.originalFrontmatter = JSON.parse(JSON.stringify(this.frontmatter));
                     this.syncFmEdit();
@@ -732,7 +732,24 @@ function editor() {
 
                     await this.checkPublishStatus();
                 } else {
-                    utils.showNotification('加载文件失败: ' + data.message, 'error');
+                    // Fallback to old API
+                    const fallbackResp = await fetch('/api/file/read', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: this.currentFile })
+                    });
+                    const fallbackData = await fallbackResp.json();
+                    if (fallbackData.success) {
+                        this.content = fallbackData.content || '';
+                        this.originalContent = this.content;
+                        this.frontmatter = {};
+                        this.originalFrontmatter = {};
+                        this.updatePreview();
+                        this.hasChanges = false;
+                        await this.checkPublishStatus();
+                    } else {
+                        utils.showNotification('加载文件失败: ' + data.message, 'error');
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load file:', error);
@@ -756,7 +773,7 @@ function editor() {
                     body: JSON.stringify({
                         path: this.currentFile,
                         content: this.content,
-                        frontmatter: this.frontmatter
+                        ...(Object.keys(this.frontmatter).length > 0 ? { frontmatter: this.frontmatter } : {})
                     })
                 });
 
