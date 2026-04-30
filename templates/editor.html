@@ -216,6 +216,75 @@
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
     }
 
+    /* 引用自动补全 */
+    .ref-autocomplete {
+        position: absolute;
+        z-index: 50;
+        background: white;
+        border: 1px solid #d1d5db;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        max-height: 220px;
+        overflow-y: auto;
+        width: 400px;
+    }
+    .ref-autocomplete-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #f3f4f6;
+    }
+    .ref-autocomplete-item:hover,
+    .ref-autocomplete-item.active {
+        background: #eff6ff;
+    }
+    .ref-autocomplete-item .ref-title {
+        font-size: 14px;
+        color: #1f2937;
+    }
+    .ref-autocomplete-item .ref-path {
+        font-size: 12px;
+        color: #9ca3af;
+    }
+
+    /* 反向链接面板 */
+    .backlink-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 380px;
+        max-width: 90vw;
+        height: 100vh;
+        background: white;
+        box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+        z-index: 60;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+    .backlink-item {
+        padding: 12px;
+        border-bottom: 1px solid #f3f4f6;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .backlink-item:hover {
+        background: #f9fafb;
+    }
+    .backlink-item .bl-title {
+        font-size: 14px;
+        font-weight: 500;
+        color: #1f2937;
+        margin-bottom: 4px;
+    }
+    .backlink-item .bl-context {
+        font-size: 12px;
+        color: #6b7280;
+        background: #f3f4f6;
+        padding: 4px 8px;
+        border-radius: 4px;
+        margin-top: 4px;
+    }
+
     /* 工具栏按钮样式 */
     .toolbar-btn {
         padding: 0.5rem 1rem;
@@ -259,6 +328,16 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
                     </svg>
                     Frontmatter
+                </button>
+
+                <!-- 反向链接按钮 -->
+                <button @click="toggleBacklinks()"
+                        class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                    </svg>
+                    反向链接
+                    <span x-show="backlinks.length > 0" class="ml-1 bg-blue-100 text-blue-800 text-xs font-semibold px-2 py-0.5 rounded-full" x-text="backlinks.length"></span>
                 </button>
 
                 <!-- 图片管理按钮 -->
@@ -352,6 +431,9 @@
             <button @click="insertMarkdown('link')" class="toolbar-btn" title="链接">
                 🔗 链接
             </button>
+            <button @click="insertMarkdown('ref')" class="toolbar-btn" title="文章引用 ({{&lt; ref &gt;}})">
+                🔗 引用
+            </button>
             <button @click="insertMarkdown('image')" class="toolbar-btn" title="图片">
                 🖼️ 图片
             </button>
@@ -383,7 +465,8 @@
                 <textarea
                     id="markdown-editor"
                     x-model="content"
-                    @input="updatePreview(); checkChanges()"
+                    @input="updatePreview(); checkChanges(); handleRefTrigger()"
+                    @keydown="handleRefKeydown($event)"
                     placeholder="在此输入 Markdown 内容..."
                 ></textarea>
             </div>
@@ -483,6 +566,56 @@
         </div>
     </div>
 
+    <!-- 引用自动补全下拉 -->
+    <div x-show="refAC.show && refAC.items.length > 0"
+         x-transition:enter="transition ease-out duration-100"
+         x-transition:enter-start="opacity-0 -translate-y-1"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         class="ref-autocomplete"
+         :style="'top:' + refAC.top + 'px;left:' + refAC.left + 'px'">
+        <template x-for="(item, i) in refAC.items" :key="item.path">
+            <div :class="{'active': i === refAC.index}"
+                 @click="refACInsert(item)"
+                 @mouseenter="refAC.index = i"
+                 class="ref-autocomplete-item">
+                <div class="ref-title" x-text="item.title || '(无标题)'"></div>
+                <div class="ref-path" x-text="item.path"></div>
+            </div>
+        </template>
+    </div>
+
+    <!-- 反向链接面板 -->
+    <div x-show="showBacklinks" x-transition.opacity class="fm-drawer-overlay" @click="showBacklinks = false"></div>
+    <div x-show="showBacklinks"
+         x-transition:enter="transition transform duration-300"
+         x-transition:enter-start="translate-x-full"
+         x-transition:enter-end="translate-x-0"
+         x-transition:leave="transition transform duration-200"
+         x-transition:leave-start="translate-x-0"
+         x-transition:leave-end="translate-x-full"
+         class="backlink-panel">
+        <div class="flex items-center justify-between p-4 border-b">
+            <h3 class="text-lg font-semibold text-gray-900">反向链接</h3>
+            <button @click="showBacklinks = false" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="p-4 text-sm text-gray-500" x-show="backlinks.length === 0">
+            暂无其他文章引用本文
+        </div>
+        <template x-for="bl in backlinks" :key="bl.path">
+            <a :href="'/editor/' + bl.path"
+               target="_blank"
+               class="backlink-item block no-underline">
+                <div class="bl-title" x-text="bl.title || '(无标题)'"></div>
+                <div class="text-xs text-gray-400" x-text="bl.path"></div>
+                <div x-show="bl.context" class="bl-context" x-text="bl.context"></div>
+            </a>
+        </template>
+    </div>
+
     <!-- 加载状态 -->
     <template x-if="loading">
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -508,6 +641,8 @@ function editor() {
         isPublished: false,
         showImageManager: false,
         showFrontmatterDrawer: false,
+        showBacklinks: false,
+        backlinks: [],
         frontmatter: {},
         originalFrontmatter: {},
         fmEdit: {},
@@ -516,6 +651,9 @@ function editor() {
         fmDateLocal: '',
         fmExtraFields: [],
         images: [],
+
+        // 引用自动补全状态
+        refAC: { show: false, items: [], index: 0, top: 0, left: 0, _timer: null },
 
         async init() {
             // 配置 marked.js
@@ -536,10 +674,18 @@ function editor() {
             if (this.currentFile) {
                 await this.loadFile(this.currentFile);
                 await this.loadImages();
+                this.loadBacklinks();
             }
 
             // 添加快捷键
             document.addEventListener('keydown', (e) => {
+                // 自动补全键盘导航
+                if (this.refAC.show) {
+                    if (e.key === 'ArrowDown') { e.preventDefault(); this.refAC.index = Math.min(this.refAC.index + 1, this.refAC.items.length - 1); return; }
+                    if (e.key === 'ArrowUp') { e.preventDefault(); this.refAC.index = Math.max(this.refAC.index - 1, 0); return; }
+                    if (e.key === 'Enter') { e.preventDefault(); if (this.refAC.items[this.refAC.index]) this.refACInsert(this.refAC.items[this.refAC.index]); return; }
+                    if (e.key === 'Escape') { this.refAC.show = false; return; }
+                }
                 if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                     e.preventDefault();
                     if (this.hasChanges && !this.saving) {
@@ -654,6 +800,15 @@ function editor() {
                 });
             }
 
+            // 渲染 Hugo ref shortcode 为可点击链接
+            html = html.replace(/\{\{&lt;\s*ref\s+"([^"]+)"\s*&gt;\}\}/g, (match, path) => {
+                return `<a href="/editor/${path}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${path}">🔗 ${path}</a>`;
+            });
+            // 也要处理 {{< ref "..." >}} 在 pre/code 标签外的情况
+            html = html.replace(/\{\{<\s*ref\s+"([^"]+)"\s*>\}\}/g, (match, path) => {
+                return `<a href="/editor/${path}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${path}">🔗 ${path}</a>`;
+            });
+
             this.preview = html;
         },
 
@@ -710,6 +865,10 @@ function editor() {
                 case 'table':
                     insertion = `| 列1 | 列2 | 列3 |\n| --- | --- | --- |\n| 内容 | 内容 | 内容 |`;
                     cursorOffset = insertion.length;
+                    break;
+                case 'ref':
+                    insertion = `{{< ref "" >}}`;
+                    cursorOffset = insertion.length - 5;
                     break;
             }
 
@@ -1079,6 +1238,98 @@ function editor() {
                 this.updatePreview();
                 this.checkChanges();
             });
+        },
+
+        // ---- 引用自动补全 ----
+
+        handleRefTrigger() {
+            clearTimeout(this.refAC._timer);
+            this.refAC._timer = setTimeout(() => this._checkRefTrigger(), 150);
+        },
+
+        _checkRefTrigger() {
+            const textarea = document.getElementById('markdown-editor');
+            const pos = textarea.selectionStart;
+            const textBefore = this.content.substring(0, pos);
+
+            // 检测用户是否刚输入了 {{< ref " 后面的内容
+            const match = textBefore.match(/\{\{<\s*ref\s+"([^"]*)$/);
+            if (match) {
+                const query = match[1];
+                this._fetchRefSuggestions(query, textarea);
+            } else {
+                this.refAC.show = false;
+            }
+        },
+
+        async _fetchRefSuggestions(query, textarea) {
+            try {
+                const resp = await fetch('/api/posts/search?q=' + encodeURIComponent(query));
+                const data = await resp.json();
+                if (!data.success) return;
+                this.refAC.items = data.posts.slice(0, 10);
+                this.refAC.index = 0;
+                this.refAC.show = this.refAC.items.length > 0;
+                this._positionAC(textarea);
+            } catch {
+                this.refAC.show = false;
+            }
+        },
+
+        _positionAC(textarea) {
+            // 简单定位：在 textarea 下方
+            const rect = textarea.getBoundingClientRect();
+            this.refAC.top = rect.bottom + window.scrollY;
+            this.refAC.left = rect.left + window.scrollX;
+        },
+
+        handleRefKeydown(e) {
+            if (!this.refAC.show) return;
+            if (['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) {
+                e.preventDefault();
+            }
+        },
+
+        refACInsert(item) {
+            const textarea = document.getElementById('markdown-editor');
+            const pos = textarea.selectionStart;
+            const textBefore = this.content.substring(0, pos);
+            const textAfter = this.content.substring(pos);
+
+            // 替换未完成的 {{< ref "query 为 {{< ref "item.path" >}}
+            const newBefore = textBefore.replace(/\{\{<\s*ref\s+"[^"]*$/, '{{< ref "' + item.path + '" >}}');
+            this.content = newBefore + textAfter;
+
+            this.refAC.show = false;
+            this.$nextTick(() => {
+                textarea.focus();
+                const newPos = newBefore.length;
+                textarea.setSelectionRange(newPos, newPos);
+                this.updatePreview();
+                this.checkChanges();
+            });
+        },
+
+        // ---- 反向链接 ----
+
+        async loadBacklinks() {
+            if (!this.currentFile) return;
+            try {
+                const resp = await fetch('/api/references/backlinks?path=' + encodeURIComponent(this.currentFile));
+                const data = await resp.json();
+                if (data.success) {
+                    this.backlinks = data.backlinks;
+                }
+            } catch (err) {
+                console.error('Failed to load backlinks:', err);
+            }
+        },
+
+        toggleBacklinks() {
+            this.showBacklinks = !this.showBacklinks;
+            if (this.showBacklinks) {
+                this.loadBacklinks();
+            }
         },
 
     };

@@ -112,6 +112,29 @@ class Database:
         """
         )
 
+        # 文章引用关系表
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS post_references (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_path TEXT NOT NULL,
+                target_path TEXT NOT NULL,
+                context TEXT DEFAULT '',
+                UNIQUE(source_path, target_path)
+            )
+        """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_ref_source ON post_references(source_path)
+        """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_ref_target ON post_references(target_path)
+        """
+        )
+
         # 创建聊天相关索引
         cursor.execute(
             """
@@ -530,6 +553,70 @@ class Database:
 
         conn.commit()
         conn.close()
+
+    # ---- 引用关系 ----
+
+    def upsert_references(self, source_path: str, refs: list):
+        """
+        替换某篇文章的所有引用关系
+
+        Args:
+            source_path: 源文章文件路径
+            refs: [{"target_path": "...", "context": "..."}] 列表
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM post_references WHERE source_path = ?", (source_path,)
+        )
+        for ref in refs:
+            cursor.execute(
+                """
+                INSERT OR IGNORE INTO post_references
+                (source_path, target_path, context)
+                VALUES (?, ?, ?)
+                """,
+                (source_path, ref["target_path"], ref.get("context", "")),
+            )
+        conn.commit()
+        conn.close()
+
+    def get_backlinks(self, target_path: str) -> List[Dict[str, Any]]:
+        """获取指向 target_path 的所有反向引用"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT p.relative_path, p.title, pr.context
+            FROM post_references pr
+            LEFT JOIN posts p ON pr.source_path = p.file_path
+            WHERE pr.target_path = ?
+            ORDER BY p.date DESC
+            """,
+            (target_path,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [
+            {
+                "path": row["relative_path"],
+                "title": row["title"] or "",
+                "context": row["context"] or "",
+            }
+            for row in rows
+        ]
+
+    def get_all_references(self) -> Dict[str, List[str]]:
+        """获取所有引用关系"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT source_path, target_path FROM post_references")
+        rows = cursor.fetchall()
+        conn.close()
+        refs: Dict[str, List[str]] = {}
+        for row in rows:
+            refs.setdefault(row["source_path"], []).append(row["target_path"])
+        return refs
 
     def update_chat_session_title(self, session_id: str, title: str):
         """更新聊天会话标题"""
