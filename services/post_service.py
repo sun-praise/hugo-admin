@@ -710,14 +710,7 @@ class PostService:
             # 返回相对URL（相对于文章）
             relative_url = f"pics/{safe_filename}"
 
-            # 如果文章没有 cover，自动设置为第一张上传的图片
-            if article_file.exists():
-                post = frontmatter.load(str(article_file))
-                if not post.metadata.get("cover"):
-                    post.metadata["cover"] = relative_url
-                    frontmatter.dump(post, str(article_file))
-
-            # 刷新缓存
+            # 刷新缓存（确保列表页数据最新）
             if self.use_cache and self.cache_service:
                 self.cache_service.invalidate_post(str(article_file))
 

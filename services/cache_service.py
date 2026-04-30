@@ -28,6 +28,8 @@ class CacheService:
             db_path: 数据库文件路径，默认为 web_admin/data/cache.db
         """
         self.content_dir = Path(content_dir)
+        self._last_scan_time = 0.0
+        self._scan_interval = 5.0  # seconds
 
         if db_path is None:
             db_path = Path(__file__).parent.parent / "data" / "cache.db"
@@ -149,7 +151,11 @@ class CacheService:
         刷新缓存
         检查文件变化并更新缓存
         """
-        self.initialize(force_rebuild=False)
+        cached_paths = set(self.db.get_all_file_paths())
+        if cached_paths:
+            self._incremental_update(cached_paths)
+        else:
+            self._full_rebuild()
 
     @staticmethod
     def _resolve_cover_url(relative_path, cover):
@@ -201,6 +207,15 @@ class CacheService:
         # 确保缓存已初始化
         if not self._initialized:
             self.initialize()
+
+        # 自动检测文件变化（每隔 scan_interval 秒）
+        import time
+
+        now = time.time()
+        if now - self._last_scan_time >= self._scan_interval:
+            self._last_scan_time = now
+            cached_paths = set(self.db.get_all_file_paths())
+            self._incremental_update(cached_paths)
 
         # 从数据库查询
         if query or category or tag:
