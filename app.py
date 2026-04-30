@@ -19,6 +19,7 @@ from services.email_service import EmailService
 from services.git_service import GitService
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
+from services.reference_service import ReferenceService
 from services.settings_service import (
     SettingsService,
     SettingsStorageError,
@@ -88,6 +89,10 @@ hugo_manager = HugoServerManager(
     app.config["HUGO_ROOT"], socketio, server_url=_hugo_server_url or None
 )
 post_service = PostService(app.config["CONTENT_DIR"], use_cache=True)
+ref_service = ReferenceService(
+    app.config["CONTENT_DIR"],
+    post_service.cache_service.db if post_service.cache_service else None,
+)
 git_service = GitService(app.config["HUGO_ROOT"])
 
 db_path = Path(app.config["CONTENT_DIR"]) / ".admin" / "cache.db"
@@ -406,6 +411,11 @@ def refresh_cache():
     if post_service.cache_service:
         post_service.cache_service.refresh()
         stats = post_service.cache_service.get_stats()
+        # 同步刷新引用索引
+        try:
+            ref_service.scan_all()
+        except Exception:
+            pass
         return jsonify({"success": True, "message": "缓存刷新成功", "stats": stats})
     else:
         return jsonify({"success": False, "message": "缓存未启用"}), 400
@@ -419,6 +429,42 @@ def cache_stats():
         return jsonify({"success": True, "stats": stats})
     else:
         return jsonify({"success": False, "message": "缓存未启用"}), 400
+
+
+# --- 引用关系 API ---
+
+
+@app.route("/api/references/scan", methods=["POST"])
+def scan_references():
+    """扫描所有文章的引用关系"""
+    try:
+        ref_service.scan_all()
+        refs = ref_service.db.get_all_references()
+        return jsonify({"success": True, "references": refs})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/references/backlinks")
+def get_backlinks():
+    """获取反向链接"""
+    file_path = request.args.get("path")
+    if not file_path:
+        return jsonify({"success": False, "message": "缺少 path 参数"}), 400
+
+    backlinks = ref_service.get_backlinks(file_path)
+    return jsonify({"success": True, "backlinks": backlinks})
+
+
+@app.route("/api/posts/search")
+def search_posts():
+    """文章搜索（自动补全用）"""
+    query = request.args.get("q", "")
+    if not query:
+        return jsonify({"success": True, "posts": []})
+
+    posts = ref_service.search_posts(query)
+    return jsonify({"success": True, "posts": posts})
 
 
 # --- 文件操作 API ---
@@ -479,6 +525,18 @@ def save_file():
     success, message = post_service.save_file(
         file_path, content, frontmatter_data=frontmatter_data
     )
+
+    if success:
+        # 增量更新引用关系
+        try:
+            abs_path = str(
+                Path(file_path)
+                if Path(file_path).is_absolute()
+                else Path(app.config["CONTENT_DIR"]) / file_path
+            )
+            ref_service.update_file(abs_path)
+        except Exception:
+            pass
 
     return jsonify({"success": success, "message": message}), 200 if success else 500
 
