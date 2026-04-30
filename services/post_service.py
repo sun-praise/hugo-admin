@@ -403,34 +403,65 @@ class PostService:
         except Exception as e:
             return False, f"读取文件失败: {str(e)}"
 
-    def save_file(self, file_path, content):
+    def read_file_with_frontmatter(self, file_path):
         """
-        保存文件内容
+        读取文件内容，分离 frontmatter 和正文
 
         Args:
-            file_path: 文件路径
-            content: 文件内容
+            file_path: 文件路径(相对于 content 目录或绝对路径)
 
         Returns:
-            (success, message): 成功标志和消息
+            (success, content, frontmatter): 成功标志、正文内容、frontmatter 字典
         """
         try:
-            # 处理路径
             if not Path(file_path).is_absolute():
                 file_path = self.content_dir / file_path
 
             file_path = Path(file_path)
 
-            # 安全检查
+            if not self._is_safe_path(file_path):
+                return False, "访问被拒绝:文件不在允许的目录中", {}
+
+            if not file_path.exists():
+                return False, f"文件不存在: {file_path}", {}
+
+            post = frontmatter.load(str(file_path))
+            return True, post.content, dict(post.metadata)
+
+        except Exception as e:
+            return False, f"读取文件失败: {str(e)}", {}
+
+    def save_file(self, file_path, content, frontmatter_data=None):
+        """
+        保存文件内容
+
+        Args:
+            file_path: 文件路径
+            content: 文件内容（正文，不含 frontmatter）
+            frontmatter_data: 可选的 frontmatter 字典，传入时与正文合并写入
+
+        Returns:
+            (success, message): 成功标志和消息
+        """
+        try:
+            if not Path(file_path).is_absolute():
+                file_path = self.content_dir / file_path
+
+            file_path = Path(file_path)
+
             if not self._is_safe_path(file_path):
                 return False, "访问被拒绝:文件不在允许的目录中"
 
-            # 确保父目录存在
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # 保存文件
+            if frontmatter_data is not None:
+                post = frontmatter.Post(content, **frontmatter_data)
+                file_content = frontmatter.dumps(post)
+            else:
+                file_content = content
+
             with open(file_path, "w", encoding="utf-8") as f:
-                f.write(content)
+                f.write(file_content)
 
             # 更新缓存
             if self.use_cache and self.cache_service:
