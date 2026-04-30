@@ -170,6 +170,52 @@
         border: 0;
     }
 
+    /* Frontmatter 抽屉样式 */
+    .fm-drawer-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.3);
+        z-index: 55;
+    }
+
+    .fm-drawer {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 420px;
+        max-width: 90vw;
+        height: 100vh;
+        background: white;
+        box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+        z-index: 60;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .fm-field label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #4b5563;
+        margin-bottom: 4px;
+    }
+
+    .fm-field input, .fm-field select {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+
+    .fm-field input:focus, .fm-field select:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
     /* 工具栏按钮样式 */
     .toolbar-btn {
         padding: 0.5rem 1rem;
@@ -206,6 +252,15 @@
             </div>
 
             <div class="flex items-center space-x-2">
+                <!-- Frontmatter 编辑按钮 -->
+                <button @click="showFrontmatterDrawer = true"
+                        class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                    </svg>
+                    Frontmatter
+                </button>
+
                 <!-- 图片管理按钮 -->
                 <button @click="showImageManager = !showImageManager"
                         class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
@@ -343,6 +398,91 @@
         </div>
     </div>
 
+    <!-- Frontmatter 抽屉 -->
+    <div x-show="showFrontmatterDrawer" x-transition.opacity class="fm-drawer-overlay" @click="showFrontmatterDrawer = false"></div>
+    <div x-show="showFrontmatterDrawer"
+         x-transition:enter="transition transform duration-300"
+         x-transition:enter-start="translate-x-full"
+         x-transition:enter-end="translate-x-0"
+         x-transition:leave="transition transform duration-200"
+         x-transition:leave-start="translate-x-0"
+         x-transition:leave-end="translate-x-full"
+         class="fm-drawer">
+        <!-- 抽屉头部 -->
+        <div class="flex items-center justify-between p-4 border-b">
+            <h3 class="text-lg font-semibold text-gray-900">Frontmatter</h3>
+            <button @click="showFrontmatterDrawer = false" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- 抽屉内容 -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-4">
+            <div class="fm-field">
+                <label>title</label>
+                <input type="text" x-model="fmEdit.title" placeholder="文章标题">
+            </div>
+
+            <div class="fm-field">
+                <label>date</label>
+                <input type="datetime-local" x-model="fmDateLocal" @change="fmEdit.date = fmDateLocal ? fmDateLocal.replace('T', ' ') + ':00+08:00' : ''">
+            </div>
+
+            <div class="fm-field">
+                <label>draft</label>
+                <select x-model="fmEdit.draft">
+                    <option value="true">true (草稿)</option>
+                    <option value="false">false (已发布)</option>
+                </select>
+            </div>
+
+            <div class="fm-field">
+                <label>tags (逗号分隔)</label>
+                <input type="text" x-model="fmTagsStr" placeholder="tag1, tag2">
+            </div>
+
+            <div class="fm-field">
+                <label>categories (逗号分隔)</label>
+                <input type="text" x-model="fmCategoriesStr" placeholder="cat1, cat2">
+            </div>
+
+            <div class="fm-field">
+                <label>cover</label>
+                <input type="text" x-model="fmEdit.cover" placeholder="封面图片路径">
+            </div>
+
+            <div class="fm-field">
+                <label>description</label>
+                <input type="text" x-model="fmEdit.description" placeholder="文章描述">
+            </div>
+
+            <!-- 额外字段 -->
+            <div class="border-t pt-4">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="text-sm font-semibold text-gray-600">其他字段</label>
+                    <button @click="fmExtraFields.push({key: '', value: ''})" class="text-sm text-blue-600 hover:text-blue-700">+ 添加字段</button>
+                </div>
+                <template x-for="(field, i) in fmExtraFields" :key="i">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <input type="text" x-model="field.key" placeholder="key" class="w-1/3 px-2 py-1 border rounded text-sm">
+                        <input type="text" x-model="field.value" placeholder="value" class="flex-1 px-2 py-1 border rounded text-sm">
+                        <button @click="fmExtraFields.splice(i, 1)" class="text-red-400 hover:text-red-600">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- 抽屉底部 -->
+        <div class="p-4 border-t flex justify-end space-x-2">
+            <button @click="showFrontmatterDrawer = false" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">取消</button>
+            <button @click="applyFrontmatter()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">应用</button>
+        </div>
+    </div>
+
     <!-- 加载状态 -->
     <template x-if="loading">
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -367,6 +507,14 @@ function editor() {
         publishing: false,
         isPublished: false,
         showImageManager: false,
+        showFrontmatterDrawer: false,
+        frontmatter: {},
+        originalFrontmatter: {},
+        fmEdit: {},
+        fmTagsStr: '',
+        fmCategoriesStr: '',
+        fmDateLocal: '',
+        fmExtraFields: [],
         images: [],
 
         async init() {
@@ -416,20 +564,84 @@ function editor() {
         },
 
         checkChanges() {
-            this.hasChanges = this.content !== this.originalContent;
+            this.hasChanges = this.content !== this.originalContent
+                || JSON.stringify(this.frontmatter) !== JSON.stringify(this.originalFrontmatter);
+        },
+
+        syncFmEdit() {
+            this.fmEdit = {};
+            const reserved = ['tags', 'categories'];
+            for (const [k, v] of Object.entries(this.frontmatter)) {
+                if (!reserved.includes(k)) {
+                    this.fmEdit[k] = typeof v === 'boolean' ? String(v) : v;
+                }
+            }
+            // Ensure core fields exist
+            if (!this.fmEdit.title) this.fmEdit.title = '';
+            if (!this.fmEdit.date) this.fmEdit.date = '';
+            if (!this.fmEdit.draft) this.fmEdit.draft = 'true';
+            if (!this.fmEdit.cover) this.fmEdit.cover = '';
+            if (!this.fmEdit.description) this.fmEdit.description = '';
+
+            this.fmTagsStr = Array.isArray(this.frontmatter.tags)
+                ? this.frontmatter.tags.join(', ') : (this.frontmatter.tags || '');
+            this.fmCategoriesStr = Array.isArray(this.frontmatter.categories)
+                ? this.frontmatter.categories.join(', ') : (this.frontmatter.categories || '');
+
+            // Convert date to datetime-local format (YYYY-MM-DDTHH:MM)
+            this.fmDateLocal = '';
+            if (this.fmEdit.date) {
+                const d = new Date(this.fmEdit.date);
+                if (!isNaN(d.getTime())) {
+                    const pad = n => String(n).padStart(2, '0');
+                    this.fmDateLocal = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                }
+            }
+
+            // Collect extra (non-core) fields
+            const coreKeys = ['title', 'date', 'draft', 'tags', 'categories', 'cover', 'description'];
+            this.fmExtraFields = [];
+            for (const [k, v] of Object.entries(this.frontmatter)) {
+                if (!coreKeys.includes(k)) {
+                    this.fmExtraFields.push({ key: k, value: typeof v === 'object' ? JSON.stringify(v) : String(v) });
+                    delete this.fmEdit[k];
+                }
+            }
+        },
+
+        applyFrontmatter() {
+            const fm = {};
+            // Core fields
+            for (const [k, v] of Object.entries(this.fmEdit)) {
+                if (v !== '' && v !== undefined && v !== null) {
+                    if (k === 'draft') {
+                        fm[k] = v === 'true';
+                    } else {
+                        fm[k] = v;
+                    }
+                }
+            }
+            // Tags
+            if (this.fmTagsStr.trim()) {
+                fm.tags = this.fmTagsStr.split(',').map(s => s.trim()).filter(Boolean);
+            }
+            // Categories
+            if (this.fmCategoriesStr.trim()) {
+                fm.categories = this.fmCategoriesStr.split(',').map(s => s.trim()).filter(Boolean);
+            }
+            // Extra fields
+            for (const field of this.fmExtraFields) {
+                if (field.key.trim()) {
+                    fm[field.key.trim()] = field.value;
+                }
+            }
+            this.frontmatter = fm;
+            this.showFrontmatterDrawer = false;
+            this.checkChanges();
         },
 
         updatePreview() {
-            // 移除 frontmatter 部分（用 --- 包围的元数据）
-            let contentWithoutFrontmatter = this.content || '';
-            // 匹配开头的 frontmatter：--- 开始，--- 结束
-            const frontmatterRegex = /^---[\s\S]*?---\s*/;
-            if (frontmatterRegex.test(contentWithoutFrontmatter)) {
-                contentWithoutFrontmatter = contentWithoutFrontmatter.replace(frontmatterRegex, '');
-            }
-
-            // 渲染 Markdown（使用移除 frontmatter 后的内容）
-            let html = marked.parse(contentWithoutFrontmatter);
+            let html = marked.parse(this.content || '');
 
             // 修复图片路径
             if (this.currentFile) {
@@ -513,7 +725,7 @@ function editor() {
         async loadFile() {
             this.loading = true;
             try {
-                const response = await fetch('/api/file/read', {
+                const response = await fetch('/api/file/read-with-frontmatter', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ path: this.currentFile })
@@ -521,15 +733,34 @@ function editor() {
 
                 const data = await response.json();
                 if (data.success) {
-                    this.content = data.content;
-                    this.originalContent = data.content;
+                    this.content = data.content || '';
+                    this.originalContent = this.content;
+                    this.frontmatter = data.frontmatter || {};
+                    this.originalFrontmatter = JSON.parse(JSON.stringify(this.frontmatter));
+                    this.syncFmEdit();
                     this.updatePreview();
                     this.hasChanges = false;
 
-                    // 加载发布状态
                     await this.checkPublishStatus();
                 } else {
-                    utils.showNotification('加载文件失败: ' + data.message, 'error');
+                    // Fallback to old API
+                    const fallbackResp = await fetch('/api/file/read', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: this.currentFile })
+                    });
+                    const fallbackData = await fallbackResp.json();
+                    if (fallbackData.success) {
+                        this.content = fallbackData.content || '';
+                        this.originalContent = this.content;
+                        this.frontmatter = {};
+                        this.originalFrontmatter = {};
+                        this.updatePreview();
+                        this.hasChanges = false;
+                        await this.checkPublishStatus();
+                    } else {
+                        utils.showNotification('加载文件失败: ' + data.message, 'error');
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load file:', error);
@@ -552,13 +783,15 @@ function editor() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         path: this.currentFile,
-                        content: this.content
+                        content: this.content,
+                        ...(Object.keys(this.frontmatter).length > 0 ? { frontmatter: this.frontmatter } : {})
                     })
                 });
 
                 const data = await response.json();
                 if (data.success) {
                     this.originalContent = this.content;
+                    this.originalFrontmatter = JSON.parse(JSON.stringify(this.frontmatter));
                     this.hasChanges = false;
                     utils.showNotification('保存成功', 'success');
                 } else {
