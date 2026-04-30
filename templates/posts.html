@@ -65,15 +65,23 @@
                         <h3 class="text-lg font-semibold">
                             共 <span x-text="pagination.total"></span> 篇文章
                         </h3>
-                        <button @click="createNewPost()"
-                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                            <span class="flex items-center">
-                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                                </svg>
-                                新建文章
-                            </span>
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button @click="refreshCache()"
+                                    :disabled="refreshing"
+                                    :class="{'opacity-50 cursor-not-allowed': refreshing}"
+                                    class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                                <span x-text="refreshing ? '刷新中...' : '刷新缓存'"></span>
+                            </button>
+                            <button @click="createNewPost()"
+                                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                <span class="flex items-center">
+                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                    </svg>
+                                    新建文章
+                                </span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -264,6 +272,7 @@ function postsManager() {
         selectedPosts: new Set(),
         loading: false,
         bulkPublishing: false,
+        refreshing: false,
 
         async init() {
             await this.loadCategories();
@@ -475,6 +484,24 @@ function postsManager() {
             } catch (error) {
                 utils.showNotification('创建失败', 'error');
                 console.error(error);
+            }
+        },
+
+        async refreshCache() {
+            this.refreshing = true;
+            try {
+                const response = await fetch('/api/cache/refresh', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    utils.showNotification('缓存已刷新', 'success');
+                    await this.loadPosts();
+                } else {
+                    utils.showNotification('刷新失败', 'error');
+                }
+            } catch (error) {
+                utils.showNotification('刷新失败', 'error');
+            } finally {
+                this.refreshing = false;
             }
         }
     };
