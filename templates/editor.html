@@ -431,7 +431,7 @@
             <button @click="insertMarkdown('link')" class="toolbar-btn" title="链接">
                 🔗 链接
             </button>
-            <button @click="insertMarkdown('ref')" class="toolbar-btn" title="文章引用 ({{&lt; ref &gt;}})">
+            <button @click="insertMarkdown('ref')" class="toolbar-btn" title="文章引用 ({% raw %}{{< ref >}}{% endraw %})">
                 🔗 引用
             </button>
             <button @click="insertMarkdown('image')" class="toolbar-btn" title="图片">
@@ -627,10 +627,12 @@
     </template>
 </div>
 
+<script>var __filePath = '{% if file_path %}{{ file_path }}{% endif %}';</script>
+{% raw %}
 <script>
 function editor() {
     return {
-        currentFile: '{% if file_path %}{{ file_path }}{% endif %}',
+        currentFile: __filePath,
         content: '',
         originalContent: '',
         preview: '',
@@ -1335,4 +1337,5 @@ function editor() {
     };
 }
 </script>
+{% endraw %}
 {% endblock %}
