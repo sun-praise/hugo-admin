@@ -113,6 +113,7 @@ ref_service = ReferenceService(
     app.config["CONTENT_DIR"],
     post_service.cache_service.db if post_service.cache_service else None,
 )
+ref_service.scan_all()
 git_service = GitService(app.config["HUGO_ROOT"])
 
 db_path = Path(app.config["CONTENT_DIR"]) / ".admin" / "cache.db"

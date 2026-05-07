@@ -1260,7 +1260,12 @@ function editor() {
 
         // ---- 引用搜索弹窗 ----
 
-        async searchRefs() {
+        searchRefs() {
+            clearTimeout(this._refTimer);
+            this._refTimer = setTimeout(() => this._doSearchRefs(), 250);
+        },
+
+        async _doSearchRefs() {
             if (!this.refSearchQuery.trim()) {
                 this.refSearchResults = [];
                 return;
