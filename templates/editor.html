@@ -216,6 +216,75 @@
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
     }
 
+    /* 引用自动补全 */
+    .ref-autocomplete {
+        position: absolute;
+        z-index: 50;
+        background: white;
+        border: 1px solid #d1d5db;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        max-height: 220px;
+        overflow-y: auto;
+        width: 400px;
+    }
+    .ref-autocomplete-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #f3f4f6;
+    }
+    .ref-autocomplete-item:hover,
+    .ref-autocomplete-item.active {
+        background: #eff6ff;
+    }
+    .ref-autocomplete-item .ref-title {
+        font-size: 14px;
+        color: #1f2937;
+    }
+    .ref-autocomplete-item .ref-path {
+        font-size: 12px;
+        color: #9ca3af;
+    }
+
+    /* 反向链接面板 */
+    .backlink-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 380px;
+        max-width: 90vw;
+        height: 100vh;
+        background: white;
+        box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+        z-index: 60;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+    .backlink-item {
+        padding: 12px;
+        border-bottom: 1px solid #f3f4f6;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .backlink-item:hover {
+        background: #f9fafb;
+    }
+    .backlink-item .bl-title {
+        font-size: 14px;
+        font-weight: 500;
+        color: #1f2937;
+        margin-bottom: 4px;
+    }
+    .backlink-item .bl-context {
+        font-size: 12px;
+        color: #6b7280;
+        background: #f3f4f6;
+        padding: 4px 8px;
+        border-radius: 4px;
+        margin-top: 4px;
+    }
+
     /* 工具栏按钮样式 */
     .toolbar-btn {
         padding: 0.5rem 1rem;
@@ -259,6 +328,16 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
                     </svg>
                     Frontmatter
+                </button>
+
+                <!-- 反向链接按钮 -->
+                <button @click="toggleBacklinks()"
+                        class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                    </svg>
+                    反向链接
+                    <span x-show="backlinks.length > 0" class="ml-1 bg-blue-100 text-blue-800 text-xs font-semibold px-2 py-0.5 rounded-full" x-text="backlinks.length"></span>
                 </button>
 
                 <!-- 图片管理按钮 -->
@@ -351,6 +430,9 @@
             <span class="border-l border-gray-300 mx-1"></span>
             <button @click="insertMarkdown('link')" class="toolbar-btn" title="链接">
                 🔗 链接
+            </button>
+            <button @click="insertMarkdown('ref')" class="toolbar-btn" title="文章引用 ({% raw %}{{< ref >}}{% endraw %})">
+                🔗 引用
             </button>
             <button @click="insertMarkdown('image')" class="toolbar-btn" title="图片">
                 🖼️ 图片
@@ -483,6 +565,68 @@
         </div>
     </div>
 
+    <!-- 引用搜索弹窗 -->
+    <div x-show="showRefModal" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.4)" @click.self="showRefModal = false">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" @click.stop>
+            <div class="p-4 border-b">
+                <h3 class="text-lg font-semibold mb-3">搜索文章引用</h3>
+                <input type="text" x-model="refSearchQuery" @input="searchRefs()" x-ref="refSearchInput" placeholder="输入关键词搜索文章..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" autofocus>
+            </div>
+            <div class="max-h-80 overflow-y-auto">
+                <template x-for="item in refSearchResults" :key="item.path">
+                    <div @click="insertRef(item)" class="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 flex items-center gap-3">
+                        <span class="text-blue-500 text-lg">🔗</span>
+                        <div class="min-w-0">
+                            <div class="font-medium text-gray-800 truncate" x-text="item.title || '(无标题)'"></div>
+                            <div class="text-sm text-gray-400 truncate" x-text="item.path"></div>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="refSearchQuery && refSearchResults.length === 0" class="p-6 text-center text-gray-400">
+                    未找到匹配的文章
+                </div>
+                <div x-show="!refSearchQuery" class="p-6 text-center text-gray-400">
+                    输入关键词开始搜索
+                </div>
+            </div>
+            <div class="p-3 border-t bg-gray-50 flex justify-end">
+                <button @click="showRefModal = false" class="px-4 py-2 text-gray-600 hover:text-gray-800">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 反向链接面板 -->
+    <div x-show="showBacklinks" x-transition.opacity class="fm-drawer-overlay" @click="showBacklinks = false"></div>
+    <div x-show="showBacklinks"
+         x-transition:enter="transition transform duration-300"
+         x-transition:enter-start="translate-x-full"
+         x-transition:enter-end="translate-x-0"
+         x-transition:leave="transition transform duration-200"
+         x-transition:leave-start="translate-x-0"
+         x-transition:leave-end="translate-x-full"
+         class="backlink-panel">
+        <div class="flex items-center justify-between p-4 border-b">
+            <h3 class="text-lg font-semibold text-gray-900">反向链接</h3>
+            <button @click="showBacklinks = false" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="p-4 text-sm text-gray-500" x-show="backlinks.length === 0">
+            暂无其他文章引用本文
+        </div>
+        <template x-for="bl in backlinks" :key="bl.path">
+            <a :href="'/editor/' + bl.path"
+               target="_blank"
+               class="backlink-item block no-underline">
+                <div class="bl-title" x-text="bl.title || '(无标题)'"></div>
+                <div class="text-xs text-gray-400" x-text="bl.path"></div>
+                <div x-show="bl.context" class="bl-context" x-text="bl.context"></div>
+            </a>
+        </template>
+    </div>
+
     <!-- 加载状态 -->
     <template x-if="loading">
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -494,10 +638,12 @@
     </template>
 </div>
 
+<script>var __filePath = '{% if file_path %}{{ file_path }}{% endif %}';</script>
+{% raw %}
 <script>
 function editor() {
     return {
-        currentFile: '{% if file_path %}{{ file_path }}{% endif %}',
+        currentFile: __filePath,
         content: '',
         originalContent: '',
         preview: '',
@@ -508,6 +654,8 @@ function editor() {
         isPublished: false,
         showImageManager: false,
         showFrontmatterDrawer: false,
+        showBacklinks: false,
+        backlinks: [],
         frontmatter: {},
         originalFrontmatter: {},
         fmEdit: {},
@@ -516,6 +664,11 @@ function editor() {
         fmDateLocal: '',
         fmExtraFields: [],
         images: [],
+
+        // 引用搜索弹窗状态
+        showRefModal: false,
+        refSearchQuery: '',
+        refSearchResults: [],
 
         async init() {
             // 配置 marked.js
@@ -536,10 +689,16 @@ function editor() {
             if (this.currentFile) {
                 await this.loadFile(this.currentFile);
                 await this.loadImages();
+                this.loadBacklinks();
             }
 
             // 添加快捷键
             document.addEventListener('keydown', (e) => {
+                // ESC 关闭弹窗
+                if (e.key === 'Escape' && this.showRefModal) {
+                    this.showRefModal = false;
+                    return;
+                }
                 if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                     e.preventDefault();
                     if (this.hasChanges && !this.saving) {
@@ -654,6 +813,18 @@ function editor() {
                 });
             }
 
+            // 渲染 Hugo ref shortcode 为可点击链接
+            const esc = (s) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            html = html.replace(/\{\{&lt;\s*ref\s+"([^"]+)"\s*&gt;\}\}/g, (match, path) => {
+                const p = esc(path);
+                return `<a href="/editor/${p}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${p}">🔗 ${p}</a>`;
+            });
+            // 也要处理 ref shortcode 在 pre/code 标签外的情况
+            html = html.replace(/\{\{<\s*ref\s+"([^"]+)"\s*>\}\}/g, (match, path) => {
+                const p = esc(path);
+                return `<a href="/editor/${p}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${p}">🔗 ${p}</a>`;
+            });
+
             this.preview = html;
         },
 
@@ -711,6 +882,12 @@ function editor() {
                     insertion = `| 列1 | 列2 | 列3 |\n| --- | --- | --- |\n| 内容 | 内容 | 内容 |`;
                     cursorOffset = insertion.length;
                     break;
+                case 'ref':
+                    this.showRefModal = true;
+                    this.refSearchQuery = '';
+                    this.refSearchResults = [];
+                    this.$nextTick(() => this.$refs.refSearchInput.focus());
+                    return;
             }
 
             this.content = this.content.substring(0, start) + insertion + this.content.substring(end);
@@ -1081,7 +1258,69 @@ function editor() {
             });
         },
 
+        // ---- 引用搜索弹窗 ----
+
+        searchRefs() {
+            clearTimeout(this._refTimer);
+            this._refTimer = setTimeout(() => this._doSearchRefs(), 250);
+        },
+
+        async _doSearchRefs() {
+            if (!this.refSearchQuery.trim()) {
+                this.refSearchResults = [];
+                return;
+            }
+            try {
+                const resp = await fetch('/api/posts/search?q=' + encodeURIComponent(this.refSearchQuery));
+                const data = await resp.json();
+                if (data.success) {
+                    this.refSearchResults = data.posts.slice(0, 20);
+                }
+            } catch {
+                this.refSearchResults = [];
+            }
+        },
+
+        insertRef(item) {
+            const textarea = document.getElementById('markdown-editor');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const sc = '{' + '{< ref "' + item.path + '" >}}';
+            this.content = this.content.substring(0, start) + sc + this.content.substring(end);
+            this.showRefModal = false;
+            this.$nextTick(() => {
+                textarea.focus();
+                const newPos = start + sc.length;
+                textarea.setSelectionRange(newPos, newPos);
+                this.updatePreview();
+                this.checkChanges();
+            });
+        },
+
+        // ---- 反向链接 ----
+
+        async loadBacklinks() {
+            if (!this.currentFile) return;
+            try {
+                const resp = await fetch('/api/references/backlinks?path=' + encodeURIComponent(this.currentFile));
+                const data = await resp.json();
+                if (data.success) {
+                    this.backlinks = data.backlinks;
+                }
+            } catch (err) {
+                console.error('Failed to load backlinks:', err);
+            }
+        },
+
+        toggleBacklinks() {
+            this.showBacklinks = !this.showBacklinks;
+            if (this.showBacklinks) {
+                this.loadBacklinks();
+            }
+        },
+
     };
 }
 </script>
+{% endraw %}
 {% endblock %}

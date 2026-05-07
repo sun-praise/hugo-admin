@@ -4,7 +4,9 @@ Hugo Blog Web 管理界面
 简单轻量的 Flask 应用，用于管理 Hugo 博客
 """
 
+import logging
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -19,6 +21,7 @@ from services.email_service import EmailService
 from services.git_service import GitService
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
+from services.reference_service import ReferenceService
 from services.settings_service import (
     SettingsService,
     SettingsStorageError,
@@ -28,6 +31,24 @@ from services.settings_service import (
 # 初始化 Flask 应用
 load_dotenv()
 app = Flask(__name__)
+
+# 配置日志 - 写入 app.log，带轮转
+logger = logging.getLogger(__name__)
+
+log_file = Path(__file__).parent / "app.log"
+file_handler = RotatingFileHandler(
+    log_file,
+    maxBytes=1_048_576,  # 1 MB
+    backupCount=5,
+    encoding="utf-8",
+)
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(
+    logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+)
+logging.root.addHandler(file_handler)
+logging.root.setLevel(logging.INFO)
+logging.getLogger("werkzeug").setLevel(logging.INFO)
 
 
 @app.context_processor
@@ -88,6 +109,11 @@ hugo_manager = HugoServerManager(
     app.config["HUGO_ROOT"], socketio, server_url=_hugo_server_url or None
 )
 post_service = PostService(app.config["CONTENT_DIR"], use_cache=True)
+ref_service = ReferenceService(
+    app.config["CONTENT_DIR"],
+    post_service.cache_service.db if post_service.cache_service else None,
+)
+ref_service.scan_all()
 git_service = GitService(app.config["HUGO_ROOT"])
 
 db_path = Path(app.config["CONTENT_DIR"]) / ".admin" / "cache.db"
@@ -250,7 +276,8 @@ def get_settings():
 def update_settings():
     """更新应用设置"""
     global SESSION_AI_API_KEY  # noqa: E501
-    global ai_service, post_service, git_service, hugo_manager, settings_service
+    global ai_service, post_service, git_service
+    global hugo_manager, settings_service, ref_service
     if not request.is_json:
         return jsonify({"success": False, "message": "请求体必须是 JSON 对象"}), 400
 
@@ -301,6 +328,11 @@ def update_settings():
         app.config["HUGO_ROOT"] = new_root
         app.config["CONTENT_DIR"] = new_root / "content"
         post_service = PostService(app.config["CONTENT_DIR"], use_cache=True)
+        ref_service = ReferenceService(
+            app.config["CONTENT_DIR"],
+            post_service.cache_service.db if post_service.cache_service else None,
+        )
+        ref_service.scan_all()
         git_service = GitService(new_root)
         hugo_manager = HugoServerManager(
             new_root, socketio, server_url=new_server_url or None
@@ -406,6 +438,11 @@ def refresh_cache():
     if post_service.cache_service:
         post_service.cache_service.refresh()
         stats = post_service.cache_service.get_stats()
+        # 同步刷新引用索引
+        try:
+            ref_service.scan_all()
+        except Exception as e:
+            logger.exception(e)
         return jsonify({"success": True, "message": "缓存刷新成功", "stats": stats})
     else:
         return jsonify({"success": False, "message": "缓存未启用"}), 400
@@ -419,6 +456,42 @@ def cache_stats():
         return jsonify({"success": True, "stats": stats})
     else:
         return jsonify({"success": False, "message": "缓存未启用"}), 400
+
+
+# --- 引用关系 API ---
+
+
+@app.route("/api/references/scan", methods=["POST"])
+def scan_references():
+    """扫描所有文章的引用关系"""
+    try:
+        ref_service.scan_all()
+        refs = ref_service.db.get_all_references()
+        return jsonify({"success": True, "references": refs})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/references/backlinks")
+def get_backlinks():
+    """获取反向链接"""
+    file_path = request.args.get("path")
+    if not file_path:
+        return jsonify({"success": False, "message": "缺少 path 参数"}), 400
+
+    backlinks = ref_service.get_backlinks(file_path)
+    return jsonify({"success": True, "backlinks": backlinks})
+
+
+@app.route("/api/posts/search")
+def search_posts():
+    """文章搜索（自动补全用）"""
+    query = request.args.get("q", "")
+    if not query:
+        return jsonify({"success": True, "posts": []})
+
+    posts = ref_service.search_posts(query)
+    return jsonify({"success": True, "posts": posts})
 
 
 # --- 文件操作 API ---
@@ -479,6 +552,18 @@ def save_file():
     success, message = post_service.save_file(
         file_path, content, frontmatter_data=frontmatter_data
     )
+
+    if success:
+        # 增量更新引用关系
+        try:
+            abs_path = str(
+                Path(file_path)
+                if Path(file_path).is_absolute()
+                else Path(app.config["CONTENT_DIR"]) / file_path
+            )
+            ref_service.update_file(abs_path)
+        except Exception as e:
+            logger.exception(e)
 
     return jsonify({"success": success, "message": message}), 200 if success else 500
 
@@ -877,6 +962,7 @@ def not_found(e):
 @app.errorhandler(500)
 def server_error(e):
     """500 错误处理"""
+    logger.exception(e)
     if request.path.startswith("/api/"):
         return jsonify({"success": False, "message": "服务器内部错误"}), 500
     return render_template("500.html"), 500
@@ -893,7 +979,20 @@ if __name__ == "__main__":
 
     host = "0.0.0.0"
     port = app.config.get("PORT", 5050)  # 从配置中读取端口，默认为5050
-    print(f"访问地址: http://{host}:{port}")
+
+    # 获取本机 IP 地址
+    import socket
+
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        inet_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        inet_ip = "127.0.0.1"
+
+    print(f"本地访问: http://127.0.0.1:{port}")
+    print(f"局域网访问: http://{inet_ip}:{port}")
     print("=" * 50)
 
     # 运行应用
