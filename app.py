@@ -972,7 +972,20 @@ if __name__ == "__main__":
 
     host = "0.0.0.0"
     port = app.config.get("PORT", 5050)  # 从配置中读取端口，默认为5050
-    print(f"访问地址: http://{host}:{port}")
+
+    # 获取本机 IP 地址
+    import socket
+
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        inet_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        inet_ip = "127.0.0.1"
+
+    print(f"本地访问: http://127.0.0.1:{port}")
+    print(f"局域网访问: http://{inet_ip}:{port}")
     print("=" * 50)
 
     # 运行应用
