@@ -806,7 +806,7 @@ function editor() {
             html = html.replace(/\{\{&lt;\s*ref\s+"([^"]+)"\s*&gt;\}\}/g, (match, path) => {
                 return `<a href="/editor/${path}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${path}">🔗 ${path}</a>`;
             });
-            // 也要处理 {{< ref "..." >}} 在 pre/code 标签外的情况
+            // 也要处理 ref shortcode 在 pre/code 标签外的情况
             html = html.replace(/\{\{<\s*ref\s+"([^"]+)"\s*>\}\}/g, (match, path) => {
                 return `<a href="/editor/${path}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${path}">🔗 ${path}</a>`;
             });
@@ -869,7 +869,7 @@ function editor() {
                     cursorOffset = insertion.length;
                     break;
                 case 'ref':
-                    insertion = `{{< ref "" >}}`;
+                    insertion = '{' + '{< ref "" >}}';
                     cursorOffset = insertion.length - 5;
                     break;
             }
@@ -1254,7 +1254,7 @@ function editor() {
             const pos = textarea.selectionStart;
             const textBefore = this.content.substring(0, pos);
 
-            // 检测用户是否刚输入了 {{< ref " 后面的内容
+            // 检测用户是否刚输入了 ref shortcode 引用的内容
             const match = textBefore.match(/\{\{<\s*ref\s+"([^"]*)$/);
             if (match) {
                 const query = match[1];
@@ -1298,8 +1298,9 @@ function editor() {
             const textBefore = this.content.substring(0, pos);
             const textAfter = this.content.substring(pos);
 
-            // 替换未完成的 {{< ref "query 为 {{< ref "item.path" >}}
-            const newBefore = textBefore.replace(/\{\{<\s*ref\s+"[^"]*$/, '{{< ref "' + item.path + '" >}}');
+            // 替换未完成的 ref shortcode 为完整路径
+            const sc = '{' + '{< ref "';
+            const newBefore = textBefore.replace(/\{\{<\s*ref\s+"[^"]*$/, sc + item.path + '" >}}');
             this.content = newBefore + textAfter;
 
             this.refAC.show = false;
