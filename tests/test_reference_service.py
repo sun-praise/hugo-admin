@@ -130,3 +130,24 @@ class TestBacklinksQuery:
         )
 
         assert len(ref_service.get_backlinks("post/target.md")) == 1
+
+
+class TestEndToEnd:
+    """端到端测试：scan_all → get_backlinks，验证 JOIN 路径匹配"""
+
+    def test_scan_all_then_get_backlinks(self, ref_setup):
+        """完整流程：扫描引用 → 查询反向链接"""
+        ref_service, content_dir, db = ref_setup
+
+        # source.md 引用了 target.md
+        source = content_dir / "post" / "source.md"
+        source.write_text('{{< ref "post/target.md" >}}', encoding="utf-8")
+
+        # 执行全量扫描
+        ref_service.scan_all()
+
+        # 查询 target.md 的反向链接，应该找到 source.md
+        backlinks = ref_service.get_backlinks("post/target.md")
+        assert len(backlinks) == 1
+        assert backlinks[0]["title"] == "源文章"
+        assert backlinks[0]["path"] == "post/source.md"
