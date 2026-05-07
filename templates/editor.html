@@ -814,12 +814,15 @@ function editor() {
             }
 
             // 渲染 Hugo ref shortcode 为可点击链接
+            const esc = (s) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
             html = html.replace(/\{\{&lt;\s*ref\s+"([^"]+)"\s*&gt;\}\}/g, (match, path) => {
-                return `<a href="/editor/${path}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${path}">🔗 ${path}</a>`;
+                const p = esc(path);
+                return `<a href="/editor/${p}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${p}">🔗 ${p}</a>`;
             });
             // 也要处理 ref shortcode 在 pre/code 标签外的情况
             html = html.replace(/\{\{<\s*ref\s+"([^"]+)"\s*>\}\}/g, (match, path) => {
-                return `<a href="/editor/${path}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${path}">🔗 ${path}</a>`;
+                const p = esc(path);
+                return `<a href="/editor/${p}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${p}">🔗 ${p}</a>`;
             });
 
             this.preview = html;

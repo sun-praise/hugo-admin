@@ -11,8 +11,10 @@ REF_PATTERN = re.compile(r'\{\{<\s*ref\s+"([^"]+)"\s*>\}\}', re.DOTALL)
 
 
 class ReferenceService:
-    def __init__(self, content_dir, db):
+    def __init__(self, content_dir, db: "Database"):  # noqa: F821
         self.content_dir = Path(content_dir)
+        if db is None:
+            raise ValueError("ReferenceService requires a valid database instance")
         self.db = db
 
     def scan_file(self, file_path: str) -> list:
@@ -40,14 +42,11 @@ class ReferenceService:
         return refs
 
     def scan_all(self):
-        """扫描 content/post 下所有 .md 文件，重建引用索引"""
-        post_dir = self.content_dir / "post"
-        if not post_dir.exists():
+        """扫描 content 目录下所有 .md 文件，重建引用索引"""
+        if not self.content_dir.exists():
             return
 
-        for md_file in post_dir.rglob("*.md"):
-            if md_file.is_dir():
-                continue
+        for md_file in self.content_dir.rglob("*.md"):
             refs = self.scan_file(str(md_file))
             self.db.upsert_references(str(md_file), refs)
 
@@ -63,13 +62,5 @@ class ReferenceService:
 
     def search_posts(self, query: str):
         """模糊搜索文章（标题、路径、摘要、描述）"""
-        all_posts = self.db.get_all_posts(order_by="title ASC")
-        q = query.lower()
-        return [
-            {"path": p["relative_path"], "title": p["title"]}
-            for p in all_posts
-            if q in p["title"].lower()
-            or q in p["relative_path"].lower()
-            or q in (p.get("excerpt") or "").lower()
-            or q in (p.get("description") or "").lower()
-        ]
+        results = self.db.search_posts(query)
+        return [{"path": p["relative_path"], "title": p["title"]} for p in results]

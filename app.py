@@ -275,7 +275,8 @@ def get_settings():
 def update_settings():
     """更新应用设置"""
     global SESSION_AI_API_KEY  # noqa: E501
-    global ai_service, post_service, git_service, hugo_manager, settings_service
+    global ai_service, post_service, git_service
+    global hugo_manager, settings_service, ref_service
     if not request.is_json:
         return jsonify({"success": False, "message": "请求体必须是 JSON 对象"}), 400
 
@@ -326,6 +327,10 @@ def update_settings():
         app.config["HUGO_ROOT"] = new_root
         app.config["CONTENT_DIR"] = new_root / "content"
         post_service = PostService(app.config["CONTENT_DIR"], use_cache=True)
+        ref_service = ReferenceService(
+            app.config["CONTENT_DIR"],
+            post_service.cache_service.db if post_service.cache_service else None,
+        )
         git_service = GitService(new_root)
         hugo_manager = HugoServerManager(
             new_root, socketio, server_url=new_server_url or None
