@@ -37,7 +37,7 @@ class ReferenceService:
 
         refs = []
         for m in REF_PATTERN.finditer(text):
-            target = m.group(1)
+            target = m.group(1).lstrip("/")
             # 提取匹配位置前后的上下文（最多 60 字符）
             start = max(0, m.start() - 30)
             end = min(len(text), m.end() + 30)
@@ -61,8 +61,7 @@ class ReferenceService:
 
     def get_backlinks(self, file_path: str):
         """获取反向链接（哪些文章引用了当前文章）"""
-        # file_path 可能是 absolute 或 relative
-        return self.db.get_backlinks(file_path)
+        return self.db.get_backlinks(file_path.lstrip("/"))
 
     def search_posts(self, query: str):
         """模糊搜索文章（标题、路径、摘要、描述）"""
