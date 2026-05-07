@@ -582,6 +582,32 @@ class Database:
         conn.commit()
         conn.close()
 
+    def batch_upsert_references(self, all_refs: dict):
+        """
+        批量替换多篇文章的引用关系（单次事务）
+
+        Args:
+            all_refs: {source_path: [refs...], ...}
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        for source_path, refs in all_refs.items():
+            cursor.execute(
+                "DELETE FROM post_references WHERE source_path = ?",
+                (source_path,),
+            )
+            for ref in refs:
+                cursor.execute(
+                    """
+                    INSERT OR IGNORE INTO post_references
+                    (source_path, target_path, context)
+                    VALUES (?, ?, ?)
+                    """,
+                    (source_path, ref["target_path"], ref.get("context", "")),
+                )
+        conn.commit()
+        conn.close()
+
     def get_backlinks(self, target_path: str) -> List[Dict[str, Any]]:
         """获取指向 target_path 的所有反向引用"""
         conn = self._get_connection()

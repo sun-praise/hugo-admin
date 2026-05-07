@@ -50,9 +50,10 @@ class ReferenceService:
         if not self.content_dir.exists():
             return
 
+        all_refs = {}
         for md_file in self.content_dir.rglob("*.md"):
-            refs = self.scan_file(str(md_file))
-            self.db.upsert_references(str(md_file), refs)
+            all_refs[str(md_file)] = self.scan_file(str(md_file))
+        self.db.batch_upsert_references(all_refs)
 
     def update_file(self, file_path: str):
         """增量更新单个文件的引用"""
