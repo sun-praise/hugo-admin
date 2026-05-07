@@ -332,6 +332,7 @@ def update_settings():
             app.config["CONTENT_DIR"],
             post_service.cache_service.db if post_service.cache_service else None,
         )
+        ref_service.scan_all()
         git_service = GitService(new_root)
         hugo_manager = HugoServerManager(
             new_root, socketio, server_url=new_server_url or None
