@@ -38,12 +38,37 @@ class ReferenceService:
         refs = []
         for m in REF_PATTERN.finditer(text):
             target = m.group(1).lstrip("/")
+            # 解析相对路径：尝试找到实际文件的完整相对路径
+            target = self._resolve_target(target, path)
             # 提取匹配位置前后的上下文（最多 60 字符）
             start = max(0, m.start() - 30)
             end = min(len(text), m.end() + 30)
             ctx = text[start:end].replace("\n", " ").strip()
             refs.append({"target_path": target, "context": ctx})
         return refs
+
+    def _resolve_target(self, target: str, source_path: Path) -> str:
+        """将 target 解析为相对于 content_dir 的完整路径"""
+        # 已经是包含目录的路径，直接返回
+        if "/" in target and not target.startswith("./"):
+            return target
+        # 按优先级查找：1) 相对于源文件目录 2) 全局搜索
+        candidates = []
+        if target.startswith("./"):
+            candidates.append(source_path.parent / target)
+        else:
+            # 先尝试同目录
+            candidates.append(source_path.parent / target)
+            # 再在 content_dir 下全局搜索文件名
+            for found in self.content_dir.rglob(target):
+                candidates.append(found)
+        for candidate in candidates:
+            if candidate.exists() and candidate.is_file():
+                try:
+                    return str(candidate.relative_to(self.content_dir))
+                except ValueError:
+                    continue
+        return target
 
     def scan_all(self):
         """扫描 content 目录下所有 .md 文件，重建引用索引"""
