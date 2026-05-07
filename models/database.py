@@ -281,9 +281,10 @@ class Database:
         params = []
 
         if query:
-            sql += " AND (title LIKE ? OR description LIKE ? OR excerpt LIKE ?)"
+            sql += " AND (title LIKE ? OR description LIKE ?"
+            sql += " OR excerpt LIKE ? OR relative_path LIKE ?)"
             search_term = f"%{query}%"
-            params.extend([search_term, search_term, search_term])
+            params.extend([search_term, search_term, search_term, search_term])
 
         if category:
             sql += " AND categories LIKE ?"
@@ -589,7 +590,7 @@ class Database:
             """
             SELECT p.relative_path, p.title, pr.context
             FROM post_references pr
-            LEFT JOIN posts p ON pr.source_path = p.file_path
+            JOIN posts p ON pr.source_path = p.file_path
             WHERE pr.target_path = ?
             ORDER BY p.date DESC
             """,
