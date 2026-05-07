@@ -62,11 +62,14 @@ class ReferenceService:
         return self.db.get_backlinks(file_path)
 
     def search_posts(self, query: str):
-        """模糊搜索文章（标题和路径），用于自动补全"""
+        """模糊搜索文章（标题、路径、摘要、描述）"""
         all_posts = self.db.get_all_posts(order_by="title ASC")
         q = query.lower()
         return [
             {"path": p["relative_path"], "title": p["title"]}
             for p in all_posts
-            if q in p["title"].lower() or q in p["relative_path"].lower()
+            if q in p["title"].lower()
+            or q in p["relative_path"].lower()
+            or q in (p.get("excerpt") or "").lower()
+            or q in (p.get("description") or "").lower()
         ]
