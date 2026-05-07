@@ -4,7 +4,9 @@ Hugo Blog Web 管理界面
 简单轻量的 Flask 应用，用于管理 Hugo 博客
 """
 
+import logging
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -29,6 +31,24 @@ from services.settings_service import (
 # 初始化 Flask 应用
 load_dotenv()
 app = Flask(__name__)
+
+# 配置日志 - 写入 app.log，带轮转
+logger = logging.getLogger(__name__)
+
+log_file = Path(__file__).parent / "app.log"
+file_handler = RotatingFileHandler(
+    log_file,
+    maxBytes=1_048_576,  # 1 MB
+    backupCount=5,
+    encoding="utf-8",
+)
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(
+    logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+)
+logging.root.addHandler(file_handler)
+logging.root.setLevel(logging.INFO)
+logging.getLogger("werkzeug").setLevel(logging.INFO)
 
 
 @app.context_processor
@@ -414,8 +434,8 @@ def refresh_cache():
         # 同步刷新引用索引
         try:
             ref_service.scan_all()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.exception(e)
         return jsonify({"success": True, "message": "缓存刷新成功", "stats": stats})
     else:
         return jsonify({"success": False, "message": "缓存未启用"}), 400
@@ -535,8 +555,8 @@ def save_file():
                 else Path(app.config["CONTENT_DIR"]) / file_path
             )
             ref_service.update_file(abs_path)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.exception(e)
 
     return jsonify({"success": success, "message": message}), 200 if success else 500
 
@@ -935,6 +955,7 @@ def not_found(e):
 @app.errorhandler(500)
 def server_error(e):
     """500 错误处理"""
+    logger.exception(e)
     if request.path.startswith("/api/"):
         return jsonify({"success": False, "message": "服务器内部错误"}), 500
     return render_template("500.html"), 500
