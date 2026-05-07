@@ -6,12 +6,16 @@
 
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models.database import Database
 
 REF_PATTERN = re.compile(r'\{\{<\s*ref\s+"([^"]+)"\s*>\}\}', re.DOTALL)
 
 
 class ReferenceService:
-    def __init__(self, content_dir, db: "Database"):  # noqa: F821
+    def __init__(self, content_dir, db: "Database"):
         self.content_dir = Path(content_dir)
         if db is None:
             raise ValueError("ReferenceService requires a valid database instance")
