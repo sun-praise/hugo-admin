@@ -10,7 +10,14 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask import (
+    Flask,
+    jsonify,
+    render_template,
+    request,
+    send_file,
+    send_from_directory,
+)
 from flask_socketio import SocketIO, emit
 from werkzeug.exceptions import BadRequest
 
@@ -31,6 +38,10 @@ from services.settings_service import (
 # 初始化 Flask 应用
 load_dotenv()
 app = Flask(__name__)
+
+
+# React SPA 的 index.html 路径
+REACT_INDEX = Path(__file__).parent / "static" / "dist" / "index.html"
 
 # 配置日志 - 写入 app.log，带轮转
 logger = logging.getLogger(__name__)
@@ -212,32 +223,32 @@ app.register_blueprint(ai_blueprint)
 @app.route("/")
 def index():
     """首页 - 仪表板"""
-    return render_template("index.html")
+    return send_file(REACT_INDEX)
 
 
 @app.route("/posts")
 def posts_page():
     """文章列表页面"""
-    return render_template("posts.html")
+    return send_file(REACT_INDEX)
 
 
 @app.route("/editor")
 @app.route("/editor/<path:file_path>")
 def editor_page(file_path=None):
     """文章编辑器页面"""
-    return render_template("editor.html", file_path=file_path)
+    return send_file(REACT_INDEX)
 
 
 @app.route("/server")
 def server_page():
     """Hugo 服务器控制页面"""
-    return render_template("server.html")
+    return send_file(REACT_INDEX)
 
 
 @app.route("/settings")
 def settings_page():
     """设置页面"""
-    return render_template("settings.html")
+    return send_file(REACT_INDEX)
 
 
 @app.route("/test")
@@ -953,10 +964,12 @@ def handle_request_logs():
 
 @app.errorhandler(404)
 def not_found(e):
-    """404 错误处理"""
+    """404 错误处理 - SPA fallback"""
     if request.path.startswith("/api/"):
         return jsonify({"success": False, "message": "接口不存在"}), 404
-    return render_template("404.html"), 404
+    if request.path.startswith("/static/dist/"):
+        return jsonify({"success": False, "message": "静态文件不存在"}), 404
+    return send_file(REACT_INDEX)
 
 
 @app.errorhandler(500)

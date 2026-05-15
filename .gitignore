@@ -77,3 +77,11 @@ test-report.md
 .ralph
 
 app.log.*
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# React build output (committed if needed, otherwise ignored)
+static/dist/
