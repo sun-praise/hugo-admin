@@ -23,7 +23,11 @@ export interface Pagination {
 export interface PostsResponse {
   posts: Post[];
   total: number;
-  pagination: Pagination;
+  page: number;
+  per_page: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
 }
 
 export interface Tag {
