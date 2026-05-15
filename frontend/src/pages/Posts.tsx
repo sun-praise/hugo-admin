@@ -7,7 +7,7 @@ import type { Post, PostsResponse, Tag as TagType, Category } from '../types';
 export default function Posts() {
   const navigate = useNavigate();
   const [posts, setPosts] = useState<Post[]>([]);
-  const [pagination, setPagination] = useState({ total: 0, page: 1, per_page: 20, total_pages: 0 });
+  const [pagination, setPagination] = useState({ total: 0, page: 1, per_page: 20, total_pages: 0, has_next: false, has_prev: false });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tags, setTags] = useState<TagType[]>([]);
@@ -27,7 +27,14 @@ export default function Posts() {
       if (filters.tag) params.set('tag', filters.tag);
       const data = await get<PostsResponse>(`/api/posts?${params.toString()}`);
       setPosts(data.posts);
-      setPagination(data.pagination);
+      setPagination({
+        total: data.total,
+        page: data.page,
+        per_page: data.per_page,
+        total_pages: data.total_pages,
+        has_next: data.has_next,
+        has_prev: data.has_prev,
+      });
     } catch (error) {
       console.error('Failed to load posts:', error);
     } finally {
