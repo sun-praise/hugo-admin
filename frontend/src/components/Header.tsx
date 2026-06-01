@@ -32,17 +32,17 @@ export default function Header() {
   }, []);
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+    <header className="bg-white shadow-sm border-b border-stone-200 px-6 py-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold text-gray-800">{pageTitle}</h2>
+        <h2 className="text-2xl font-semibold text-stone-800">{pageTitle}</h2>
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
             <div
               className={`w-3 h-3 rounded-full animate-pulse ${
-                status.running ? 'bg-green-500' : 'bg-gray-400'
+                status.running ? 'bg-green-500' : 'bg-stone-400'
               }`}
             />
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-stone-600">
               {status.running ? 'Hugo 运行中' : 'Hugo 已停止'}
             </span>
           </div>

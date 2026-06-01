@@ -142,27 +142,27 @@ export default function Posts() {
   return (
     <div>
       {/* 搜索和筛选 */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
+      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">搜索</label>
+            <label className="block text-sm font-medium text-stone-700 mb-2">搜索</label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-stone-400" />
               <input
                 type="text"
                 value={filters.query}
                 onChange={(e) => setFilters({ ...filters, query: e.target.value })}
                 placeholder="搜索标题、内容、标签..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400 focus:border-transparent"
               />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">分类</label>
+            <label className="block text-sm font-medium text-stone-700 mb-2">分类</label>
             <select
               value={filters.category}
               onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400"
             >
               <option value="">全部分类</option>
               {categories.map((cat) => (
@@ -173,11 +173,11 @@ export default function Posts() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">标签</label>
+            <label className="block text-sm font-medium text-stone-700 mb-2">标签</label>
             <select
               value={filters.tag}
               onChange={(e) => setFilters({ ...filters, tag: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400"
             >
               <option value="">全部标签</option>
               {tags.map((tag) => (
@@ -191,22 +191,22 @@ export default function Posts() {
       </div>
 
       {/* 文章列表 */}
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white rounded-md ring-1 ring-stone-900/5">
         {loading ? (
           <div className="p-12 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
-            <p className="mt-4 text-gray-600">加载中...</p>
+            <p className="mt-4 text-stone-600">加载中...</p>
           </div>
         ) : (
           <div>
-            <div className="px-6 py-4 border-b border-gray-200">
+            <div className="px-6 py-4 border-b border-stone-200">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <h3 className="text-lg font-semibold">共 {pagination.total} 篇文章</h3>
+                <h3 className="text-lg font-medium">共 {pagination.total} 篇文章</h3>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={refreshCache}
                     disabled={refreshing}
-                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 flex items-center"
+                    className="px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors disabled:opacity-50 flex items-center"
                   >
                     <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                     {refreshing ? '刷新中...' : '刷新缓存'}
@@ -222,7 +222,7 @@ export default function Posts() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 px-6 py-3 border-b border-gray-200">
+            <div className="flex items-center gap-4 px-6 py-3 border-b border-stone-200">
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -230,9 +230,9 @@ export default function Posts() {
                   checked={selectAll}
                   onChange={toggleSelectAll}
                   disabled={posts.length === 0}
-                  className="w-4 h-4 border-gray-300 rounded text-blue-600 focus:ring-2 focus:ring-blue-500"
+                  className="w-4 h-4 border-stone-300 rounded text-blue-600 focus:ring-2 focus:ring-stone-400"
                 />
-                <label htmlFor="select-all" className="text-sm font-medium text-gray-700 cursor-pointer">
+                <label htmlFor="select-all" className="text-sm font-medium text-stone-700 cursor-pointer">
                   全选 ({selectedPosts.size} / {posts.length})
                 </label>
               </div>
@@ -246,22 +246,22 @@ export default function Posts() {
               </button>
             </div>
 
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-stone-200">
               {posts.length === 0 && (
-                <div className="p-12 text-center text-gray-500">
-                  <FileText className="w-16 h-16 mb-4 text-gray-400 mx-auto" />
+                <div className="p-12 text-center text-stone-500">
+                  <FileText className="w-16 h-16 mb-4 text-stone-400 mx-auto" />
                   <p>未找到文章</p>
                 </div>
               )}
               {posts.map((post) => (
-                <div key={post.path} className="p-6 hover:bg-gray-50 transition-colors">
+                <div key={post.path} className="p-6 hover:bg-stone-50 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-shrink-0 mr-4 pt-1">
                       <input
                         type="checkbox"
                         checked={selectedPosts.has(post.path)}
                         onChange={() => togglePostSelection(post.path)}
-                        className="w-4 h-4 border-gray-300 rounded text-blue-600 focus:ring-2 focus:ring-blue-500"
+                        className="w-4 h-4 border-stone-300 rounded text-blue-600 focus:ring-2 focus:ring-stone-400"
                       />
                     </div>
                     {post.cover_url && (
@@ -269,17 +269,17 @@ export default function Posts() {
                         <img
                           src={post.cover_url}
                           alt={post.title}
-                          className="w-24 h-16 object-cover rounded-lg bg-gray-100"
+                          className="w-24 h-16 object-cover rounded-lg bg-stone-100"
                           onError={(e) => (e.currentTarget.style.display = 'none')}
                         />
                       </Link>
                     )}
                     <div className="flex-1 min-w-0">
                       <Link to={`/editor/${post.path}`} className="block">
-                        <h4 className="text-lg font-semibold text-gray-900 hover:text-blue-600 mb-2">{post.title}</h4>
+                        <h4 className="text-lg font-medium text-stone-900 hover:text-blue-600 mb-2">{post.title}</h4>
                       </Link>
-                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">{post.description || post.excerpt}</p>
-                      <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                      <p className="text-stone-600 text-sm mb-3 line-clamp-2">{post.description || post.excerpt}</p>
+                      <div className="flex flex-wrap items-center gap-4 text-sm text-stone-500">
                         <span className="flex items-center">
                           <Calendar className="w-4 h-4 mr-1" />
                           {post.date}
@@ -306,7 +306,7 @@ export default function Posts() {
                       {post.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {post.tags.map((tag) => (
-                            <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
+                            <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-stone-100 text-stone-600">
                               <Tag className="w-3 h-3 mr-1" />
                               {tag}
                             </span>

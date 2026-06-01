@@ -209,35 +209,35 @@ export default function AIChat() {
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
       {isOpen && (
-        <div className="bg-white w-96 h-[500px] rounded-2xl shadow-2xl border border-gray-200 flex flex-col mb-4 overflow-hidden fade-in">
-          <div className="bg-gray-900 text-white px-4 py-3 flex justify-between items-center">
+        <div className="bg-white w-96 h-[500px] rounded-2xl shadow-2xl border border-stone-200 flex flex-col mb-4 overflow-hidden fade-in">
+          <div className="bg-stone-900 text-white px-4 py-3 flex justify-between items-center">
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-green-500 rounded-full" />
               <span className="font-medium text-sm">AI 助手</span>
               <div className="relative">
                 <button
                   onClick={() => setShowMenu(!showMenu)}
-                  className="ml-2 text-gray-400 hover:text-white text-xs flex items-center"
+                  className="ml-2 text-stone-400 hover:text-white text-xs flex items-center"
                 >
                   <ChevronDown className="w-4 h-4" />
                 </button>
                 {showMenu && (
-                  <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50 py-1 text-gray-800 text-sm max-h-64 overflow-y-auto">
+                  <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50 py-1 text-stone-800 text-sm max-h-64 overflow-y-auto">
                     <button
                       onClick={() => {
                         createSession();
                         setShowMenu(false);
                       }}
-                      className="w-full px-3 py-2 text-left hover:bg-gray-100 flex items-center text-blue-600"
+                      className="w-full px-3 py-2 text-left hover:bg-stone-100 flex items-center text-blue-600"
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       新对话
                     </button>
-                    <div className="border-t border-gray-200 my-1" />
+                    <div className="border-t border-stone-200 my-1" />
                     {sessions.map((s) => (
                       <div
                         key={s.session_id}
-                        className="flex items-center hover:bg-gray-100 group"
+                        className="flex items-center hover:bg-stone-100 group"
                       >
                         <button
                           onClick={() => {
@@ -257,35 +257,35 @@ export default function AIChat() {
                             e.stopPropagation();
                             deleteSession(s.session_id);
                           }}
-                          className="px-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100"
+                          className="px-2 text-stone-400 hover:text-red-500 opacity-0 group-hover:opacity-100"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     ))}
                     {sessions.length === 0 && (
-                      <div className="px-3 py-2 text-gray-400 text-center">暂无历史</div>
+                      <div className="px-3 py-2 text-stone-400 text-center">暂无历史</div>
                     )}
                   </div>
                 )}
               </div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white">
+            <button onClick={() => setIsOpen(false)} className="text-stone-400 hover:text-white">
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-stone-50">
             {messages.map((msg, index) => (
               <div
                 key={index}
                 className={msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'}
               >
                 <div
-                  className={`max-w-[85%] px-4 py-2 rounded-2xl shadow-sm text-sm ${
+                  className={`max-w-[85%] px-4 py-2 rounded-2xl text-sm ${
                     msg.role === 'user'
                       ? 'bg-blue-600 text-white rounded-br-none'
-                      : 'bg-white text-gray-800 border border-gray-200 rounded-bl-none'
+                      : 'bg-white text-stone-800 border border-stone-200 rounded-bl-none'
                   }`}
                 >
                   <div
@@ -299,11 +299,11 @@ export default function AIChat() {
             ))}
             {isLoading && (
               <div className="flex justify-start">
-                <div className="bg-white border border-gray-200 px-4 py-2 rounded-2xl rounded-bl-none shadow-sm flex items-center space-x-2">
+                <div className="bg-white border border-stone-200 px-4 py-2 rounded-2xl rounded-bl-none flex items-center space-x-2">
                   <div className="flex space-x-1">
-                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
-                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+                    <div className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce" />
+                    <div className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                    <div className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
                   </div>
                 </div>
               </div>
@@ -311,14 +311,14 @@ export default function AIChat() {
             <div ref={messagesEndRef} />
           </div>
 
-          <form onSubmit={sendMessage} className="p-4 bg-white border-t border-gray-200">
+          <form onSubmit={sendMessage} className="p-4 bg-white border-t border-stone-200">
             <div className="flex space-x-2">
               <input
                 type="text"
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
                 placeholder="输入指令，例如：搜索文章..."
-                className="flex-1 bg-gray-100 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                className="flex-1 bg-stone-100 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-stone-400 outline-none"
                 disabled={isLoading}
               />
               <button
@@ -337,7 +337,7 @@ export default function AIChat() {
 
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="bg-gray-900 text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform flex items-center justify-center relative"
+        className="bg-stone-900 text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform flex items-center justify-center relative"
       >
         {isOpen ? (
           <ChevronDown className="w-6 h-6" />
