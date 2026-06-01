@@ -10,14 +10,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import (
-    Flask,
-    jsonify,
-    render_template,
-    request,
-    send_file,
-    send_from_directory,
-)
+from flask import Flask, jsonify, request, send_file, send_from_directory
 from flask_socketio import SocketIO, emit
 from werkzeug.exceptions import BadRequest
 
@@ -60,13 +53,6 @@ file_handler.setFormatter(
 logging.root.addHandler(file_handler)
 logging.root.setLevel(logging.INFO)
 logging.getLogger("werkzeug").setLevel(logging.INFO)
-
-
-@app.context_processor
-def inject_version():
-    from __version__ import __version__
-
-    return {"app_version": __version__}
 
 
 # 加载配置
@@ -377,6 +363,14 @@ def update_settings():
             "settings": _to_public_settings(updated_settings),
         }
     )
+
+
+@app.route("/api/version")
+def get_version():
+    """获取应用版本号"""
+    from __version__ import __version__
+
+    return jsonify({"version": __version__})
 
 
 # --- Hugo 服务器管理 API ---
@@ -978,7 +972,10 @@ def server_error(e):
     logger.exception(e)
     if request.path.startswith("/api/"):
         return jsonify({"success": False, "message": "服务器内部错误"}), 500
-    return render_template("500.html"), 500
+    return (
+        '<html><body><h1>500 - 服务器内部错误</h1><p><a href="/">返回首页</a></p></body></html>',
+        500,
+    )
 
 
 # ============ 主程序入口 ============
