@@ -459,10 +459,10 @@ export default function Editor() {
 
   if (!currentFile) {
     return (
-      <div className="bg-white rounded-lg shadow p-12 text-center">
-        <FileCode className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold text-gray-700 mb-2">未选择文件</h3>
-        <p className="text-gray-500 mb-4">请从文章列表中选择一个文件进行编辑</p>
+      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-12 text-center">
+        <FileCode className="w-16 h-16 text-stone-400 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-stone-700 mb-2">未选择文件</h3>
+        <p className="text-stone-500 mb-4">请从文章列表中选择一个文件进行编辑</p>
         <Link to="/posts" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
           浏览文章
         </Link>
@@ -473,27 +473,27 @@ export default function Editor() {
   return (
     <div className="relative">
       {/* 工具栏 */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
+      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-4 mb-4">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div className="flex items-center space-x-4">
             <div>
-              <label className="text-sm font-medium text-gray-700">当前文件:</label>
-              <span className="ml-2 text-gray-600 font-mono text-sm">{currentFile}</span>
+              <label className="text-sm font-medium text-stone-700">当前文件:</label>
+              <span className="ml-2 text-stone-600 font-mono text-sm">{currentFile}</span>
             </div>
           </div>
           <div className="flex items-center space-x-2 flex-wrap">
-            <button onClick={() => setShowFrontmatterDrawer(true)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
+            <button onClick={() => setShowFrontmatterDrawer(true)} className="px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors flex items-center">
               <FileCode className="w-5 h-5 mr-2" />
               Frontmatter
             </button>
-            <button onClick={() => setShowBacklinks(!showBacklinks)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
+            <button onClick={() => setShowBacklinks(!showBacklinks)} className="px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors flex items-center">
               <ArrowLeftRight className="w-5 h-5 mr-2" />
               反向链接
               {backlinks.length > 0 && (
                 <span className="ml-1 bg-blue-100 text-blue-800 text-xs font-semibold px-2 py-0.5 rounded-full">{backlinks.length}</span>
               )}
             </button>
-            <button onClick={() => setShowImageManager(!showImageManager)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
+            <button onClick={() => setShowImageManager(!showImageManager)} className="px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors flex items-center">
               <Image className="w-5 h-5 mr-2" />
               图片管理
             </button>
@@ -501,7 +501,7 @@ export default function Editor() {
               <Save className="w-5 h-5 mr-2" />
               {saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'}
             </button>
-            <button onClick={publishArticle} disabled={publishing || !currentFile} className={`px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center ${isPublished ? 'bg-gray-400 hover:bg-gray-500' : 'bg-green-600 hover:bg-green-700'}`}>
+            <button onClick={publishArticle} disabled={publishing || !currentFile} className={`px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center ${isPublished ? 'bg-stone-400 hover:bg-stone-500' : 'bg-green-600 hover:bg-green-700'}`}>
               <Upload className="w-5 h-5 mr-2" />
               {publishing ? '发布中...' : isPublished ? '已发布' : '发布'}
             </button>
@@ -511,7 +511,7 @@ export default function Editor() {
         {showImageManager && (
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">图片管理</h3>
+              <h3 className="font-semibold text-stone-900">图片管理</h3>
               <label className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg cursor-pointer transition-colors">
                 <input type="file" onChange={uploadImage} accept="image/*" className="hidden" />
                 上传图片
@@ -522,24 +522,24 @@ export default function Editor() {
                 const articleDir = currentFile.replace(/[^/]+$/, '');
                 return (
                   <div key={image.name} className="relative group">
-                    <img src={`/content/${articleDir}${image.url}`} alt={image.name} className="w-full h-32 object-cover rounded border border-gray-200" />
+                    <img src={`/content/${articleDir}${image.url}`} alt={image.name} className="w-full h-32 object-cover rounded border border-stone-200" />
                     <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center z-10">
                       <button onClick={() => copyImageUrl(image.url)} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded shadow-lg">
                         复制链接
                       </button>
                     </div>
-                    <div className="mt-1 text-xs text-gray-600 truncate">{image.name}</div>
+                    <div className="mt-1 text-xs text-stone-600 truncate">{image.name}</div>
                   </div>
                 );
               })}
             </div>
-            {images.length === 0 && <p className="text-gray-500 text-center py-8">暂无图片，点击"上传图片"开始上传</p>}
+            {images.length === 0 && <p className="text-stone-500 text-center py-8">暂无图片，点击"上传图片"开始上传</p>}
           </div>
         )}
       </div>
 
       {/* Markdown 工具栏 */}
-      <div className="bg-white rounded-lg shadow p-3 mb-4">
+      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-3 mb-4">
         <div className="flex flex-wrap gap-2">
           <button onClick={() => insertMarkdown('bold')} className="toolbar-btn" title="加粗 (Ctrl+B)">
             <Bold className="w-4 h-4" />
@@ -550,7 +550,7 @@ export default function Editor() {
           <button onClick={() => insertMarkdown('heading')} className="toolbar-btn" title="标题">
             <Heading className="w-4 h-4" />
           </button>
-          <span className="border-l border-gray-300 mx-1" />
+          <span className="border-l border-stone-300 mx-1" />
           <button onClick={() => insertMarkdown('link')} className="toolbar-btn" title="链接">
             <Link2 className="w-4 h-4" />
           </button>
@@ -560,7 +560,7 @@ export default function Editor() {
           <button onClick={() => insertMarkdown('image')} className="toolbar-btn" title="图片">
             <Image className="w-4 h-4" />
           </button>
-          <span className="border-l border-gray-300 mx-1" />
+          <span className="border-l border-stone-300 mx-1" />
           <button onClick={() => insertMarkdown('ul')} className="toolbar-btn" title="无序列表">
             <List className="w-4 h-4" />
           </button>
@@ -580,23 +580,23 @@ export default function Editor() {
       </div>
 
       {/* 编辑器和预览 */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ height: 'calc(100vh - 380px)', minHeight: '500px' }}>
           <div className="flex flex-col">
-            <div className="text-sm font-medium text-gray-700 mb-2">编辑器</div>
+            <div className="text-sm font-medium text-stone-700 mb-2">编辑器</div>
             <textarea
               ref={textareaRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onPaste={handlePaste}
               placeholder="在此输入 Markdown 内容..."
-              className="flex-1 w-full font-mono text-sm p-4 border border-gray-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              className="flex-1 w-full font-mono text-sm p-4 border border-stone-200 rounded-lg resize-none focus:ring-2 focus:ring-stone-400 focus:border-transparent outline-none"
               style={{ lineHeight: 1.6 }}
             />
           </div>
           <div className="flex flex-col">
-            <div className="text-sm font-medium text-gray-700 mb-2">预览</div>
-            <div className="flex-1 overflow-y-auto p-4 border border-gray-200 rounded-lg bg-white">
+            <div className="text-sm font-medium text-stone-700 mb-2">预览</div>
+            <div className="flex-1 overflow-y-auto p-4 border border-stone-200 rounded-lg bg-white">
               <div className="markdown-body" dangerouslySetInnerHTML={{ __html: preview }} />
             </div>
           </div>
@@ -609,18 +609,18 @@ export default function Editor() {
           <div className="fixed inset-0 bg-black bg-opacity-30 z-40" onClick={() => setShowFrontmatterDrawer(false)} />
           <div className="fixed top-0 right-0 w-[420px] max-w-[90vw] h-screen bg-white shadow-xl z-50 overflow-y-auto flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">Frontmatter</h3>
-              <button onClick={() => setShowFrontmatterDrawer(false)} className="text-gray-400 hover:text-gray-600">
+              <h3 className="text-lg font-medium text-stone-900">Frontmatter</h3>
+              <button onClick={() => setShowFrontmatterDrawer(false)} className="text-stone-400 hover:text-stone-600">
                 <X className="w-6 h-6" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">title</label>
-                <input type="text" value={fmEdit.title || ''} onChange={(e) => setFmEdit({ ...fmEdit, title: e.target.value })} placeholder="文章标题" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-sm font-medium text-stone-700 mb-1">title</label>
+                <input type="text" value={fmEdit.title || ''} onChange={(e) => setFmEdit({ ...fmEdit, title: e.target.value })} placeholder="文章标题" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">date</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">date</label>
                 <input
                   type="datetime-local"
                   value={fmDateLocal}
@@ -628,35 +628,35 @@ export default function Editor() {
                     setFmDateLocal(e.target.value);
                     setFmEdit({ ...fmEdit, date: e.target.value ? e.target.value.replace('T', ' ') + ':00+08:00' : '' });
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">draft</label>
-                <select value={fmEdit.draft || 'true'} onChange={(e) => setFmEdit({ ...fmEdit, draft: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <label className="block text-sm font-medium text-stone-700 mb-1">draft</label>
+                <select value={fmEdit.draft || 'true'} onChange={(e) => setFmEdit({ ...fmEdit, draft: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400">
                   <option value="true">true (草稿)</option>
                   <option value="false">false (已发布)</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">tags (逗号分隔)</label>
-                <input type="text" value={fmTagsStr} onChange={(e) => setFmTagsStr(e.target.value)} placeholder="tag1, tag2" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-sm font-medium text-stone-700 mb-1">tags (逗号分隔)</label>
+                <input type="text" value={fmTagsStr} onChange={(e) => setFmTagsStr(e.target.value)} placeholder="tag1, tag2" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">categories (逗号分隔)</label>
-                <input type="text" value={fmCategoriesStr} onChange={(e) => setFmCategoriesStr(e.target.value)} placeholder="cat1, cat2" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-sm font-medium text-stone-700 mb-1">categories (逗号分隔)</label>
+                <input type="text" value={fmCategoriesStr} onChange={(e) => setFmCategoriesStr(e.target.value)} placeholder="cat1, cat2" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">cover</label>
-                <input type="text" value={fmEdit.cover || ''} onChange={(e) => setFmEdit({ ...fmEdit, cover: e.target.value })} placeholder="封面图片路径" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-sm font-medium text-stone-700 mb-1">cover</label>
+                <input type="text" value={fmEdit.cover || ''} onChange={(e) => setFmEdit({ ...fmEdit, cover: e.target.value })} placeholder="封面图片路径" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">description</label>
-                <input type="text" value={fmEdit.description || ''} onChange={(e) => setFmEdit({ ...fmEdit, description: e.target.value })} placeholder="文章描述" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-sm font-medium text-stone-700 mb-1">description</label>
+                <input type="text" value={fmEdit.description || ''} onChange={(e) => setFmEdit({ ...fmEdit, description: e.target.value })} placeholder="文章描述" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
               </div>
               <div className="border-t pt-4">
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-semibold text-gray-600">其他字段</label>
+                  <label className="text-sm font-semibold text-stone-600">其他字段</label>
                   <button onClick={() => setFmExtraFields([...fmExtraFields, { key: '', value: '' }])} className="text-sm text-blue-600 hover:text-blue-700">+ 添加字段</button>
                 </div>
                 {fmExtraFields.map((field, i) => (
@@ -679,7 +679,7 @@ export default function Editor() {
               </div>
             </div>
             <div className="p-4 border-t flex justify-end space-x-2">
-              <button onClick={() => setShowFrontmatterDrawer(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">取消</button>
+              <button onClick={() => setShowFrontmatterDrawer(false)} className="px-4 py-2 border border-stone-300 rounded-lg text-stone-700 hover:bg-stone-50">取消</button>
               <button onClick={applyFrontmatter} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">应用</button>
             </div>
           </div>
@@ -691,35 +691,35 @@ export default function Editor() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" onClick={() => setShowRefModal(false)}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b">
-              <h3 className="text-lg font-semibold mb-3">搜索文章引用</h3>
+              <h3 className="text-lg font-medium mb-3">搜索文章引用</h3>
               <input
                 type="text"
                 value={refSearchQuery}
                 onChange={(e) => { setRefSearchQuery(e.target.value); searchRefs(); }}
                 placeholder="输入关键词搜索文章..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400 outline-none"
                 autoFocus
               />
             </div>
             <div className="max-h-80 overflow-y-auto">
               {refSearchResults.map((item) => (
-                <div key={item.path} onClick={() => insertRef(item)} className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 flex items-center gap-3">
+                <div key={item.path} onClick={() => insertRef(item)} className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-stone-100 flex items-center gap-3">
                   <span className="text-blue-500 text-lg">🔗</span>
                   <div className="min-w-0">
-                    <div className="font-medium text-gray-800 truncate">{item.title || '(无标题)'}</div>
-                    <div className="text-sm text-gray-400 truncate">{item.path}</div>
+                    <div className="font-medium text-stone-800 truncate">{item.title || '(无标题)'}</div>
+                    <div className="text-sm text-stone-400 truncate">{item.path}</div>
                   </div>
                 </div>
               ))}
               {refSearchQuery && refSearchResults.length === 0 && (
-                <div className="p-6 text-center text-gray-400">未找到匹配的文章</div>
+                <div className="p-6 text-center text-stone-400">未找到匹配的文章</div>
               )}
               {!refSearchQuery && (
-                <div className="p-6 text-center text-gray-400">输入关键词开始搜索</div>
+                <div className="p-6 text-center text-stone-400">输入关键词开始搜索</div>
               )}
             </div>
-            <div className="p-3 border-t bg-gray-50 flex justify-end">
-              <button onClick={() => setShowRefModal(false)} className="px-4 py-2 text-gray-600 hover:text-gray-800">取消</button>
+            <div className="p-3 border-t bg-stone-50 flex justify-end">
+              <button onClick={() => setShowRefModal(false)} className="px-4 py-2 text-stone-600 hover:text-stone-800">取消</button>
             </div>
           </div>
         </div>
@@ -731,17 +731,17 @@ export default function Editor() {
           <div className="fixed inset-0 bg-black bg-opacity-30 z-40" onClick={() => setShowBacklinks(false)} />
           <div className="fixed top-0 right-0 w-[380px] max-w-[90vw] h-screen bg-white shadow-xl z-50 overflow-y-auto flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">反向链接</h3>
-              <button onClick={() => setShowBacklinks(false)} className="text-gray-400 hover:text-gray-600">
+              <h3 className="text-lg font-medium text-stone-900">反向链接</h3>
+              <button onClick={() => setShowBacklinks(false)} className="text-stone-400 hover:text-stone-600">
                 <X className="w-6 h-6" />
               </button>
             </div>
-            {backlinks.length === 0 && <div className="p-4 text-sm text-gray-500">暂无其他文章引用本文</div>}
+            {backlinks.length === 0 && <div className="p-4 text-sm text-stone-500">暂无其他文章引用本文</div>}
             {backlinks.map((bl) => (
-              <Link key={bl.path} to={`/editor/${bl.path}`} target="_blank" className="block p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                <div className="font-medium text-gray-900">{bl.title || '(无标题)'}</div>
-                <div className="text-xs text-gray-400">{bl.path}</div>
-                {bl.context && <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded mt-2">{bl.context}</div>}
+              <Link key={bl.path} to={`/editor/${bl.path}`} target="_blank" className="block p-4 border-b border-stone-100 hover:bg-stone-50 transition-colors">
+                <div className="font-medium text-stone-900">{bl.title || '(无标题)'}</div>
+                <div className="text-xs text-stone-400">{bl.path}</div>
+                {bl.context && <div className="text-xs text-stone-500 bg-stone-100 p-2 rounded mt-2">{bl.context}</div>}
               </Link>
             ))}
           </div>
@@ -753,7 +753,7 @@ export default function Editor() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-8 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4" />
-            <p className="text-gray-700">加载中...</p>
+            <p className="text-stone-700">加载中...</p>
           </div>
         </div>
       )}

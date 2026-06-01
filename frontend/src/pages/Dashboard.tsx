@@ -181,7 +181,7 @@ export default function Dashboard() {
     blue: { bg: 'bg-blue-100', text: 'text-blue-600' },
     green: { bg: 'bg-green-100', text: 'text-green-600' },
     purple: { bg: 'bg-purple-100', text: 'text-purple-600' },
-    gray: { bg: 'bg-gray-100', text: 'text-gray-400' },
+    gray: { bg: 'bg-stone-100', text: 'text-stone-400' },
   };
 
   return (
@@ -189,11 +189,11 @@ export default function Dashboard() {
       {/* 统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {statCards.map((card) => (
-          <div key={card.label} className="bg-white rounded-lg shadow p-6">
+          <div key={card.label} className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-sm">{card.label}</p>
-                <p className={`text-3xl font-bold mt-2 ${card.isStatus && serverStatus.running ? 'text-green-600' : card.isStatus ? 'text-gray-400' : ''}`}>
+                <p className="text-stone-500 text-sm">{card.label}</p>
+                <p className={`text-3xl font-bold mt-2 ${card.isStatus && serverStatus.running ? 'text-green-600' : card.isStatus ? 'text-stone-400' : ''}`}>
                   {card.value}
                 </p>
               </div>
@@ -206,30 +206,30 @@ export default function Dashboard() {
       </div>
 
       {/* 快速操作 */}
-      <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <h3 className="text-lg font-semibold mb-4">快速操作</h3>
+      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6 mb-8">
+        <h3 className="text-lg font-medium mb-4">快速操作</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Link to="/posts" className="flex items-center justify-center p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors">
+          <Link to="/posts" className="flex items-center justify-center p-4 border-2 border-stone-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors">
             <Search className="w-6 h-6 text-blue-600 mr-3" />
             <span className="font-medium">浏览文章</span>
           </Link>
-          <button onClick={createNewPost} className="flex items-center justify-center p-4 border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors">
+          <button onClick={createNewPost} className="flex items-center justify-center p-4 border-2 border-stone-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors">
             <Plus className="w-6 h-6 text-green-600 mr-3" />
             <span className="font-medium">新建文章</span>
           </button>
-          <Link to="/server" className="flex items-center justify-center p-4 border-2 border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors">
+          <Link to="/server" className="flex items-center justify-center p-4 border-2 border-stone-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors">
             <Settings className="w-6 h-6 text-purple-600 mr-3" />
             <span className="font-medium">服务器控制</span>
           </Link>
-          <button onClick={publishSystem} disabled={publishing} className="flex items-center justify-center p-4 border-2 border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors disabled:opacity-50">
+          <button onClick={publishSystem} disabled={publishing} className="flex items-center justify-center p-4 border-2 border-stone-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors disabled:opacity-50">
             <Upload className="w-6 h-6 text-orange-600 mr-3" />
             <span className="font-medium">{publishing ? '发布中...' : '系统发布'}</span>
           </button>
-          <button onClick={pushLatestEmail} disabled={pushingEmail} className="flex items-center justify-center p-4 border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors disabled:opacity-50">
+          <button onClick={pushLatestEmail} disabled={pushingEmail} className="flex items-center justify-center p-4 border-2 border-stone-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors disabled:opacity-50">
             <Mail className="w-6 h-6 text-indigo-600 mr-3" />
             <span className="font-medium">{pushingEmail ? '推送中...' : '推送最新文章'}</span>
           </button>
-          <button onClick={pushSpecificEmail} disabled={pushingEmail} className="flex items-center justify-center p-4 border-2 border-gray-200 rounded-lg hover:border-teal-500 hover:bg-teal-50 transition-colors disabled:opacity-50">
+          <button onClick={pushSpecificEmail} disabled={pushingEmail} className="flex items-center justify-center p-4 border-2 border-stone-200 rounded-lg hover:border-teal-500 hover:bg-teal-50 transition-colors disabled:opacity-50">
             <Send className="w-6 h-6 text-teal-600 mr-3" />
             <span className="font-medium">推送指定文章</span>
           </button>
@@ -237,28 +237,28 @@ export default function Dashboard() {
       </div>
 
       {/* 最近文章 */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">最近文章</h3>
+          <h3 className="text-lg font-medium">最近文章</h3>
           <Link to="/posts" className="text-blue-600 hover:text-blue-800 text-sm">查看全部 →</Link>
         </div>
         <div className="space-y-3">
-          {recentPosts.length === 0 && <p className="text-gray-500 text-center py-8">暂无文章</p>}
+          {recentPosts.length === 0 && <p className="text-stone-500 text-center py-8">暂无文章</p>}
           {recentPosts.map((post) => (
-            <div key={post.path} className="border-b border-gray-200 pb-3 last:border-b-0">
-              <Link to={`/editor/${post.path}`} className="flex hover:bg-gray-50 rounded p-2 -m-2">
+            <div key={post.path} className="border-b border-stone-200 pb-3 last:border-b-0">
+              <Link to={`/editor/${post.path}`} className="flex hover:bg-stone-50 rounded p-2 -m-2">
                 {post.cover_url && (
                   <img
                     src={post.cover_url}
                     alt={post.title}
-                    className="w-16 h-12 object-cover rounded mr-3 flex-shrink-0 bg-gray-100"
+                    className="w-16 h-12 object-cover rounded mr-3 flex-shrink-0 bg-stone-100"
                     onError={(e) => (e.currentTarget.style.display = 'none')}
                   />
                 )}
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-gray-900 mb-1 truncate">{post.title}</h4>
-                  <p className="text-sm text-gray-600 mb-1 line-clamp-1">{post.excerpt}</p>
-                  <div className="flex items-center space-x-4 text-xs text-gray-500">
+                  <h4 className="font-medium text-stone-900 mb-1 truncate">{post.title}</h4>
+                  <p className="text-sm text-stone-600 mb-1 line-clamp-1">{post.excerpt}</p>
+                  <div className="flex items-center space-x-4 text-xs text-stone-500">
                     <span>{post.date}</span>
                     <span className="flex items-center space-x-1">
                       <Tag className="w-4 h-4" />

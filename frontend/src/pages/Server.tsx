@@ -106,39 +106,39 @@ export default function ServerPage() {
     SUCCESS: 'text-green-400',
     ERROR: 'text-red-400',
     WARNING: 'text-yellow-400',
-    INFO: 'text-gray-300',
+    INFO: 'text-stone-300',
   };
 
   return (
     <div>
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
+      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h3 className="text-lg font-semibold mb-4">服务器状态</h3>
+            <h3 className="text-lg font-medium mb-4">服务器状态</h3>
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="text-gray-700">运行状态:</span>
-                <span className={`font-semibold flex items-center ${status.running ? 'text-green-600' : 'text-gray-500'}`}>
-                  <span className={`w-2 h-2 rounded-full mr-2 ${status.running ? 'bg-green-500' : 'bg-gray-400'}`} />
+              <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
+                <span className="text-stone-700">运行状态:</span>
+                <span className={`font-semibold flex items-center ${status.running ? 'text-green-600' : 'text-stone-500'}`}>
+                  <span className={`w-2 h-2 rounded-full mr-2 ${status.running ? 'bg-green-500' : 'bg-stone-400'}`} />
                   {status.running ? '运行中' : '已停止'}
                 </span>
               </div>
               {status.running && (
                 <>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="text-gray-700">进程 PID:</span>
+                  <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
+                    <span className="text-stone-700">进程 PID:</span>
                     <span className="font-mono">{status.pid}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="text-gray-700">运行时间:</span>
+                  <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
+                    <span className="text-stone-700">运行时间:</span>
                     <span className="font-mono">{status.uptime || '-'}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="text-gray-700">CPU 使用率:</span>
+                  <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
+                    <span className="text-stone-700">CPU 使用率:</span>
                     <span className="font-mono">{status.cpu_percent ? status.cpu_percent + '%' : '-'}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="text-gray-700">内存使用:</span>
+                  <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
+                    <span className="text-stone-700">内存使用:</span>
                     <span className="font-mono">{status.memory_mb ? status.memory_mb + ' MB' : '-'}</span>
                   </div>
                 </>
@@ -147,13 +147,13 @@ export default function ServerPage() {
           </div>
 
           <div>
-            <h3 className="text-lg font-semibold mb-4">操作控制</h3>
+            <h3 className="text-lg font-medium mb-4">操作控制</h3>
             <div className="space-y-3">
               <button
                 onClick={() => startServer(false)}
                 disabled={status.running || loading}
                 className={`w-full px-6 py-3 text-white rounded-lg transition-colors flex items-center justify-center ${
-                  status.running || loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
+                  status.running || loading ? 'bg-stone-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
                 }`}
               >
                 <Play className="w-5 h-5 mr-2" />
@@ -163,7 +163,7 @@ export default function ServerPage() {
                 onClick={() => startServer(true)}
                 disabled={status.running || loading}
                 className={`w-full px-6 py-3 text-white rounded-lg transition-colors flex items-center justify-center ${
-                  status.running || loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                  status.running || loading ? 'bg-stone-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                 }`}
               >
                 <Bug className="w-5 h-5 mr-2" />
@@ -173,7 +173,7 @@ export default function ServerPage() {
                 onClick={stopServer}
                 disabled={!status.running || loading}
                 className={`w-full px-6 py-3 text-white rounded-lg transition-colors flex items-center justify-center ${
-                  !status.running || loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
+                  !status.running || loading ? 'bg-stone-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
                 }`}
               >
                 <Square className="w-5 h-5 mr-2" />
@@ -197,23 +197,23 @@ export default function ServerPage() {
         </div>
       </div>
 
-      <div className="bg-gray-900 rounded-lg shadow overflow-hidden">
-        <div className="px-6 py-4 bg-gray-800 border-b border-gray-700 flex items-center justify-between">
+      <div className="bg-stone-900 rounded-lg overflow-hidden">
+        <div className="px-6 py-4 bg-stone-800 border-b border-stone-700 flex items-center justify-between">
           <h3 className="text-white font-semibold">服务器日志</h3>
           <button
             onClick={clearLogs}
-            className="px-3 py-1 text-xs bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors flex items-center"
+            className="px-3 py-1 text-xs bg-stone-700 text-white rounded hover:bg-stone-600 transition-colors flex items-center"
           >
             <Trash2 className="w-3 h-3 mr-1" />
             清空日志
           </button>
         </div>
-        <div ref={logContainerRef} className="p-4 h-96 overflow-y-auto font-mono text-sm text-gray-300 bg-gray-900">
-          {logs.length === 0 && <p className="text-gray-500">暂无日志输出</p>}
+        <div ref={logContainerRef} className="p-4 h-96 overflow-y-auto font-mono text-sm text-stone-300 bg-stone-900">
+          {logs.length === 0 && <p className="text-stone-500">暂无日志输出</p>}
           {logs.map((log, index) => (
-            <div key={index} className="mb-1 hover:bg-gray-800 px-2 py-1 rounded">
-              <span className="text-gray-500">[{log.timestamp}]</span>{' '}
-              <span className={logLevelColors[log.level] || 'text-gray-300'}>{log.message}</span>
+            <div key={index} className="mb-1 hover:bg-stone-800 px-2 py-1 rounded">
+              <span className="text-stone-500">[{log.timestamp}]</span>{' '}
+              <span className={logLevelColors[log.level] || 'text-stone-300'}>{log.message}</span>
             </div>
           ))}
         </div>
