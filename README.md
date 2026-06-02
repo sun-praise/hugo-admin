@@ -8,6 +8,10 @@
 
 [English](#english) | [中文](#chinese)
 
+## Screenshot / 截图
+
+![Hugo Admin Dashboard](screenshot.png)
+
 <a name="english"></a>
 ## English
 
@@ -175,7 +179,7 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 
 ### License
 
-MIT License - see [LICENSE](LICENSE) file for details
+Apache License 2.0 - see [LICENSE](LICENSE) file for details
 
 ### Acknowledgments
 
@@ -350,7 +354,7 @@ hugo-admin/
 
 ### 许可证
 
-MIT License - 详见 [LICENSE](LICENSE) 文件
+Apache License 2.0 - 详见 [LICENSE](LICENSE) 文件
 
 ### 致谢
 

@@ -50,6 +50,9 @@ Thumbs.db
 
 # Hugo Admin specific
 config_local.py
+.admin/settings.json
+content/.admin/settings.json
+**/.admin/settings.json
 
 # Test coverage
 .coverage
@@ -61,3 +64,24 @@ htmlcov/
 *.bak
 
 site
+
+.serena
+test-report.md
+
+# ignore opencode werid file
+.opencode/package-lock.json
+
+.worktrees
+
+# ignore ralph
+.ralph
+
+app.log.*
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# React build output (committed if needed, otherwise ignored)
+static/dist/
