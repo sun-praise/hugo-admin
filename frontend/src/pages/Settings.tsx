@@ -6,7 +6,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [apiKeyTouched, setApiKeyTouched] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
   const [apiKeySource, setApiKeySource] = useState('none');
   const [apiKeyHint, setApiKeyHint] = useState('');
   const [form, setForm] = useState<SettingsType>({
@@ -63,15 +63,16 @@ export default function SettingsPage() {
           model: form.ai.model,
         },
       };
-      if (apiKeyTouched) {
-        payload.ai.api_key = '';
+      if (apiKeyInput.trim() !== '') {
+        payload.ai.api_key = apiKeyInput.trim();
       }
       const data = await put<{ success: boolean; message?: string }>('/api/settings', payload);
       if (!data.success) {
         throw new Error(data.message || '保存设置失败');
       }
       showNotification('设置保存成功', 'success');
-      setApiKeyTouched(false);
+      setApiKeyInput('');
+      await fetchSettings();
     } catch (error) {
       setErrorMessage((error as Error).message);
     } finally {
@@ -155,8 +156,9 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium text-stone-700 mb-2">AI API Key（可选）</label>
                 <input
                   type="password"
+                  value={apiKeyInput}
                   placeholder="留空则保持当前来源"
-                  onChange={() => setApiKeyTouched(true)}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
                   className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
                 />
                 {apiKeySource === 'session' && (

@@ -14,11 +14,13 @@ export default function ServerPage() {
   });
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hugoUrl, setHugoUrl] = useState('http://0.0.0.0:1313');
   const logContainerRef = useRef<HTMLDivElement>(null);
   const socketRef = useSocket();
 
   useEffect(() => {
     fetchStatus();
+    fetchHugoUrl();
     const interval = setInterval(fetchStatus, 3000);
     return () => clearInterval(interval);
   }, []);
@@ -51,6 +53,16 @@ export default function ServerPage() {
       setStatus(data);
     } catch (error) {
       console.error('Failed to fetch status:', error);
+    }
+  }
+
+  async function fetchHugoUrl() {
+    try {
+      const data = await get<{ success: boolean; settings?: { hugo?: { server_url?: string } } }>('/api/settings');
+      const url = data.settings?.hugo?.server_url;
+      if (url) setHugoUrl(url);
+    } catch (error) {
+      console.error('Failed to fetch hugo url:', error);
     }
   }
 
@@ -181,7 +193,7 @@ export default function ServerPage() {
               </button>
               {status.running && (
                 <a
-                  href="http://192.168.2.14:1313"
+                  href={hugoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block w-full px-6 py-3 bg-purple-600 text-white text-center rounded-lg hover:bg-purple-700 transition-colors"
