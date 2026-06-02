@@ -81,7 +81,7 @@ export default function AIChat() {
     loadSessions();
   }, []);
 
-  async function createSession() {
+  async function createSession(): Promise<string | null> {
     try {
       const res = await post<{ session_id: string }>('/api/ai/sessions', {});
       setCurrentSessionId(res.session_id);
@@ -89,8 +89,10 @@ export default function AIChat() {
         { role: 'assistant', content: '您好！我是您的 Hugo 博客 AI 助手（只读模式）。我可以帮您搜索和阅读文章，或回答相关问题。' },
       ]);
       await loadSessions();
+      return res.session_id;
     } catch (e) {
       console.error('Failed to create session:', e);
+      return null;
     }
   }
 
@@ -126,8 +128,13 @@ export default function AIChat() {
     e.preventDefault();
     if (!userInput.trim() || isLoading) return;
 
-    if (!currentSessionId) {
-      await createSession();
+    let sessionId = currentSessionId;
+    if (!sessionId) {
+      sessionId = await createSession();
+      if (!sessionId) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: '抱歉，会话创建失败，请稍后重试。' }]);
+        return;
+      }
     }
 
     const userMessage = userInput.trim();
@@ -142,7 +149,7 @@ export default function AIChat() {
         body: JSON.stringify({
           message: userMessage,
           history: messages,
-          session_id: currentSessionId,
+          session_id: sessionId,
           current_file: currentFile || undefined,
         }),
       });

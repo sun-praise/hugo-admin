@@ -111,11 +111,11 @@ export default function Posts() {
     if (selectedPosts.size === 0) return;
     setBulkPublishing(true);
     try {
-      const paths = Array.from(selectedPosts);
-      const result = await post<{ success: boolean; results?: Array<{ path: string; success: boolean; message?: string }>; message?: string }>('/api/article/publish/bulk', { paths });
+      const file_paths = Array.from(selectedPosts);
+      const result = await post<{ success: boolean; results?: Array<{ path: string; success: boolean; message?: string }>; message?: string }>('/api/article/publish/bulk', { file_paths });
       if (result.success && result.results) {
         const successCount = result.results.filter((r) => r.success).length;
-        showNotification(`批量发布完成：${successCount}/${paths.length} 成功`, 'success');
+        showNotification(`批量发布完成：${successCount}/${file_paths.length} 成功`, 'success');
         await loadPosts();
         setSelectedPosts(new Set());
         setSelectAll(false);

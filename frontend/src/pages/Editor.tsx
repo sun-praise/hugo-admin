@@ -315,7 +315,7 @@ export default function Editor() {
     if (!confirm('确定要发布这篇文章吗？发布后将无法撤销草稿状态。')) return;
     setPublishing(true);
     try {
-      const data = await post<{ success: boolean; message?: string }>('/api/article/publish', { path: currentFile });
+      const data = await post<{ success: boolean; message?: string }>('/api/article/publish', { file_path: currentFile });
       if (data.success) {
         showNotification('发布成功', 'success');
         setIsPublished(true);
@@ -333,7 +333,7 @@ export default function Editor() {
   async function checkPublishStatus() {
     if (!currentFile) return;
     try {
-      const data = await get<{ is_published: boolean }>(`/api/article/status?path=${encodeURIComponent(currentFile)}`);
+      const data = await get<{ is_published: boolean }>(`/api/article/status?file_path=${encodeURIComponent(currentFile)}`);
       setIsPublished(data.is_published);
     } catch (error) {
       console.error('Failed to check publish status:', error);
@@ -343,7 +343,7 @@ export default function Editor() {
   async function loadImages() {
     if (!currentFile) return;
     try {
-      const data = await post<{ success: boolean; images?: ImageItem[] }>('/api/image/list', { path: currentFile });
+      const data = await post<{ success: boolean; images?: ImageItem[] }>('/api/image/list', { article_path: currentFile });
       if (data.success) {
         setImages(data.images || []);
       }
@@ -356,8 +356,8 @@ export default function Editor() {
     const file = e.target.files?.[0];
     if (!file || !currentFile) return;
     const formData = new FormData();
-    formData.append('image', file);
-    formData.append('path', currentFile);
+    formData.append('file', file);
+    formData.append('article_path', currentFile);
     try {
       const response = await fetch('/api/image/upload', { method: 'POST', body: formData });
       const data = await response.json();
@@ -393,8 +393,8 @@ export default function Editor() {
       return;
     }
     try {
-      const data = await get<{ results: Array<{ path: string; title: string }> }>(`/api/posts/search?q=${encodeURIComponent(refSearchQuery)}`);
-      setRefSearchResults(data.results || []);
+      const data = await get<{ posts: Array<{ path: string; title: string }> }>(`/api/posts/search?q=${encodeURIComponent(refSearchQuery)}`);
+      setRefSearchResults(data.posts || []);
     } catch (error) {
       console.error('Failed to search refs:', error);
     }
@@ -423,8 +423,8 @@ export default function Editor() {
         const blob = items[i].getAsFile();
         if (blob && currentFile) {
           const formData = new FormData();
-          formData.append('image', blob);
-          formData.append('path', currentFile);
+          formData.append('file', blob);
+          formData.append('article_path', currentFile);
           fetch('/api/image/upload', { method: 'POST', body: formData })
             .then((r) => r.json())
             .then((data) => {
