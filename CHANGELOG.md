@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-04-29
+
+### Fixed
+- Persist cache across restarts (#34)
+- Resolve path inconsistency and improve incremental update in cache_service
+- Remove `.resolve()` from invalidate_post for path consistency
+- Extract POST_SUBDIR constant, batch DB query, replace print with logger, add edge-case tests
+
+### Known Issues
+- #36 上传图片后文章列表不显示封面图
+
+## [1.4.0] - 2026-04-15
+
+### Added
+- Cover image display in post list and dashboard recent posts (#26, #27)
+- GitHub icon link in sidebar footer (#29)
+- Docker image build workflow for GitHub Actions
+- Auto-read version from `__version__.py` in sidebar (#31)
+
+### Changed
+- AI assistant is now read-only with current article context injected (#28)
+- Docker image tag updated to `svtter/hugo-admin`
+
+## [1.3.0] - 2026-04-07
+
+### Added
+- Added a dedicated settings page with Hugo base directory configuration.
+- Added AI chat session management and history support for chat continuity.
+- Added REST endpoints and UI for managing chat sessions.
+
+### Changed
+- Reworked settings interactions from popup-based UI to a dedicated settings page.
+- Moved AI configuration from environment-only settings into the sidebar/settings page.
+- Integrated pre-commit checks into CI and applied automated style fixes.
+
+### Fixed
+- Fixed a settings service variable scope issue that could raise `UnboundLocalError`.
+- Fixed settings sidebar interactions and Docker/CI reliability issues.
+- Improved config storage and validation robustness.
+
+## [1.2.1] - 2026-01-24
+
+### Added
+- Email push notification integration (#9)
+- Migrated from PydanticAI to Claude Agent SDK with DeepSeek support
+
+### Changed
+- Migrated dependencies to pyproject.toml for uv sync compatibility
+
+## [1.2.0] - 2026-01-10
+
+### Added
+- Clipboard image paste functionality in editor
+- OpenSpec support for project planning and changes
+- AI chat assistant with tool calling capabilities
+
+### Fixed
+- AI tool calls streaming response handling
+- SSE stream termination and loading state resets
+- Standardized date format to RFC3339 with timezone
+- Socket.IO port and server log display issues
+
 ## [1.1.1] - 2025-11-26
 
 ### Fixed

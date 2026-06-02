@@ -3,24 +3,281 @@
 """
 测试缓存系统
 """
+
+import os
 import sys
+import tempfile
+import time
 from pathlib import Path
 
-# 添加父目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+
+def _create_md_file(
+    parent: Path, name: str, title: str = "Test", body: str = ""
+) -> Path:
+    parent.mkdir(parents=True, exist_ok=True)
+    p = parent / name
+    content = f"---\ntitle: {title}\ndate: 2025-01-01\n---\n\n{body}\n"
+    p.write_text(content, encoding="utf-8")
+    return p
+
+
+def _cache_service_with_tmp(content_dir: Path):
+    fd, db_path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    from services.cache_service import CacheService
+
+    svc = CacheService(str(content_dir), db_path)
+    return svc, db_path
+
+
+def test_incremental_no_change():
+    """增量更新：文件未修改时不应重新解析"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        content_dir = Path(tmpdir)
+        post_dir = content_dir / "post"
+        _create_md_file(post_dir, "a.md", "Alpha")
+
+        svc, db_path = _cache_service_with_tmp(content_dir)
+        try:
+            svc.initialize()
+            all_paths_1 = set(svc.db.get_all_file_paths())
+
+            svc._initialized = False
+            svc.initialize()
+            all_paths_2 = set(svc.db.get_all_file_paths())
+
+            assert all_paths_1 == all_paths_2
+        finally:
+            os.unlink(db_path)
+
+
+def test_incremental_new_file():
+    """增量更新：新增文件应被缓存"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        content_dir = Path(tmpdir)
+        post_dir = content_dir / "post"
+        _create_md_file(post_dir, "a.md", "Alpha")
+
+        svc, db_path = _cache_service_with_tmp(content_dir)
+        try:
+            svc.initialize()
+
+            time.sleep(0.05)
+            _create_md_file(post_dir, "b.md", "Beta")
+
+            svc._initialized = False
+            svc.initialize()
+
+            titles = [p["title"] for p in svc.db.get_all_posts()]
+            assert "Alpha" in titles
+            assert "Beta" in titles
+        finally:
+            os.unlink(db_path)
+
+
+def test_incremental_deleted_file():
+    """增量更新：已删除文件应从缓存移除"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        content_dir = Path(tmpdir)
+        post_dir = content_dir / "post"
+        f1 = _create_md_file(post_dir, "a.md", "Alpha")
+        _create_md_file(post_dir, "b.md", "Beta")
+
+        svc, db_path = _cache_service_with_tmp(content_dir)
+        try:
+            svc.initialize()
+            assert len(svc.db.get_all_posts()) == 2
+
+            os.unlink(f1)
+
+            svc._initialized = False
+            svc.initialize()
+
+            titles = [p["title"] for p in svc.db.get_all_posts()]
+            assert "Alpha" not in titles
+            assert "Beta" in titles
+        finally:
+            os.unlink(db_path)
+
+
+def test_incremental_modified_file():
+    """增量更新：mtime 变化时应重新解析"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        content_dir = Path(tmpdir)
+        post_dir = content_dir / "post"
+        f1 = _create_md_file(post_dir, "a.md", "Alpha")
+
+        svc, db_path = _cache_service_with_tmp(content_dir)
+        try:
+            svc.initialize()
+
+            time.sleep(0.05)
+            f1.write_text(
+                "---\ntitle: Alpha Updated\ndate: 2025-01-01\n---\n\nupdated\n",
+                encoding="utf-8",
+            )
+
+            svc._initialized = False
+            svc.initialize()
+
+            posts = svc.db.get_all_posts()
+            assert len(posts) == 1
+            assert posts[0]["title"] == "Alpha Updated"
+        finally:
+            os.unlink(db_path)
+
+
+def test_incremental_empty_db_triggers_full_rebuild():
+    """空数据库应走全量扫描路径"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        content_dir = Path(tmpdir)
+        post_dir = content_dir / "post"
+        _create_md_file(post_dir, "a.md", "Alpha")
+
+        svc, db_path = _cache_service_with_tmp(content_dir)
+        try:
+            svc.initialize()
+            assert svc._initialized
+            assert len(svc.db.get_all_posts()) == 1
+        finally:
+            os.unlink(db_path)
+
+
+def test_force_rebuild():
+    """强制重建应重新扫描所有文件"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        content_dir = Path(tmpdir)
+        post_dir = content_dir / "post"
+        _create_md_file(post_dir, "a.md", "Alpha")
+
+        svc, db_path = _cache_service_with_tmp(content_dir)
+        try:
+            svc.initialize()
+            time.sleep(0.05)
+            _create_md_file(post_dir, "b.md", "Beta")
+
+            svc.initialize(force_rebuild=True)
+
+            titles = [p["title"] for p in svc.db.get_all_posts()]
+            assert "Alpha" in titles
+            assert "Beta" in titles
+        finally:
+            os.unlink(db_path)
+
+
+def test_path_consistency():
+    """_full_rebuild 和 _incremental_update 存储的路径格式应一致"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        content_dir = Path(tmpdir)
+        post_dir = content_dir / "post"
+        _create_md_file(post_dir, "a.md", "Alpha")
+
+        svc, db_path = _cache_service_with_tmp(content_dir)
+        try:
+            svc.initialize()
+            full_paths = set(svc.db.get_all_file_paths())
+
+            svc._initialized = False
+            svc.initialize()
+            inc_paths = set(svc.db.get_all_file_paths())
+
+            assert full_paths == inc_paths
+        finally:
+            os.unlink(db_path)
+
+
+def test_incremental_post_dir_missing():
+    """增量更新：post_dir 不存在时应保留已有缓存（不误删）"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        content_dir = Path(tmpdir)
+        post_dir = content_dir / "post"
+        _create_md_file(post_dir, "a.md", "Alpha")
+
+        svc, db_path = _cache_service_with_tmp(content_dir)
+        try:
+            svc.initialize()
+            assert len(svc.db.get_all_posts()) == 1
+
+            import shutil
+
+            shutil.rmtree(post_dir)
+
+            svc._initialized = False
+            svc.initialize()
+
+            titles = [p["title"] for p in svc.db.get_all_posts()]
+            assert "Alpha" in titles
+        finally:
+            os.unlink(db_path)
+
+
+def test_incremental_unreadable_file_skips():
+    """增量更新：文件不可读时应跳过并保留旧缓存"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        content_dir = Path(tmpdir)
+        post_dir = content_dir / "post"
+        f1 = _create_md_file(post_dir, "a.md", "Alpha")
+
+        svc, db_path = _cache_service_with_tmp(content_dir)
+        try:
+            svc.initialize()
+            original_mod_time = svc.db.get_all_posts()[0]["mod_time"]
+
+            time.sleep(0.05)
+            os.chmod(f1, 0o000)
+
+            svc._initialized = False
+            svc.initialize()
+
+            assert svc.db.get_all_posts()[0]["mod_time"] == original_mod_time
+        finally:
+            os.chmod(f1, 0o644)
+            os.unlink(db_path)
+
+
+def test_incremental_mtime_precision():
+    """增量更新：极短时间内修改文件应仍能被检测"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        content_dir = Path(tmpdir)
+        post_dir = content_dir / "post"
+        f1 = _create_md_file(post_dir, "a.md", "Alpha")
+
+        svc, db_path = _cache_service_with_tmp(content_dir)
+        try:
+            svc.initialize()
+
+            f1.write_text(
+                "---\ntitle: Alpha V2\ndate: 2025-01-01\n---\n\nv2\n",
+                encoding="utf-8",
+            )
+            time.sleep(0.01)
+
+            svc._initialized = False
+            svc.initialize()
+
+            posts = svc.db.get_all_posts()
+            assert len(posts) == 1
+            assert posts[0]["title"] == "Alpha V2"
+        finally:
+            os.unlink(db_path)
+
 
 def test_database():
     """测试数据库基本功能"""
-    from models.database import Database
-    import tempfile
+    """测试数据库基本功能"""
     import os
+    import tempfile
+
+    from models.database import Database
 
     print("=" * 50)
     print("测试数据库基本功能")
     print("=" * 50)
 
     # 使用临时数据库
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.db') as f:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as f:
         db_path = f.name
 
     try:
@@ -28,25 +285,25 @@ def test_database():
 
         # 测试插入
         post_data = {
-            'file_path': '/test/post1.md',
-            'relative_path': 'post/post1.md',
-            'title': '测试文章1',
-            'date': '2025-01-01',
-            'description': '这是一篇测试文章',
-            'excerpt': '摘要内容',
-            'tags': ['Python', 'Flask'],
-            'categories': ['编程'],
-            'mod_time': 1234567890.0
+            "file_path": "/test/post1.md",
+            "relative_path": "post/post1.md",
+            "title": "测试文章1",
+            "date": "2025-01-01",
+            "description": "这是一篇测试文章",
+            "excerpt": "摘要内容",
+            "tags": ["Python", "Flask"],
+            "categories": ["编程"],
+            "mod_time": 1234567890.0,
         }
 
         db.upsert_post(post_data)
         print("✓ 插入文章成功")
 
         # 测试查询
-        post = db.get_post('/test/post1.md')
+        post = db.get_post("/test/post1.md")
         assert post is not None
-        assert post['title'] == '测试文章1'
-        assert post['tags'] == ['Python', 'Flask']
+        assert post["title"] == "测试文章1"
+        assert post["tags"] == ["Python", "Flask"]
         print("✓ 查询文章成功")
 
         # 测试获取所有文章
@@ -65,8 +322,8 @@ def test_database():
         print(f"✓ 分类统计成功: {categories}")
 
         # 测试删除
-        db.delete_post('/test/post1.md')
-        post = db.get_post('/test/post1.md')
+        db.delete_post("/test/post1.md")
+        post = db.get_post("/test/post1.md")
         assert post is None
         print("✓ 删除文章成功")
 
@@ -85,15 +342,16 @@ def test_cache_service():
     print("=" * 50)
 
     try:
-        from services.cache_service import CacheService
-        import tempfile
         import os
+        import tempfile
+
+        from services.cache_service import CacheService
 
         # 使用临时数据库
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.db') as f:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as f:
             db_path = f.name
 
-        content_dir = str(Path(__file__).parent.parent / 'content')
+        content_dir = str(Path(__file__).parent.parent / "content")
 
         try:
             cache_service = CacheService(content_dir, db_path)
@@ -105,7 +363,7 @@ def test_cache_service():
 
             # 获取统计信息
             stats = cache_service.get_stats()
-            print(f"\n缓存统计:")
+            print("\n缓存统计:")
             print(f"  - 文章总数: {stats['total_posts']}")
             print(f"  - 标签数量: {stats['total_tags']}")
             print(f"  - 分类数量: {stats['total_categories']}")
@@ -113,14 +371,14 @@ def test_cache_service():
 
             # 获取文章列表
             result = cache_service.get_posts(page=1, per_page=5)
-            print(f"\n文章列表 (第1页, 每页5篇):")
+            print("\n文章列表 (第1页, 每页5篇):")
             print(f"  - 总数: {result['total']}")
             print(f"  - 总页数: {result['total_pages']}")
             print(f"  - 当前页文章数: {len(result['posts'])}")
 
-            if result['posts']:
-                print(f"\n前3篇文章:")
-                for post in result['posts'][:3]:
+            if result["posts"]:
+                print("\n前3篇文章:")
+                for post in result["posts"][:3]:
                     print(f"  - {post['title']} ({post['date']})")
 
             # 获取标签
@@ -145,9 +403,10 @@ def test_cache_service():
     except Exception as e:
         print(f"✗ 缓存服务测试失败: {e}")
         import traceback
+
         traceback.print_exc()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_database()
     test_cache_service()

@@ -8,13 +8,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from services.post_service import PostService
 
 # 初始化服务
-content_dir = Path(__file__).parent.parent / 'content'
+content_dir = Path(__file__).parent.parent / "content"
 post_service = PostService(content_dir)
 
 # 测试路径
 test_paths = [
-    'post/2025-11-02-一个划算的kilocode-使用方法/index.md',
-    'post/2025-11-02-data-extraction-task/index.md',
+    "post/2025-11-02-一个划算的kilocode-使用方法/index.md",
+    "post/2025-11-02-data-extraction-task/index.md",
 ]
 
 print("Content dir:", content_dir)
