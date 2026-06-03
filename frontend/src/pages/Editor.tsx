@@ -523,7 +523,7 @@ export default function Editor() {
                 return (
                   <div key={image.name} className="relative group">
                     <img src={`/content/${articleDir}${image.url}`} alt={image.name} className="w-full h-32 object-cover rounded border border-stone-200" />
-                    <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center z-10">
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center z-10">
                       <button onClick={() => copyImageUrl(image.url)} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded shadow-lg">
                         复制链接
                       </button>
@@ -606,7 +606,7 @@ export default function Editor() {
       {/* Frontmatter 抽屉 */}
       {showFrontmatterDrawer && (
         <>
-          <div className="fixed inset-0 bg-black bg-opacity-30 z-40" onClick={() => setShowFrontmatterDrawer(false)} />
+          <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setShowFrontmatterDrawer(false)} />
           <div className="fixed top-0 right-0 w-[420px] max-w-[90vw] h-screen bg-white shadow-xl z-50 overflow-y-auto flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-medium text-stone-900">Frontmatter</h3>
@@ -688,7 +688,7 @@ export default function Editor() {
 
       {/* 引用搜索弹窗 */}
       {showRefModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" onClick={() => setShowRefModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowRefModal(false)}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b">
               <h3 className="text-lg font-medium mb-3">搜索文章引用</h3>
@@ -728,7 +728,7 @@ export default function Editor() {
       {/* 反向链接面板 */}
       {showBacklinks && (
         <>
-          <div className="fixed inset-0 bg-black bg-opacity-30 z-40" onClick={() => setShowBacklinks(false)} />
+          <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setShowBacklinks(false)} />
           <div className="fixed top-0 right-0 w-[380px] max-w-[90vw] h-screen bg-white shadow-xl z-50 overflow-y-auto flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-medium text-stone-900">反向链接</h3>
@@ -750,7 +750,7 @@ export default function Editor() {
 
       {/* 加载状态 */}
       {loading && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-8 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4" />
             <p className="text-stone-700">加载中...</p>
