@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, send_file, send_from_directory
@@ -67,6 +68,22 @@ except ImportError:
     app.config.from_object(DevelopmentConfig)
     print("✓ 已加载默认配置 (config.py)")
 
+
+def _ensure_server_url_has_port(url: str) -> str:
+    """若 URL 已带 scheme 但缺少显式端口，则按 HUGO_SERVER_PORT 补齐。"""
+    if not url:
+        return url
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.hostname or parsed.port is not None:
+        return url
+    default_port = app.config.get("HUGO_SERVER_PORT", 1313)
+    return urlunparse(parsed._replace(netloc=f"{parsed.hostname}:{default_port}"))
+
+
+app.config["HUGO_SERVER_BASE_URL"] = _ensure_server_url_has_port(
+    app.config.get("HUGO_SERVER_BASE_URL", "")
+)
+
 # 向后兼容的配置
 app.config["HUGO_ROOT"] = app.config.get("HUGO_ROOT", Path(__file__).parent.parent)
 app.config["CONTENT_DIR"] = app.config.get(
@@ -93,7 +110,9 @@ try:
     app.config["AI_BASE_URL"] = persisted_settings["ai"]["base_url"]
     app.config["AI_MODEL"] = persisted_settings["ai"]["model"]
     app.config["AI_API_KEY"] = ENV_AI_API_KEY
-    _hugo_server_url = persisted_settings.get("hugo", {}).get("server_url", "")
+    _hugo_server_url = _ensure_server_url_has_port(
+        persisted_settings.get("hugo", {}).get("server_url", "")
+    )
 except (SettingsValidationError, SettingsStorageError) as e:
     print(f"⚠ 设置文件读取失败，继续使用默认配置: {e}")
     _hugo_server_url = ""
@@ -129,9 +148,10 @@ def _to_public_settings(settings):
     public_settings["hugo"]["base_dir"] = public_settings["hugo"]["base_dir"] or str(
         app.config.get("HUGO_ROOT", "")
     )
-    public_settings["hugo"]["server_url"] = public_settings["hugo"].get(
-        "server_url", ""
-    ) or app.config.get("HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313")
+    public_settings["hugo"]["server_url"] = _ensure_server_url_has_port(
+        public_settings["hugo"].get("server_url", "")
+        or app.config.get("HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313")
+    )
 
     global SESSION_AI_API_KEY
     session_api_key = SESSION_AI_API_KEY
@@ -319,7 +339,9 @@ def update_settings():
     app.config["AI_API_KEY"] = SESSION_AI_API_KEY or ENV_AI_API_KEY
 
     new_hugo_root = updated_settings.get("hugo", {}).get("base_dir", "")
-    new_server_url = updated_settings.get("hugo", {}).get("server_url", "")
+    new_server_url = _ensure_server_url_has_port(
+        updated_settings.get("hugo", {}).get("server_url", "")
+    )
     if new_hugo_root and str(app.config["HUGO_ROOT"]) != new_hugo_root:
         new_root = Path(new_hugo_root)
         app.config["HUGO_ROOT"] = new_root
