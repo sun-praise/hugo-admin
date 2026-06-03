@@ -16,6 +16,7 @@ import {
   Table,
   X,
   ArrowLeftRight,
+  Sparkles,
 } from 'lucide-react';
 import { get, post } from '../utils/api';
 import { renderMarkdown } from '../utils/markdown';
@@ -50,6 +51,7 @@ export default function Editor() {
   const [refSearchQuery, setRefSearchQuery] = useState('');
   const [refSearchResults, setRefSearchResults] = useState<Array<{ path: string; title: string }>>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [generatingCover, setGeneratingCover] = useState(false);
 
   const currentFile = fullPath;
 
@@ -376,6 +378,34 @@ export default function Editor() {
     }
   }
 
+  async function generateCoverImage() {
+    if (!currentFile) {
+      showNotification('未选择文件', 'error');
+      return;
+    }
+    setGeneratingCover(true);
+    try {
+      const data = await post<{ success: boolean; url?: string; message?: string }>('/api/image/generate-cover', {
+        article_path: currentFile,
+        title: fmEdit.title || frontmatter.title || '',
+        description: fmEdit.description || frontmatter.description || '',
+        content,
+      });
+      if (data.success && data.url) {
+        setFmEdit({ ...fmEdit, cover: data.url });
+        setFrontmatter({ ...frontmatter, cover: data.url });
+        showNotification('封面图片已生成', 'success');
+        await loadImages();
+      } else {
+        showNotification('生成失败: ' + (data.message || '未知错误'), 'error');
+      }
+    } catch (error) {
+      showNotification('生成封面失败', 'error');
+    } finally {
+      setGeneratingCover(false);
+    }
+  }
+
   function copyImageUrl(url: string) {
     navigator.clipboard.writeText(url);
     showNotification('图片链接已复制', 'success');
@@ -500,6 +530,10 @@ export default function Editor() {
             <button onClick={() => setShowImageManager(!showImageManager)} className="px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors flex items-center">
               <Image className="w-5 h-5 mr-2" />
               图片管理
+            </button>
+            <button onClick={generateCoverImage} disabled={generatingCover || !currentFile} className="px-4 py-2 border border-purple-400 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
+              <Sparkles className="w-5 h-5 mr-2" />
+              {generatingCover ? '生成中...' : '生成封面'}
             </button>
             <button onClick={saveFile} disabled={saving || !hasChanges} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
               <Save className="w-5 h-5 mr-2" />
