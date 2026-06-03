@@ -48,6 +48,11 @@ class Config:
     AI_BASE_URL = os.environ.get("AI_BASE_URL") or "https://api.deepseek.com"
     AI_MODEL = os.environ.get("AI_MODEL") or "deepseek-chat"
 
+    OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY") or ""
+    IMAGE_GEN_MODEL = (
+        os.environ.get("IMAGE_GEN_MODEL") or "google/gemini-3-pro-image-preview"
+    )
+
     @staticmethod
     def init_app(app):
         """初始化应用配置"""

@@ -659,6 +659,62 @@ def list_images():
         return jsonify({"success": False, "message": result}), 500
 
 
+@app.route("/api/image/generate-cover", methods=["POST"])
+def generate_cover():
+    """根据文章内容生成封面图片"""
+    data = request.get_json()
+    article_path = data.get("article_path")
+    title = data.get("title", "")
+    description = data.get("description", "")
+    article_content = data.get("content", "")
+
+    if not article_path:
+        return jsonify({"success": False, "message": "缺少文章路径"}), 400
+
+    api_key = app.config.get("OPENROUTER_API_KEY", "")
+    model = app.config.get("IMAGE_GEN_MODEL", "")
+
+    if not api_key:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "OPENROUTER_API_KEY 未配置，请设置环境变量",
+                }
+            ),
+            400,
+        )
+
+    from services.image_gen_service import generate_cover_image, save_generated_image
+
+    ok, result = generate_cover_image(
+        title=title,
+        description=description,
+        content=article_content,
+        api_key=api_key,
+        model=model,
+    )
+
+    if not ok:
+        return jsonify({"success": False, "message": result}), 500
+
+    content_dir = Path(app.config["CONTENT_DIR"])
+    save_ok, save_result = save_generated_image(article_path, result, content_dir)
+
+    if not save_ok:
+        return jsonify({"success": False, "message": save_result}), 500
+
+    if post_service.cache_service:
+        abs_path = str(
+            Path(article_path)
+            if Path(article_path).is_absolute()
+            else content_dir / article_path
+        )
+        post_service.cache_service.invalidate_post(abs_path)
+
+    return jsonify({"success": True, "url": save_result, "message": "封面图片生成成功"})
+
+
 # --- 文章发布 API ---
 
 
