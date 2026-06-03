@@ -108,6 +108,7 @@ export default function Editor() {
     edit.date = edit.date || '';
     edit.draft = edit.draft || 'true';
     edit.cover = edit.cover || '';
+    edit.image = edit.image || '';
     edit.description = edit.description || '';
 
     setFmEdit(edit);
@@ -123,7 +124,7 @@ export default function Editor() {
       }
     }
 
-    const coreKeys = ['title', 'date', 'draft', 'tags', 'categories', 'cover', 'description'];
+    const coreKeys = ['title', 'date', 'draft', 'tags', 'categories', 'cover', 'image', 'description'];
     const extra: Array<{ key: string; value: string }> = [];
     for (const [k, v] of Object.entries(fm)) {
       if (!coreKeys.includes(k)) {
@@ -392,8 +393,8 @@ export default function Editor() {
         content,
       });
       if (data.success && data.url) {
-        setFmEdit({ ...fmEdit, cover: data.url });
-        setFrontmatter({ ...frontmatter, cover: data.url });
+        setFmEdit({ ...fmEdit, cover: data.url, image: data.url });
+        setFrontmatter({ ...frontmatter, cover: data.url, image: data.url });
         showNotification('封面图片已生成', 'success');
         await loadImages();
       } else {
@@ -541,6 +542,17 @@ export default function Editor() {
           </div>
         </div>
 
+        {generatingCover && (
+          <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-3 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-full bg-stone-200 rounded-full h-2 overflow-hidden">
+                <div className="bg-purple-500 h-2 rounded-full animate-progress" style={{ width: '100%' }} />
+              </div>
+              <span className="text-sm text-stone-600 whitespace-nowrap">AI 生成封面中...</span>
+            </div>
+          </div>
+        )}
+
         {showImageManager && (
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-4">
@@ -648,6 +660,24 @@ export default function Editor() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {(fmEdit.cover || fmEdit.image) && (
+                <div className="relative rounded-lg overflow-hidden border border-stone-200">
+                  <img
+                    src={`/content/${currentFile.replace(/[^/]+$/, '')}${fmEdit.image || fmEdit.cover}`}
+                    alt="封面图片"
+                    className="w-full h-40 object-cover"
+                  />
+                  <button
+                    onClick={() => {
+                      const url = fmEdit.image || fmEdit.cover || '';
+                      navigator.clipboard.writeText(url);
+                    }}
+                    className="absolute bottom-2 right-2 px-2 py-1 bg-black/60 text-white text-xs rounded hover:bg-black/80 transition-colors"
+                  >
+                    复制路径
+                  </button>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">title</label>
                 <input type="text" value={fmEdit.title || ''} onChange={(e) => setFmEdit({ ...fmEdit, title: e.target.value })} placeholder="文章标题" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
@@ -682,6 +712,10 @@ export default function Editor() {
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">cover</label>
                 <input type="text" value={fmEdit.cover || ''} onChange={(e) => setFmEdit({ ...fmEdit, cover: e.target.value })} placeholder="封面图片路径" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-1">image</label>
+                <input type="text" value={fmEdit.image || ''} onChange={(e) => setFmEdit({ ...fmEdit, image: e.target.value })} placeholder="封面图片路径 (Hugo theme)" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">description</label>
