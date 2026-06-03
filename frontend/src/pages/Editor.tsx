@@ -337,8 +337,8 @@ export default function Editor() {
   async function checkPublishStatus() {
     if (!currentFile) return;
     try {
-      const data = await get<{ is_published: boolean }>(`/api/article/status?file_path=${encodeURIComponent(currentFile)}`);
-      setIsPublished(data.is_published);
+      const data = await get<{ status: { is_draft?: boolean } }>(`/api/article/status?file_path=${encodeURIComponent(currentFile)}`);
+      setIsPublished(!data.status?.is_draft);
     } catch (error) {
       console.error('Failed to check publish status:', error);
     }
