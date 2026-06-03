@@ -594,7 +594,7 @@ export default function Editor() {
               onChange={(e) => setContent(e.target.value)}
               onPaste={handlePaste}
               placeholder="在此输入 Markdown 内容..."
-              className="flex-1 w-full font-mono text-sm p-4 border border-stone-200 rounded-lg resize-none focus:ring-2 focus:ring-stone-400 focus:border-transparent outline-none"
+              className="flex-1 w-full font-mono text-sm p-4 border border-stone-200 rounded-lg bg-white resize-none focus:ring-2 focus:ring-stone-400 focus:border-transparent outline-none"
               style={{ lineHeight: 1.6 }}
             />
           </div>
