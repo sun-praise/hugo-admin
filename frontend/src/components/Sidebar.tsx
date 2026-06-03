@@ -5,6 +5,8 @@ import {
   Edit3,
   Server,
   Settings,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 const navItems = [
@@ -15,37 +17,62 @@ const navItems = [
   { to: '/settings', icon: Settings, label: '设置' },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  collapsed: boolean;
+  onToggle: () => void;
+}
+
+export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   return (
-    <aside className="w-64 bg-stone-900 text-stone-300 flex flex-col flex-shrink-0 min-h-screen">
-      <div className="p-6 border-b border-stone-700">
-        <h1 className="text-2xl font-bold text-stone-300">Hugo Blog</h1>
-        <p className="text-stone-500 text-sm">管理界面</p>
+    <aside
+      className={`${
+        collapsed ? 'w-16' : 'w-64'
+      } bg-stone-900 text-stone-300 flex flex-col flex-shrink-0 min-h-screen transition-all duration-200`}
+    >
+      <div className={`border-b border-stone-700 ${collapsed ? 'p-3' : 'p-6'}`}>
+        <div className="flex items-center justify-between">
+          {collapsed ? (
+            <h1 className="text-lg font-bold text-stone-300">H</h1>
+          ) : (
+            <div>
+              <h1 className="text-2xl font-bold text-stone-300">Hugo Blog</h1>
+              <p className="text-stone-500 text-sm">管理界面</p>
+            </div>
+          )}
+          <button
+            onClick={onToggle}
+            className="p-1.5 rounded-lg text-stone-500 hover:text-stone-200 hover:bg-stone-800 transition-colors"
+            title={collapsed ? '展开侧边栏' : '收起侧边栏'}
+          >
+            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+        </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="flex-1 p-2 space-y-1">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.to === '/'}
+            title={collapsed ? item.label : undefined}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-[15px] ${
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-[15px] ${
                 isActive
                   ? 'bg-stone-800 text-stone-100'
                   : 'text-stone-400 hover:bg-stone-800 hover:text-stone-200'
               }`
             }
           >
-            <item.icon className="w-5 h-5" />
-            <span>{item.label}</span>
+            <item.icon className="w-5 h-5 flex-shrink-0" />
+            {!collapsed && <span>{item.label}</span>}
           </NavLink>
         ))}
       </nav>
 
-      <div className="p-4 border-t border-stone-700">
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-stone-500">Hugo Blog Admin</p>
+      <div className="p-2 border-t border-stone-700">
+        <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'} px-1 py-1`}>
+          {!collapsed && <p className="text-xs text-stone-500">Hugo Blog Admin</p>}
           <a
             href="https://github.com/Svtter/hugo-admin"
             target="_blank"
