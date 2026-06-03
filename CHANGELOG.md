@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-06-03
+
+### Added
+- Migrate frontend from Jinja2 templates to React + Vite SPA
+- Apply Warm Editorial design system
+- Add SPA route tests for React migration
+- Implement bidirectional article links (#32)
+- Add frontmatter drawer editor with side panel UI
+- Add datetime-local picker for frontmatter date fields
+- Add Hugo server URL configuration in settings page
+- Add post list refresh cache button
+- Display local and LAN IP addresses on startup
+- Add Python logging configuration with app.log
+
+### Changed
+- Switch CI review model from glm-5.1 to deepseek-v4-flash
+- Remove obsolete Jinja2 templates
+- Align PostsResponse type with backend API format
+- Expand backlink search scope with popup search UI
+- Normalize ref target_path to strip leading /
+- Replace print with logger throughout codebase
+- Hugo config validation now supports config/_default/ directory structure
+
+### Fixed
+- Give textarea a white background to match the preview pane
+- Show 已发布 for published articles (API field mismatch: is_draft vs is_published)
+- Strip frontmatter robustly on read/save to prevent duplication
+- Disable publish button when article is already published
+- Auto-append Hugo port when server_url omits it
+- Replace deprecated bg-opacity-* with Tailwind v4 slash syntax
+- Fix Hugo server baseURL hardcoding for Docker environments (#37)
+- Set HUGO_SERVER_BASE_URL default to 0.0.0.0 for container accessibility
+- Prevent Ctrl+V paste image duplication
+- Fix frontmatter date serialization causing Hugo parse failures
+- Fix frontmatter drawer z-index to sit above AI assistant
+- Fix Hugo shortcode syntax conflicting with Jinja2 template parsing
+- Fix cover image not displaying due to stale cache
+- Fix path inconsistency in cache_service incremental updates
+
 ## [1.4.1] - 2026-04-29
 
 ### Fixed
