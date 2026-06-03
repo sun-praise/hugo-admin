@@ -312,6 +312,10 @@ export default function Editor() {
       showNotification('未选择文件', 'error');
       return;
     }
+    if (isPublished) {
+      showNotification('文章已发布', 'info');
+      return;
+    }
     if (!confirm('确定要发布这篇文章吗？发布后将无法撤销草稿状态。')) return;
     setPublishing(true);
     try {
@@ -501,7 +505,7 @@ export default function Editor() {
               <Save className="w-5 h-5 mr-2" />
               {saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'}
             </button>
-            <button onClick={publishArticle} disabled={publishing || !currentFile} className={`px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center ${isPublished ? 'bg-stone-400 hover:bg-stone-500' : 'bg-green-600 hover:bg-green-700'}`}>
+            <button onClick={publishArticle} disabled={publishing || !currentFile || isPublished} className={`px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center ${isPublished ? 'bg-stone-400 hover:bg-stone-500' : 'bg-green-600 hover:bg-green-700'}`}>
               <Upload className="w-5 h-5 mr-2" />
               {publishing ? '发布中...' : isPublished ? '已发布' : '发布'}
             </button>
