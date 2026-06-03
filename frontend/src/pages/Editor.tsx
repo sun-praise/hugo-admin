@@ -515,33 +515,28 @@ export default function Editor() {
               <span className="ml-2 text-stone-600 font-mono text-sm">{currentFile}</span>
             </div>
           </div>
-          <div className="flex items-center space-x-2 flex-wrap">
-            <button onClick={() => setShowFrontmatterDrawer(true)} className="px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors flex items-center">
-              <FileCode className="w-5 h-5 mr-2" />
-              Frontmatter
+          <div className="flex items-center space-x-1">
+            <button onClick={() => setShowFrontmatterDrawer(true)} title="Frontmatter" className="p-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors">
+              <FileCode className="w-5 h-5" />
             </button>
-            <button onClick={() => setShowBacklinks(!showBacklinks)} className="px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors flex items-center">
-              <ArrowLeftRight className="w-5 h-5 mr-2" />
-              反向链接
+            <button onClick={() => setShowBacklinks(!showBacklinks)} title="反向链接" className="relative p-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors">
+              <ArrowLeftRight className="w-5 h-5" />
               {backlinks.length > 0 && (
-                <span className="ml-1 bg-blue-100 text-blue-800 text-xs font-semibold px-2 py-0.5 rounded-full">{backlinks.length}</span>
+                <span className="absolute -top-1 -right-1 bg-blue-100 text-blue-800 text-[10px] font-semibold w-4 h-4 flex items-center justify-center rounded-full">{backlinks.length}</span>
               )}
             </button>
-            <button onClick={() => setShowImageManager(!showImageManager)} className="px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors flex items-center">
-              <Image className="w-5 h-5 mr-2" />
-              图片管理
+            <button onClick={() => setShowImageManager(!showImageManager)} title="图片管理" className="p-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors">
+              <Image className="w-5 h-5" />
             </button>
-            <button onClick={generateCoverImage} disabled={generatingCover || !currentFile} className="px-4 py-2 border border-purple-400 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
-              <Sparkles className="w-5 h-5 mr-2" />
-              {generatingCover ? '生成中...' : '生成封面'}
+            <button onClick={generateCoverImage} disabled={generatingCover || !currentFile} title={generatingCover ? '生成中...' : 'AI 生成封面'} className="p-2 border border-purple-400 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <Sparkles className="w-5 h-5" />
             </button>
-            <button onClick={saveFile} disabled={saving || !hasChanges} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
-              <Save className="w-5 h-5 mr-2" />
-              {saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'}
+            <span className="border-l border-stone-300 mx-1 h-6" />
+            <button onClick={saveFile} disabled={saving || !hasChanges} title={saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <Save className="w-5 h-5" />
             </button>
-            <button onClick={publishArticle} disabled={publishing || !currentFile || isPublished} className={`px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center ${isPublished ? 'bg-stone-400 hover:bg-stone-500' : 'bg-green-600 hover:bg-green-700'}`}>
-              <Upload className="w-5 h-5 mr-2" />
-              {publishing ? '发布中...' : isPublished ? '已发布' : '发布'}
+            <button onClick={publishArticle} disabled={publishing || !currentFile || isPublished} title={publishing ? '发布中...' : isPublished ? '已发布' : '发布'} className={`p-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isPublished ? 'bg-stone-400 hover:bg-stone-500' : 'bg-green-600 hover:bg-green-700'}`}>
+              <Upload className="w-5 h-5" />
             </button>
           </div>
         </div>
