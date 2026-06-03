@@ -27,6 +27,7 @@ jobs:
         uses: Svtter/opencode-actions/review@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          model: deepseek/deepseek-v4-flash
 
           # only one is enough.
           zhipu-api-key: ${{ secrets.ZHIPU_API_KEY }}
