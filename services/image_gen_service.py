@@ -72,17 +72,22 @@ def generate_cover_image(
         resp.raise_for_status()
         data = resp.json()
 
+        logger.info("OpenRouter response keys: %s", list(data.keys()))
+        if data.get("error"):
+            return False, f"API error: {data['error']}"
+
         choices = data.get("choices", [])
         if not choices:
             return False, "API returned no choices"
 
         message = choices[0].get("message", {})
-        content_parts = message.get("content")
 
-        if isinstance(content_parts, list):
-            for part in content_parts:
-                if part.get("type") == "image_url":
-                    url = part.get("image_url", {}).get("url", "")
+        # OpenRouter returns images in message["images"] array
+        images = message.get("images", [])
+        if images:
+            for img in images:
+                if img.get("type") == "image_url":
+                    url = img.get("image_url", {}).get("url", "")
                     if url.startswith("data:"):
                         b64 = url.split(",", 1)[1]
                         return True, base64.b64decode(b64)
@@ -90,10 +95,31 @@ def generate_cover_image(
                         img_resp = requests.get(url, timeout=60)
                         img_resp.raise_for_status()
                         return True, img_resp.content
-        elif isinstance(content_parts, str):
-            text = content_parts
-            if "![" not in text and "data:image" not in text:
-                return False, f"Model did not return an image: {text[:200]}"
+
+        # Fallback: check message["content"]
+        content_parts = message.get("content")
+        if content_parts is not None:
+            if isinstance(content_parts, list):
+                for part in content_parts:
+                    ptype = part.get("type", "")
+                    if ptype == "image_url":
+                        url = part.get("image_url", {}).get("url", "")
+                        if url.startswith("data:"):
+                            b64 = url.split(",", 1)[1]
+                            return True, base64.b64decode(b64)
+                        elif url.startswith("http"):
+                            img_resp = requests.get(url, timeout=60)
+                            img_resp.raise_for_status()
+                            return True, img_resp.content
+
+            if isinstance(content_parts, str) and "data:image" in content_parts:
+                import re
+
+                m = re.search(
+                    r"data:image/[^;]+;base64,([A-Za-z0-9+/=]+)", content_parts
+                )
+                if m:
+                    return True, base64.b64decode(m.group(1))
 
         return False, "No image found in API response"
 
