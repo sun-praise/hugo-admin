@@ -651,8 +651,8 @@ export default function Editor() {
       {/* Frontmatter 抽屉 */}
       {showFrontmatterDrawer && (
         <>
-          <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setShowFrontmatterDrawer(false)} />
-          <div className="fixed top-0 right-0 w-[420px] max-w-[90vw] h-screen bg-white shadow-xl z-50 overflow-y-auto flex flex-col">
+          <div className="fixed inset-0 bg-black/30 z-[55]" onClick={() => setShowFrontmatterDrawer(false)} />
+          <div className="fixed top-0 right-0 w-[420px] max-w-[90vw] h-screen bg-white shadow-xl z-[60] overflow-y-auto flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-medium text-stone-900">Frontmatter</h3>
               <button onClick={() => setShowFrontmatterDrawer(false)} className="text-stone-400 hover:text-stone-600">
@@ -795,8 +795,8 @@ export default function Editor() {
       {/* 反向链接面板 */}
       {showBacklinks && (
         <>
-          <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setShowBacklinks(false)} />
-          <div className="fixed top-0 right-0 w-[380px] max-w-[90vw] h-screen bg-white shadow-xl z-50 overflow-y-auto flex flex-col">
+          <div className="fixed inset-0 bg-black/30 z-[55]" onClick={() => setShowBacklinks(false)} />
+          <div className="fixed top-0 right-0 w-[380px] max-w-[90vw] h-screen bg-white shadow-xl z-[60] overflow-y-auto flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-medium text-stone-900">反向链接</h3>
               <button onClick={() => setShowBacklinks(false)} className="text-stone-400 hover:text-stone-600">
