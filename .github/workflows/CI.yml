@@ -24,7 +24,7 @@ jobs:
 
       - name: Run OpenCode review
         continue-on-error: true
-        uses: Svtter/opencode-actions/review@v2
+        uses: sun-praise/opencode-actions/multi-review@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           model: deepseek/deepseek-v4-flash
