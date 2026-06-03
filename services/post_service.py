@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import frontmatter
+import yaml
 
 from services.cache_service import CacheService
 
@@ -407,6 +408,9 @@ class PostService:
         """
         读取文件内容，分离 frontmatter 和正文
 
+        仅切分文件最开头的一对 '---' 作为 frontmatter, 避免在文件中
+        出现多组 '---' 边界时被误切。
+
         Args:
             file_path: 文件路径(相对于 content 目录或绝对路径)
 
@@ -425,13 +429,33 @@ class PostService:
             if not file_path.exists():
                 return False, f"文件不存在: {file_path}", {}
 
-            post = frontmatter.load(str(file_path))
+            text = file_path.read_text(encoding="utf-8")
+            lines = text.split("\n")
+
             metadata = {}
-            for k, v in post.metadata.items():
-                metadata[k] = (
+            body = text
+            if lines and lines[0].strip() == "---":
+                for i in range(1, len(lines)):
+                    if lines[i].strip() == "---":
+                        fm_text = "\n".join(lines[1:i])
+                        body = "\n".join(lines[i + 1 :])
+                        try:
+                            metadata = yaml.safe_load(fm_text) or {}
+                        except yaml.YAMLError:
+                            metadata = {}
+                        break
+
+            if not isinstance(metadata, dict):
+                metadata = {}
+
+            body = self._strip_leading_frontmatter(body)
+
+            normalized = {}
+            for k, v in metadata.items():
+                normalized[k] = (
                     str(v) if not isinstance(v, (str, int, float, bool, list)) else v
                 )
-            return True, post.content, metadata
+            return True, body, normalized
 
         except Exception as e:
             return False, f"读取文件失败: {str(e)}", {}
@@ -460,7 +484,8 @@ class PostService:
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
             if frontmatter_data is not None and frontmatter_data:
-                post = frontmatter.Post(content, **frontmatter_data)
+                content_clean = self._strip_leading_frontmatter(content)
+                post = frontmatter.Post(content_clean, **frontmatter_data)
                 file_content = frontmatter.dumps(post)
             else:
                 file_content = content
@@ -557,6 +582,34 @@ class PostService:
 
         except Exception:
             return False
+
+    @staticmethod
+    def _strip_leading_frontmatter(content):
+        """
+        反复剥除 content 开头连续的 '---' 块, 直到正文不再以 '---' 起头.
+        防止 save 时与 frontmatter_data 拼接产生双重 frontmatter.
+        """
+        if not isinstance(content, str) or not content:
+            return content
+        while content.lstrip().startswith("---"):
+            lines = content.split("\n")
+            first_dash_idx = next(
+                (i for i, ln in enumerate(lines) if ln.strip() == "---"), None
+            )
+            if first_dash_idx is None:
+                return content
+            closed = False
+            for i in range(first_dash_idx + 1, len(lines)):
+                if lines[i].strip() == "---":
+                    body_lines = lines[i + 1 :]
+                    while body_lines and body_lines[0].strip() == "":
+                        body_lines.pop(0)
+                    content = "\n".join(body_lines)
+                    closed = True
+                    break
+            if not closed:
+                return content
+        return content
 
     def _safe_file_operation(self, file_path, operation, timeout=10):
         """
