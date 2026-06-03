@@ -17,6 +17,7 @@ import {
   X,
   ArrowLeftRight,
   Sparkles,
+  Wand2,
 } from 'lucide-react';
 import { get, post } from '../utils/api';
 import { renderMarkdown } from '../utils/markdown';
@@ -52,6 +53,7 @@ export default function Editor() {
   const [refSearchResults, setRefSearchResults] = useState<Array<{ path: string; title: string }>>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [generatingCover, setGeneratingCover] = useState(false);
+  const [generatingFm, setGeneratingFm] = useState(false);
 
   const currentFile = fullPath;
 
@@ -407,6 +409,39 @@ export default function Editor() {
     }
   }
 
+  async function generateFrontmatterFromAI() {
+    if (!currentFile || !content.trim()) {
+      showNotification('文章内容为空', 'error');
+      return;
+    }
+    setGeneratingFm(true);
+    try {
+      const data = await post<{ success: boolean; frontmatter?: Record<string, unknown>; message?: string }>('/api/frontmatter/generate', { content });
+      if (data.success && data.frontmatter) {
+        const fm = data.frontmatter;
+        const newFmEdit = { ...fmEdit };
+        if (fm.title && typeof fm.title === 'string') newFmEdit.title = fm.title;
+        if (fm.description && typeof fm.description === 'string') newFmEdit.description = fm.description;
+        setFmEdit(newFmEdit);
+        if (Array.isArray(fm.tags)) setFmTagsStr(fm.tags.join(', '));
+        if (Array.isArray(fm.categories)) setFmCategoriesStr(fm.categories.join(', '));
+        const newFm: Frontmatter = { ...frontmatter };
+        if (fm.title) newFm.title = fm.title as string;
+        if (fm.description) newFm.description = fm.description as string;
+        if (Array.isArray(fm.tags)) newFm.tags = fm.tags as string[];
+        if (Array.isArray(fm.categories)) newFm.categories = fm.categories as string[];
+        setFrontmatter(newFm);
+        showNotification('Frontmatter 已生成，点击保存生效', 'success');
+      } else {
+        showNotification('生成失败: ' + (data.message || '未知错误'), 'error');
+      }
+    } catch (error) {
+      showNotification('生成 frontmatter 失败', 'error');
+    } finally {
+      setGeneratingFm(false);
+    }
+  }
+
   function copyImageUrl(url: string) {
     navigator.clipboard.writeText(url);
     showNotification('图片链接已复制', 'success');
@@ -531,6 +566,9 @@ export default function Editor() {
             </button>
             <button onClick={generateCoverImage} disabled={generatingCover || !currentFile} title={generatingCover ? '生成中...' : 'AI 生成封面'} className="p-2 border border-purple-400 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               <Sparkles className="w-5 h-5" />
+            </button>
+            <button onClick={generateFrontmatterFromAI} disabled={generatingFm || !currentFile} title={generatingFm ? '生成中...' : 'AI 生成 Frontmatter'} className="p-2 border border-amber-400 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <Wand2 className="w-5 h-5" />
             </button>
             <span className="border-l border-stone-300 mx-1 h-6" />
             <button onClick={saveFile} disabled={saving || !hasChanges} title={saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
