@@ -19,6 +19,7 @@ from models.database import Database
 from routes import register_ai_routes
 from services.chat_history_service import ChatHistoryService
 from services.email_service import EmailService
+from services.frontmatter_gen_service import generate_frontmatter
 from services.git_service import GitService
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
@@ -718,10 +719,10 @@ def generate_cover():
 @app.route("/api/frontmatter/generate", methods=["POST"])
 def generate_frontmatter_api():
     """根据文章内容 AI 生成 frontmatter 建议"""
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     content = data.get("content", "")
 
-    if not content.strip():
+    if not isinstance(content, str) or not content.strip():
         return jsonify({"success": False, "message": "文章内容为空"}), 400
 
     api_key = app.config.get("AI_API_KEY", "")
@@ -730,8 +731,6 @@ def generate_frontmatter_api():
 
     if not api_key:
         return jsonify({"success": False, "message": "AI API Key 未配置"}), 400
-
-    from services.frontmatter_gen_service import generate_frontmatter
 
     ok, result = generate_frontmatter(
         content=content,

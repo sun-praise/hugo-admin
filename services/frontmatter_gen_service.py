@@ -5,6 +5,33 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+MAX_TAGS = 5
+MAX_CATEGORIES = 2
+CONTENT_SNIPPET_LEN = 2000
+
+
+def _sanitize_frontmatter(fm: dict) -> dict:
+    """Validate and constrain AI-generated frontmatter fields."""
+    result = {}
+
+    desc = fm.get("description")
+    if isinstance(desc, str) and desc.strip():
+        result["description"] = desc.strip()[:500]
+
+    tags = fm.get("tags")
+    if isinstance(tags, list):
+        result["tags"] = [
+            str(t).strip() for t in tags if isinstance(t, str) and t.strip()
+        ][:MAX_TAGS]
+
+    categories = fm.get("categories")
+    if isinstance(categories, list):
+        result["categories"] = [
+            str(c).strip() for c in categories if isinstance(c, str) and c.strip()
+        ][:MAX_CATEGORIES]
+
+    return result
+
 
 def generate_frontmatter(
     content: str,
@@ -19,25 +46,18 @@ def generate_frontmatter(
     if not api_key:
         return False, "AI API Key 未配置"
 
-    snippet = content[:2000].strip()
+    snippet = content[:CONTENT_SNIPPET_LEN].strip()
     if not snippet:
         return False, "文章内容为空"
 
     prompt = (
-        "Based on the following article content, "
-        "generate appropriate Hugo frontmatter fields.\n"
-        "Return ONLY a JSON object with these keys "
-        "(all optional, only if you can determine a good value):\n"
-        '- "title": a concise title (string)\n'
-        '- "description": a brief summary in Chinese, '
-        "1-2 sentences (string)\n"
-        '- "tags": array of relevant tags '
-        "(array of strings, max 5)\n"
-        '- "categories": array of categories '
-        "(array of strings, max 2)\n\n"
-        f"Article content:\n---\n{snippet}\n---\n\n"
-        "Return only the JSON object, "
-        "no markdown fences, no explanation."
+        "根据以下文章内容，生成合适的 Hugo frontmatter 字段。\n"
+        "只返回一个 JSON 对象，包含以下键（均为可选）：\n"
+        '- "description": 文章摘要，中文，1-2 句话 (string)\n'
+        '- "tags": 相关标签数组 (array of strings, 最多 5 个)\n'
+        '- "categories": 分类数组 (array of strings, 最多 2 个)\n\n'
+        f"文章内容:\n---\n{snippet}\n---\n\n"
+        "只返回 JSON 对象，不要 markdown 代码块，不要解释。"
     )
 
     url = f"{base_url.rstrip('/')}/chat/completions"
@@ -57,19 +77,25 @@ def generate_frontmatter(
         data = resp.json()
 
         text = data["choices"][0]["message"]["content"].strip()
+
         if text.startswith("```"):
-            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+            lines = text.split("\n")
+            inner = "\n".join(lines[1:])
+            text = inner.rsplit("```", 1)[0].strip()
 
         fm = json.loads(text)
         if not isinstance(fm, dict):
-            return False, f"AI returned non-object: {type(fm).__name__}"
+            return False, "AI 返回了非对象类型"
 
-        return True, fm
+        return True, _sanitize_frontmatter(fm)
 
     except json.JSONDecodeError:
-        return False, f"AI returned invalid JSON: {text[:200]}"
+        logger.warning(
+            "AI returned invalid JSON: %s", text[:200] if "text" in dir() else "N/A"
+        )
+        return False, "AI 返回了无效的 JSON"
     except requests.exceptions.Timeout:
         return False, "AI 请求超时"
-    except Exception as e:
+    except Exception:
         logger.exception("Frontmatter generation failed")
-        return False, f"生成失败: {e}"
+        return False, "生成失败，请稍后重试"
