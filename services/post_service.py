@@ -593,6 +593,8 @@ class PostService:
         """
         反复剥除 content 开头连续的 '---' 块, 直到正文不再以 '---' 起头.
         防止 save 时与 frontmatter_data 拼接产生双重 frontmatter.
+        同时剥除正文开头的空行, 与 frontmatter.dumps 的模板保持对称,
+        避免空行逐次累积.
         """
         if not isinstance(content, str) or not content:
             return content
@@ -614,6 +616,9 @@ class PostService:
                     break
             if not closed:
                 return content
+        # 剥除正文开头的空行, 与 frontmatter.dumps 模板对齐
+        if content:
+            content = content.lstrip("\r\n")
         return content
 
     def _safe_file_operation(self, file_path, operation, timeout=10):
