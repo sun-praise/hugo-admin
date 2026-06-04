@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Save,
@@ -31,7 +31,10 @@ export default function Editor() {
   const [content, setContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
   const [preview, setPreview] = useState('');
-  const [hasChanges, setHasChanges] = useState(false);
+  const hasChanges = useMemo(
+    () => content !== originalContent || JSON.stringify(frontmatter) !== JSON.stringify(originalFrontmatter),
+    [content, originalContent, frontmatter, originalFrontmatter],
+  );
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -52,6 +55,10 @@ export default function Editor() {
   const [refSearchQuery, setRefSearchQuery] = useState('');
   const [refSearchResults, setRefSearchResults] = useState<Array<{ path: string; title: string }>>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const saveFileRef = useRef(saveFile);
+  saveFileRef.current = saveFile;
+  const insertMarkdownRef = useRef(insertMarkdown);
+  insertMarkdownRef.current = insertMarkdown;
   const [generatingCover, setGeneratingCover] = useState(false);
   const [generatingFm, setGeneratingFm] = useState(false);
 
@@ -69,11 +76,6 @@ export default function Editor() {
     updatePreview();
   }, [content, currentFile]);
 
-  useEffect(() => {
-    setHasChanges(
-      content !== originalContent || JSON.stringify(frontmatter) !== JSON.stringify(originalFrontmatter),
-    );
-  }, [content, originalContent, frontmatter, originalFrontmatter]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -83,15 +85,15 @@ export default function Editor() {
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        if (hasChanges && !saving) saveFile();
+        if (hasChanges && !saving) saveFileRef.current();
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
         e.preventDefault();
-        insertMarkdown('bold');
+        insertMarkdownRef.current('bold');
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
         e.preventDefault();
-        insertMarkdown('italic');
+        insertMarkdownRef.current('italic');
       }
     }
     document.addEventListener('keydown', handleKeyDown);
