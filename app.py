@@ -19,6 +19,7 @@ from models.database import Database
 from routes import register_ai_routes
 from services.chat_history_service import ChatHistoryService
 from services.email_service import EmailService
+from services.frontmatter_gen_service import generate_frontmatter
 from services.git_service import GitService
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
@@ -713,6 +714,35 @@ def generate_cover():
         post_service.cache_service.invalidate_post(abs_path)
 
     return jsonify({"success": True, "url": save_result, "message": "封面图片生成成功"})
+
+
+@app.route("/api/frontmatter/generate", methods=["POST"])
+def generate_frontmatter_api():
+    """根据文章内容 AI 生成 frontmatter 建议"""
+    data = request.get_json(silent=True) or {}
+    content = data.get("content", "")
+
+    if not isinstance(content, str) or not content.strip():
+        return jsonify({"success": False, "message": "文章内容为空"}), 400
+
+    api_key = app.config.get("AI_API_KEY", "")
+    base_url = app.config.get("AI_BASE_URL", "https://api.deepseek.com")
+    model = app.config.get("AI_MODEL", "deepseek-chat")
+
+    if not api_key:
+        return jsonify({"success": False, "message": "AI API Key 未配置"}), 400
+
+    ok, result = generate_frontmatter(
+        content=content,
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+    )
+
+    if not ok:
+        return jsonify({"success": False, "message": result}), 500
+
+    return jsonify({"success": True, "frontmatter": result})
 
 
 # --- 文章发布 API ---
