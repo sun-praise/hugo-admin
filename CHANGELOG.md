@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-06-04
+
+### Added
+- AI-generated cover image for articles (#54)
+- AI-generated frontmatter from article content
+- Collapsible sidebar with icon-only mode
+- Progress bar for cover generation, image field support, and cover preview in drawer
+
+### Changed
+- Compact toolbar to icon-only buttons with tooltips
+- Switch CI review to multi-review@v3 action
+
+### Fixed
+- Parse OpenRouter image from message.images field
+- Raise frontmatter and backlinks drawer z-index above AI chat button
+- Don't overwrite title/draft in AI frontmatter gen
+- Review feedback and in-memory cache for frontmatter gen
+- Address PR #65 review feedback
+
 ## [2.0.0] - 2026-06-03
 
 ### Added
