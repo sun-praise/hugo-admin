@@ -198,3 +198,15 @@ class TestImageUpload:
         success, url1 = post_service.save_image(rel_path, file1)
         assert success
         assert url1 == "pics/image.png"
+
+    def test_save_image_file_permissions(self, post_service, temp_content_dir):
+        """Uploaded files must be readable by group/others (0o644)."""
+        rel_path, article_dir = self._create_article(temp_content_dir, "perm-test")
+
+        file1 = self._make_file_storage("photo.png", b"data")
+        success, url1 = post_service.save_image(rel_path, file1)
+        assert success
+
+        file_path = article_dir / url1
+        mode = file_path.stat().st_mode & 0o777
+        assert mode == 0o644, f"expected 0o644, got {oct(mode)}"
