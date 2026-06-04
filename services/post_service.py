@@ -6,6 +6,8 @@
 """
 
 import fcntl
+import os
+import tempfile
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -22,6 +24,9 @@ from utils.blog_parser import filter_posts_by_search, get_blog_posts
 
 class PostService:
     """文章管理服务"""
+
+    ALLOWED_IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp"})
+    MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20 MB
 
     def __init__(self, content_dir, use_cache=True):
         """
@@ -751,14 +756,52 @@ class PostService:
             pics_dir = article_dir / "pics"
             pics_dir.mkdir(exist_ok=True)
 
-            # 生成安全的文件名
-            filename = file.filename
-            # 移除特殊字符
-            safe_filename = "".join(c for c in filename if c.isalnum() or c in ".-_")
+            # 文件大小限制
+            file.seek(0, 2)
+            file_size = file.tell()
+            file.seek(0)
+            if file_size > self.MAX_IMAGE_SIZE:
+                return False, (
+                    f"文件大小超出限制 "
+                    f"(最大 {self.MAX_IMAGE_SIZE // (1024 * 1024)}MB)"
+                )
 
-            # 保存文件
+            # 生成安全的文件名，避免重名覆盖
+            raw_filename = file.filename or "image.png"
+            safe_filename = "".join(
+                c for c in raw_filename if c.isalnum() or c in ".-_"
+            )
+            if not safe_filename or not Path(safe_filename).suffix:
+                safe_filename = "image.png"
+
+            # 扩展名白名单
+            ext = Path(safe_filename).suffix.lower()
+            if ext not in self.ALLOWED_IMAGE_EXTENSIONS:
+                return False, f"不支持的文件类型: {ext}"
+
+            # 保存文件，若同名文件已存在则追加短 UUID 防止覆盖
+            stem = Path(safe_filename).stem
+            max_retries = 10
+            for _ in range(max_retries):
+                target = pics_dir / safe_filename
+                if not target.exists():
+                    break
+                safe_filename = f"{stem}_{uuid.uuid4().hex[:8]}{ext}"
+            else:
+                return False, "无法生成唯一文件名，请重试"
+
+            # 原子写入：先写临时文件，再 rename，避免 TOCTOU 竞态
             file_path = pics_dir / safe_filename
-            file.save(str(file_path))
+            tmp_fd, tmp_path = tempfile.mkstemp(dir=pics_dir, suffix=".tmp")
+            try:
+                os.close(tmp_fd)
+                file.save(tmp_path)
+                os.replace(tmp_path, file_path)
+                os.chmod(file_path, 0o644)
+            except Exception:
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise
 
             # 返回相对URL（相对于文章）
             relative_url = f"pics/{safe_filename}"
