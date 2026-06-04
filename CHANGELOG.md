@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Prevent image paste from overwriting previous uploads on filename collision (#70)
+- Add file size limit (20 MB) and extension whitelist for image uploads
+
 ## [2.1.0] - 2026-06-04
 
 ### Added
