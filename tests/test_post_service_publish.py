@@ -126,7 +126,9 @@ Content 2
         assert post1.get("draft") is False
         assert post2.get("draft") is False
 
-    def test_no_blank_line_accumulation_on_save_cycle(self, post_service, temp_content_dir):
+    def test_no_blank_line_accumulation_on_save_cycle(
+        self, post_service, temp_content_dir
+    ):
         """多次保存不应累积 frontmatter 与正文之间的空行"""
         file_path = temp_content_dir / "no-accum.md"
 
@@ -150,9 +152,9 @@ Content 2
         # 关键断言：5 次保存后空行数目 ≤ 1（不会累积增长）
         body_section = parts[2]
         leading_newlines = len(body_section) - len(body_section.lstrip("\n"))
-        assert leading_newlines <= 1, (
-            f"Expected ≤1 leading newlines after 5 saves, got {leading_newlines}"
-        )
+        assert (
+            leading_newlines <= 1
+        ), f"Expected ≤1 leading newlines after 5 saves, got {leading_newlines}"
 
 
 class TestStripLeadingFrontmatter:
@@ -171,6 +173,9 @@ class TestStripLeadingFrontmatter:
         # 多个开头空行
         assert svc._strip_leading_frontmatter("\n\n\nhello world") == "hello world"
 
+        # Windows 换行符 (\r\n)
+        assert svc._strip_leading_frontmatter("\r\n\r\nhello world") == "hello world"
+
         # 仅空行
         assert svc._strip_leading_frontmatter("\n\n") == ""
 
@@ -179,4 +184,3 @@ class TestStripLeadingFrontmatter:
 
         # None
         assert svc._strip_leading_frontmatter(None) is None
-
