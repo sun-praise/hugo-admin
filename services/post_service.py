@@ -796,7 +796,7 @@ class PostService:
             try:
                 os.close(tmp_fd)
                 file.save(tmp_path)
-                os.replace(tmp_path, str(file_path))
+                os.replace(tmp_path, file_path)
             except Exception:
                 if os.path.exists(tmp_path):
                     os.unlink(tmp_path)

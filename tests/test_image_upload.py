@@ -106,7 +106,7 @@ class TestImageUpload:
         rel_path, _ = self._create_article(temp_content_dir, "reject-ext")
 
         file1 = self._make_file_storage("malicious.php", b"<?php echo 1; ?>")
-        file1.filename = "malicious.php"
+
         success, msg = post_service.save_image(rel_path, file1)
         assert not success
         assert "不支持的文件类型" in msg
@@ -128,7 +128,7 @@ class TestImageUpload:
         """Files exceeding the size limit should be rejected."""
         rel_path, _ = self._create_article(temp_content_dir, "reject-size")
 
-        big_content = b"x" * (21 * 1024 * 1024)  # 21 MB
+        big_content = b"x" * (20 * 1024 * 1024 + 1)  # just over 20 MB limit
         file1 = self._make_file_storage("big.png", big_content)
         success, msg = post_service.save_image(rel_path, file1)
         assert not success
