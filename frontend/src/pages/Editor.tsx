@@ -416,7 +416,7 @@ export default function Editor() {
     }
     setGeneratingFm(true);
     try {
-      const data = await post<{ success: boolean; frontmatter?: Record<string, unknown>; message?: string }>('/api/frontmatter/generate', { content: content.slice(0, 2000) });
+      const data = await post<{ success: boolean; frontmatter?: Record<string, unknown>; message?: string }>('/api/frontmatter/generate', { content });
       if (data.success && data.frontmatter) {
         const fm = data.frontmatter;
         const newFmEdit = { ...fmEdit };
@@ -425,7 +425,7 @@ export default function Editor() {
         if (Array.isArray(fm.tags)) setFmTagsStr(fm.tags.join(', '));
         if (Array.isArray(fm.categories)) setFmCategoriesStr(fm.categories.join(', '));
         const newFm: Frontmatter = { ...frontmatter };
-        if (fm.description) newFm.description = fm.description as string;
+        if (typeof fm.description === 'string') newFm.description = fm.description;
         if (Array.isArray(fm.tags)) newFm.tags = fm.tags as string[];
         if (Array.isArray(fm.categories)) newFm.categories = fm.categories as string[];
         setFrontmatter(newFm);
