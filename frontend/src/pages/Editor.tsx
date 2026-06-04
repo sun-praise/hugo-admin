@@ -16,6 +16,8 @@ import {
   Table,
   X,
   ArrowLeftRight,
+  Sparkles,
+  Wand2,
 } from 'lucide-react';
 import { get, post } from '../utils/api';
 import { renderMarkdown } from '../utils/markdown';
@@ -50,6 +52,8 @@ export default function Editor() {
   const [refSearchQuery, setRefSearchQuery] = useState('');
   const [refSearchResults, setRefSearchResults] = useState<Array<{ path: string; title: string }>>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [generatingCover, setGeneratingCover] = useState(false);
+  const [generatingFm, setGeneratingFm] = useState(false);
 
   const currentFile = fullPath;
 
@@ -106,6 +110,7 @@ export default function Editor() {
     edit.date = edit.date || '';
     edit.draft = edit.draft || 'true';
     edit.cover = edit.cover || '';
+    edit.image = edit.image || '';
     edit.description = edit.description || '';
 
     setFmEdit(edit);
@@ -121,7 +126,7 @@ export default function Editor() {
       }
     }
 
-    const coreKeys = ['title', 'date', 'draft', 'tags', 'categories', 'cover', 'description'];
+    const coreKeys = ['title', 'date', 'draft', 'tags', 'categories', 'cover', 'image', 'description'];
     const extra: Array<{ key: string; value: string }> = [];
     for (const [k, v] of Object.entries(fm)) {
       if (!coreKeys.includes(k)) {
@@ -376,6 +381,66 @@ export default function Editor() {
     }
   }
 
+  async function generateCoverImage() {
+    if (!currentFile) {
+      showNotification('未选择文件', 'error');
+      return;
+    }
+    setGeneratingCover(true);
+    try {
+      const data = await post<{ success: boolean; url?: string; message?: string }>('/api/image/generate-cover', {
+        article_path: currentFile,
+        title: fmEdit.title || frontmatter.title || '',
+        description: fmEdit.description || frontmatter.description || '',
+        content,
+      });
+      if (data.success && data.url) {
+        setFmEdit({ ...fmEdit, cover: data.url, image: data.url });
+        setFrontmatter({ ...frontmatter, cover: data.url, image: data.url });
+        showNotification('封面图片已生成', 'success');
+        await loadImages();
+      } else {
+        showNotification('生成失败: ' + (data.message || '未知错误'), 'error');
+      }
+    } catch (error) {
+      showNotification('生成封面失败', 'error');
+    } finally {
+      setGeneratingCover(false);
+    }
+  }
+
+  async function generateFrontmatterFromAI() {
+    if (!currentFile || !content.trim()) {
+      showNotification('文章内容为空', 'error');
+      return;
+    }
+    setGeneratingFm(true);
+    try {
+      const data = await post<{ success: boolean; frontmatter?: Record<string, unknown>; message?: string }>('/api/frontmatter/generate', { content });
+      if (data.success && data.frontmatter) {
+        const fm = data.frontmatter;
+        const newFmEdit = { ...fmEdit };
+        if (fm.description && typeof fm.description === 'string') newFmEdit.description = fm.description;
+        setFmEdit(newFmEdit);
+        if (Array.isArray(fm.tags)) setFmTagsStr(fm.tags.join(', '));
+        if (Array.isArray(fm.categories)) setFmCategoriesStr(fm.categories.join(', '));
+        const newFm: Frontmatter = { ...frontmatter };
+        if (typeof fm.description === 'string') newFm.description = fm.description;
+        if (Array.isArray(fm.tags)) newFm.tags = fm.tags as string[];
+        if (Array.isArray(fm.categories)) newFm.categories = fm.categories as string[];
+        setFrontmatter(newFm);
+        showNotification('Frontmatter 已生成，点击保存生效', 'success');
+      } else {
+        showNotification('生成失败: ' + (data.message || '未知错误'), 'error');
+      }
+    } catch (error) {
+      console.error('Failed to generate frontmatter:', error);
+      showNotification('生成 frontmatter 失败', 'error');
+    } finally {
+      setGeneratingFm(false);
+    }
+  }
+
   function copyImageUrl(url: string) {
     navigator.clipboard.writeText(url);
     showNotification('图片链接已复制', 'success');
@@ -485,32 +550,45 @@ export default function Editor() {
               <span className="ml-2 text-stone-600 font-mono text-sm">{currentFile}</span>
             </div>
           </div>
-          <div className="flex items-center space-x-2 flex-wrap">
-            <button onClick={() => setShowFrontmatterDrawer(true)} className="px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors flex items-center">
-              <FileCode className="w-5 h-5 mr-2" />
-              Frontmatter
+          <div className="flex items-center space-x-1">
+            <button onClick={() => setShowFrontmatterDrawer(true)} title="Frontmatter" className="p-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors">
+              <FileCode className="w-5 h-5" />
             </button>
-            <button onClick={() => setShowBacklinks(!showBacklinks)} className="px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors flex items-center">
-              <ArrowLeftRight className="w-5 h-5 mr-2" />
-              反向链接
+            <button onClick={() => setShowBacklinks(!showBacklinks)} title="反向链接" className="relative p-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors">
+              <ArrowLeftRight className="w-5 h-5" />
               {backlinks.length > 0 && (
-                <span className="ml-1 bg-blue-100 text-blue-800 text-xs font-semibold px-2 py-0.5 rounded-full">{backlinks.length}</span>
+                <span className="absolute -top-1 -right-1 bg-blue-100 text-blue-800 text-[10px] font-semibold w-4 h-4 flex items-center justify-center rounded-full">{backlinks.length}</span>
               )}
             </button>
-            <button onClick={() => setShowImageManager(!showImageManager)} className="px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors flex items-center">
-              <Image className="w-5 h-5 mr-2" />
-              图片管理
+            <button onClick={() => setShowImageManager(!showImageManager)} title="图片管理" className="p-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors">
+              <Image className="w-5 h-5" />
             </button>
-            <button onClick={saveFile} disabled={saving || !hasChanges} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
-              <Save className="w-5 h-5 mr-2" />
-              {saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'}
+            <button onClick={generateCoverImage} disabled={generatingCover || !currentFile} title={generatingCover ? '生成中...' : 'AI 生成封面'} className="p-2 border border-purple-400 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <Sparkles className="w-5 h-5" />
             </button>
-            <button onClick={publishArticle} disabled={publishing || !currentFile || isPublished} className={`px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center ${isPublished ? 'bg-stone-400 hover:bg-stone-500' : 'bg-green-600 hover:bg-green-700'}`}>
-              <Upload className="w-5 h-5 mr-2" />
-              {publishing ? '发布中...' : isPublished ? '已发布' : '发布'}
+            <button onClick={generateFrontmatterFromAI} disabled={generatingFm || !currentFile} title={generatingFm ? '生成中...' : 'AI 生成 Frontmatter'} className="p-2 border border-amber-400 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <Wand2 className="w-5 h-5" />
+            </button>
+            <span className="border-l border-stone-300 mx-1 h-6" />
+            <button onClick={saveFile} disabled={saving || !hasChanges} title={saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <Save className="w-5 h-5" />
+            </button>
+            <button onClick={publishArticle} disabled={publishing || !currentFile || isPublished} title={publishing ? '发布中...' : isPublished ? '已发布' : '发布'} className={`p-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isPublished ? 'bg-stone-400 hover:bg-stone-500' : 'bg-green-600 hover:bg-green-700'}`}>
+              <Upload className="w-5 h-5" />
             </button>
           </div>
         </div>
+
+        {(generatingCover || generatingFm) && (
+          <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-3 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-full bg-stone-200 rounded-full h-2 overflow-hidden">
+                <div className={`h-2 rounded-full animate-progress ${generatingCover ? 'bg-purple-500' : 'bg-amber-500'}`} style={{ width: '100%' }} />
+              </div>
+              <span className="text-sm text-stone-600 whitespace-nowrap">{generatingCover ? 'AI 生成封面中...' : 'AI 生成 Frontmatter 中...'}</span>
+            </div>
+          </div>
+        )}
 
         {showImageManager && (
           <div className="border-t pt-4">
@@ -610,8 +688,8 @@ export default function Editor() {
       {/* Frontmatter 抽屉 */}
       {showFrontmatterDrawer && (
         <>
-          <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setShowFrontmatterDrawer(false)} />
-          <div className="fixed top-0 right-0 w-[420px] max-w-[90vw] h-screen bg-white shadow-xl z-50 overflow-y-auto flex flex-col">
+          <div className="fixed inset-0 bg-black/30 z-[55]" onClick={() => setShowFrontmatterDrawer(false)} />
+          <div className="fixed top-0 right-0 w-[420px] max-w-[90vw] h-screen bg-white shadow-xl z-[60] overflow-y-auto flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-medium text-stone-900">Frontmatter</h3>
               <button onClick={() => setShowFrontmatterDrawer(false)} className="text-stone-400 hover:text-stone-600">
@@ -619,6 +697,24 @@ export default function Editor() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {(fmEdit.cover || fmEdit.image) && (
+                <div className="relative rounded-lg overflow-hidden border border-stone-200">
+                  <img
+                    src={`/content/${currentFile.replace(/[^/]+$/, '')}${fmEdit.image || fmEdit.cover}`}
+                    alt="封面图片"
+                    className="w-full h-40 object-cover"
+                  />
+                  <button
+                    onClick={() => {
+                      const url = fmEdit.image || fmEdit.cover || '';
+                      navigator.clipboard.writeText(url);
+                    }}
+                    className="absolute bottom-2 right-2 px-2 py-1 bg-black/60 text-white text-xs rounded hover:bg-black/80 transition-colors"
+                  >
+                    复制路径
+                  </button>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">title</label>
                 <input type="text" value={fmEdit.title || ''} onChange={(e) => setFmEdit({ ...fmEdit, title: e.target.value })} placeholder="文章标题" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
@@ -653,6 +749,10 @@ export default function Editor() {
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">cover</label>
                 <input type="text" value={fmEdit.cover || ''} onChange={(e) => setFmEdit({ ...fmEdit, cover: e.target.value })} placeholder="封面图片路径" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-1">image</label>
+                <input type="text" value={fmEdit.image || ''} onChange={(e) => setFmEdit({ ...fmEdit, image: e.target.value })} placeholder="封面图片路径 (Hugo theme)" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">description</label>
@@ -732,8 +832,8 @@ export default function Editor() {
       {/* 反向链接面板 */}
       {showBacklinks && (
         <>
-          <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setShowBacklinks(false)} />
-          <div className="fixed top-0 right-0 w-[380px] max-w-[90vw] h-screen bg-white shadow-xl z-50 overflow-y-auto flex flex-col">
+          <div className="fixed inset-0 bg-black/30 z-[55]" onClick={() => setShowBacklinks(false)} />
+          <div className="fixed top-0 right-0 w-[380px] max-w-[90vw] h-screen bg-white shadow-xl z-[60] overflow-y-auto flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-medium text-stone-900">反向链接</h3>
               <button onClick={() => setShowBacklinks(false)} className="text-stone-400 hover:text-stone-600">
