@@ -125,3 +125,58 @@ Content 2
         post2 = frontmatter.load(str(article2))
         assert post1.get("draft") is False
         assert post2.get("draft") is False
+
+    def test_no_blank_line_accumulation_on_save_cycle(self, post_service, temp_content_dir):
+        """多次保存不应累积 frontmatter 与正文之间的空行"""
+        file_path = temp_content_dir / "no-accum.md"
+
+        # 初始文件：frontmatter 后无空行
+        initial = "---\ntitle: Test\n---\nhello world"
+        file_path.write_text(initial)
+
+        for _ in range(5):
+            success, body, fm = post_service.read_file_with_frontmatter(str(file_path))
+            assert success
+            success, msg = post_service.save_file(
+                str(file_path), body, frontmatter_data=fm
+            )
+            assert success
+
+        # 检查最终文件：--- 结束标记与正文之间应只有 1 个空行（dumps 模板固定插入）
+        content = file_path.read_text()
+        parts = content.split("---\n", 2)
+        assert len(parts) >= 3
+        # dumps 模板固定插入 \n\n，所以正文前始终有 1 个空行
+        # 关键断言：5 次保存后空行数目 ≤ 1（不会累积增长）
+        body_section = parts[2]
+        leading_newlines = len(body_section) - len(body_section.lstrip("\n"))
+        assert leading_newlines <= 1, (
+            f"Expected ≤1 leading newlines after 5 saves, got {leading_newlines}"
+        )
+
+
+class TestStripLeadingFrontmatter:
+    """_strip_leading_frontmatter 回归测试"""
+
+    def test_strips_leading_blank_lines(self):
+        """正文开头空行应被剥除，避免与 frontmatter.dumps 不对称累积"""
+        svc = PostService.__new__(PostService)
+
+        # 无开头空行 — 保持不变
+        assert svc._strip_leading_frontmatter("hello world") == "hello world"
+
+        # 单个开头空行
+        assert svc._strip_leading_frontmatter("\nhello world") == "hello world"
+
+        # 多个开头空行
+        assert svc._strip_leading_frontmatter("\n\n\nhello world") == "hello world"
+
+        # 仅空行
+        assert svc._strip_leading_frontmatter("\n\n") == ""
+
+        # 空字符串
+        assert svc._strip_leading_frontmatter("") == ""
+
+        # None
+        assert svc._strip_leading_frontmatter(None) is None
+
