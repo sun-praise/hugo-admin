@@ -618,7 +618,7 @@ class PostService:
                 return content
         # 剥除正文开头的空行, 与 frontmatter.dumps 模板对齐
         if content:
-            content = content.lstrip("\n")
+            content = content.lstrip("\r\n")
         return content
 
     def _safe_file_operation(self, file_path, operation, timeout=10):
