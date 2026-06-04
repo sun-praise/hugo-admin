@@ -751,12 +751,18 @@ class PostService:
             pics_dir = article_dir / "pics"
             pics_dir.mkdir(exist_ok=True)
 
-            # 生成安全的文件名
-            filename = file.filename
-            # 移除特殊字符
-            safe_filename = "".join(c for c in filename if c.isalnum() or c in ".-_")
+            # 生成安全的文件名，避免重名覆盖
+            raw_filename = file.filename or "image.png"
+            safe_filename = "".join(
+                c for c in raw_filename if c.isalnum() or c in ".-_"
+            )
 
-            # 保存文件
+            # 保存文件，若同名文件已存在则追加短 UUID 防止覆盖
+            stem = Path(safe_filename).stem
+            ext = Path(safe_filename).suffix
+            while (pics_dir / safe_filename).exists():
+                safe_filename = f"{stem}_{uuid.uuid4().hex[:8]}{ext}"
+
             file_path = pics_dir / safe_filename
             file.save(str(file_path))
 
