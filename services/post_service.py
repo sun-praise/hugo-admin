@@ -25,6 +25,9 @@ from utils.blog_parser import filter_posts_by_search, get_blog_posts
 class PostService:
     """文章管理服务"""
 
+    ALLOWED_IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp"})
+    MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20 MB
+
     def __init__(self, content_dir, use_cache=True):
         """
         初始化文章服务
@@ -753,13 +756,15 @@ class PostService:
             pics_dir = article_dir / "pics"
             pics_dir.mkdir(exist_ok=True)
 
-            # 文件大小限制 (20 MB)
+            # 文件大小限制
             file.seek(0, 2)
             file_size = file.tell()
             file.seek(0)
-            max_size = 20 * 1024 * 1024
-            if file_size > max_size:
-                return False, f"文件大小超出限制 (最大 {max_size // (1024 * 1024)}MB)"
+            if file_size > self.MAX_IMAGE_SIZE:
+                return False, (
+                    f"文件大小超出限制 "
+                    f"(最大 {self.MAX_IMAGE_SIZE // (1024 * 1024)}MB)"
+                )
 
             # 生成安全的文件名，避免重名覆盖
             raw_filename = file.filename or "image.png"
@@ -771,8 +776,7 @@ class PostService:
 
             # 扩展名白名单
             ext = Path(safe_filename).suffix.lower()
-            allowed_extensions = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
-            if ext not in allowed_extensions:
+            if ext not in self.ALLOWED_IMAGE_EXTENSIONS:
                 return False, f"不支持的文件类型: {ext}"
 
             # 保存文件，若同名文件已存在则追加短 UUID 防止覆盖
@@ -793,7 +797,7 @@ class PostService:
                 os.close(tmp_fd)
                 file.save(tmp_path)
                 os.replace(tmp_path, str(file_path))
-            except BaseException:
+            except Exception:
                 if os.path.exists(tmp_path):
                     os.unlink(tmp_path)
                 raise
