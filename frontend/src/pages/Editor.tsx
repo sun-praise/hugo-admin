@@ -493,6 +493,7 @@ export default function Editor() {
         e.preventDefault();
         const blob = items[i].getAsFile();
         if (blob && currentFile) {
+          const cursorPos = textareaRef.current?.selectionStart ?? -1;
           const formData = new FormData();
           formData.append('file', blob);
           formData.append('article_path', currentFile);
@@ -501,13 +502,11 @@ export default function Editor() {
             .then((data) => {
               if (data.success) {
                 const url = data.url || data.image_url;
-                const textarea = textareaRef.current;
-                if (textarea) {
-                  const start = textarea.selectionStart;
-                  const insertion = `![图片](${url})`;
-                  const newContent = content.substring(0, start) + insertion + content.substring(start);
-                  setContent(newContent);
-                }
+                const insertion = `![图片](${url})`;
+                setContent((prev) => {
+                  const pos = cursorPos >= 0 ? cursorPos : prev.length;
+                  return prev.substring(0, pos) + insertion + prev.substring(pos);
+                });
                 loadImages();
               }
             })
