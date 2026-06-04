@@ -162,25 +162,25 @@ class TestStripLeadingFrontmatter:
 
     def test_strips_leading_blank_lines(self):
         """正文开头空行应被剥除，避免与 frontmatter.dumps 不对称累积"""
-        svc = PostService.__new__(PostService)
+        fn = PostService._strip_leading_frontmatter
 
         # 无开头空行 — 保持不变
-        assert svc._strip_leading_frontmatter("hello world") == "hello world"
+        assert fn("hello world") == "hello world"
 
         # 单个开头空行
-        assert svc._strip_leading_frontmatter("\nhello world") == "hello world"
+        assert fn("\nhello world") == "hello world"
 
         # 多个开头空行
-        assert svc._strip_leading_frontmatter("\n\n\nhello world") == "hello world"
+        assert fn("\n\n\nhello world") == "hello world"
 
         # Windows 换行符 (\r\n)
-        assert svc._strip_leading_frontmatter("\r\n\r\nhello world") == "hello world"
+        assert fn("\r\n\r\nhello world") == "hello world"
 
         # 仅空行
-        assert svc._strip_leading_frontmatter("\n\n") == ""
+        assert fn("\n\n") == ""
 
         # 空字符串
-        assert svc._strip_leading_frontmatter("") == ""
+        assert fn("") == ""
 
         # None
-        assert svc._strip_leading_frontmatter(None) is None
+        assert fn(None) is None
