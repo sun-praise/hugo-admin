@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 
 import requests
 
@@ -8,6 +9,9 @@ logger = logging.getLogger(__name__)
 MAX_TAGS = 5
 MAX_CATEGORIES = 2
 CONTENT_SNIPPET_LEN = 2000
+_CACHE_TTL = 1800
+
+_fm_cache: dict[str, tuple[float, dict]] = {}
 
 
 def _sanitize_frontmatter(fm: dict) -> dict:
@@ -50,6 +54,11 @@ def generate_frontmatter(
     if not snippet:
         return False, "文章内容为空"
 
+    cache_key = str(hash(snippet))
+    cached = _fm_cache.get(cache_key)
+    if cached and (time.time() - cached[0]) < _CACHE_TTL:
+        return True, cached[1]
+
     prompt = (
         "根据以下文章内容，生成合适的 Hugo frontmatter 字段。\n"
         "只返回一个 JSON 对象，包含以下键（均为可选）：\n"
@@ -71,6 +80,7 @@ def generate_frontmatter(
         "Content-Type": "application/json",
     }
 
+    text = ""
     try:
         resp = requests.post(url, json=payload, headers=headers, timeout=60)
         resp.raise_for_status()
@@ -87,12 +97,12 @@ def generate_frontmatter(
         if not isinstance(fm, dict):
             return False, "AI 返回了非对象类型"
 
-        return True, _sanitize_frontmatter(fm)
+        result = _sanitize_frontmatter(fm)
+        _fm_cache[cache_key] = (time.time(), result)
+        return True, result
 
     except json.JSONDecodeError:
-        logger.warning(
-            "AI returned invalid JSON: %s", text[:200] if "text" in dir() else "N/A"
-        )
+        logger.warning("AI returned invalid JSON: %s", text[:200])
         return False, "AI 返回了无效的 JSON"
     except requests.exceptions.Timeout:
         return False, "AI 请求超时"
