@@ -66,32 +66,29 @@ def _to_public_settings(settings_service, settings, app, session_api_key, env_ap
     return public_settings
 
 
-def register_settings_routes(app, settings_state):
+def register_settings_routes(app, registry):
     """
     注册设置相关路由。
 
     Args:
         app: Flask 应用实例。
-        settings_state: 可变状态容器，每个键对应一个单元素列表 [value]，
-            以便在闭包中重新赋值。
-            键: session_api_key, env_api_key, post_service, git_service,
-                hugo_manager, settings_service, ref_service, ai_service, socketio
+        registry: 服务注册表，提供所有可变服务实例的属性访问。
     """
 
     @bp.route("/api/settings")
     def get_settings():
         """获取应用设置"""
         try:
-            settings = settings_state["settings_service"][0].get_settings()
+            settings = registry.settings_service.get_settings()
             return jsonify(
                 {
                     "success": True,
                     "settings": _to_public_settings(
-                        settings_state["settings_service"][0],
+                        registry.settings_service,
                         settings,
                         app,
-                        settings_state["session_api_key"][0],
-                        settings_state["env_api_key"][0],
+                        registry.session_api_key,
+                        registry.env_api_key,
                     ),
                 }
             )
@@ -139,7 +136,7 @@ def register_settings_routes(app, settings_state):
             settings_payload["ai"] = dict(ai_payload)
             settings_payload["ai"].pop("api_key", None)
 
-        ss = settings_state["settings_service"][0]
+        ss = registry.settings_service
         try:
             updated_settings = ss.update_settings(settings_payload)
         except SettingsValidationError as e:
@@ -148,13 +145,11 @@ def register_settings_routes(app, settings_state):
             return jsonify({"success": False, "message": str(e)}), 500
 
         if incoming_session_api_key is not None:
-            settings_state["session_api_key"][0] = incoming_session_api_key
+            registry.session_api_key = incoming_session_api_key
 
         app.config["AI_BASE_URL"] = updated_settings["ai"]["base_url"]
         app.config["AI_MODEL"] = updated_settings["ai"]["model"]
-        app.config["AI_API_KEY"] = (
-            settings_state["session_api_key"][0] or settings_state["env_api_key"][0]
-        )
+        app.config["AI_API_KEY"] = registry.session_api_key or registry.env_api_key
 
         new_hugo_root = updated_settings.get("hugo", {}).get("base_dir", "")
         new_server_url = _ensure_server_url_has_port(
@@ -177,7 +172,7 @@ def register_settings_routes(app, settings_state):
             new_git_service = GitService(new_root)
             new_hugo_manager = HugoServerManager(
                 new_root,
-                settings_state["socketio"][0],
+                registry.socketio,
                 server_url=new_server_url or None,
             )
             new_settings_service = SettingsService(
@@ -196,29 +191,28 @@ def register_settings_routes(app, settings_state):
                 },
             )
 
-            settings_state["post_service"][0] = new_post_service
-            settings_state["ref_service"][0] = new_ref_service
-            settings_state["git_service"][0] = new_git_service
-            settings_state["hugo_manager"][0] = new_hugo_manager
-            settings_state["settings_service"][0] = new_settings_service
-        elif new_server_url != settings_state["hugo_manager"][0].server_url:
-            settings_state["hugo_manager"][0].server_url = (
-                new_server_url
-                or app.config.get("HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313")
+            registry.post_service = new_post_service
+            registry.ref_service = new_ref_service
+            registry.git_service = new_git_service
+            registry.hugo_manager = new_hugo_manager
+            registry.settings_service = new_settings_service
+        elif new_server_url != registry.hugo_manager.server_url:
+            registry.hugo_manager.server_url = new_server_url or app.config.get(
+                "HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313"
             )
 
-        settings_state["ai_service"][0] = None
+        registry.ai_service = None
 
         return jsonify(
             {
                 "success": True,
                 "message": "设置已保存",
                 "settings": _to_public_settings(
-                    settings_state["settings_service"][0],
+                    registry.settings_service,
                     updated_settings,
                     app,
-                    settings_state["session_api_key"][0],
-                    settings_state["env_api_key"][0],
+                    registry.session_api_key,
+                    registry.env_api_key,
                 ),
             }
         )

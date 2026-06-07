@@ -10,12 +10,12 @@ from flask import Blueprint, current_app, jsonify, request
 bp = Blueprint("images", __name__)
 
 
-def register_image_routes(post_service):
+def register_image_routes(registry):
     """
     注册图片与 frontmatter 相关路由
 
     Args:
-        post_service: PostService 实例
+        registry: ServiceRegistry 实例
     """
 
     @bp.route("/api/image/upload", methods=["POST"])
@@ -43,8 +43,7 @@ def register_image_routes(post_service):
                 400,
             )
 
-        success, result = post_service.save_image(article_path, file)
-
+        success, result = registry.post_service.save_image(article_path, file)
         if success:
             return jsonify({"success": True, "url": result, "message": "图片上传成功"})
         else:
@@ -59,7 +58,7 @@ def register_image_routes(post_service):
         if not article_path:
             return jsonify({"success": False, "message": "缺少文章路径"}), 400
 
-        success, result = post_service.list_images(article_path)
+        success, result = registry.post_service.list_images(article_path)
 
         if success:
             return jsonify({"success": True, "images": result})
@@ -114,13 +113,13 @@ def register_image_routes(post_service):
         if not save_ok:
             return jsonify({"success": False, "message": save_result}), 500
 
-        if post_service.cache_service:
+        if registry.post_service.cache_service:
             abs_path = str(
                 Path(article_path)
                 if Path(article_path).is_absolute()
                 else content_dir / article_path
             )
-            post_service.cache_service.invalidate_post(abs_path)
+            registry.post_service.cache_service.invalidate_post(abs_path)
 
         return jsonify(
             {"success": True, "url": save_result, "message": "封面图片生成成功"}
