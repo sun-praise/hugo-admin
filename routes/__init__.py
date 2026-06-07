@@ -11,6 +11,7 @@ from .image_routes import register_image_routes
 from .page_routes import register_page_routes
 from .post_routes import register_post_routes
 from .publish_routes import register_publish_routes
+from .references_routes import register_references_routes
 from .server_routes import register_server_routes
 from .settings_routes import register_settings_routes
 from .socketio_routes import register_socketio_handlers
@@ -19,6 +20,7 @@ __all__ = [
     "register_page_routes",
     "register_server_routes",
     "register_post_routes",
+    "register_references_routes",
     "register_file_routes",
     "register_image_routes",
     "register_publish_routes",

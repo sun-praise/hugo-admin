@@ -53,4 +53,11 @@ def register_page_routes():
         content_dir = current_app.config["CONTENT_DIR"]
         return send_from_directory(content_dir, filename)
 
+    @bp.route("/api/version")
+    def get_version():
+        """获取应用版本号"""
+        from __version__ import __version__
+
+        return jsonify({"version": __version__})
+
     return bp
