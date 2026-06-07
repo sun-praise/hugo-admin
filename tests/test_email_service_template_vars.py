@@ -3,11 +3,6 @@
 EmailService 模板变量兼容测试
 """
 
-import sys
-import types
-
-sys.modules.setdefault("feedparser", types.SimpleNamespace())
-
 from services.email_service import EmailService
 
 
