@@ -1,6 +1,6 @@
 # coding: utf-8
 """
-图片上传与管理、AI 封面生成、frontmatter 生成路由
+图片上传与管理、AI 封面生成路由
 """
 
 from pathlib import Path
@@ -124,35 +124,5 @@ def register_image_routes(registry):
         return jsonify(
             {"success": True, "url": save_result, "message": "封面图片生成成功"}
         )
-
-    @bp.route("/api/frontmatter/generate", methods=["POST"])
-    def generate_frontmatter_api():
-        """根据文章内容 AI 生成 frontmatter 建议"""
-        data = request.get_json(silent=True) or {}
-        content = data.get("content", "")
-
-        if not isinstance(content, str) or not content.strip():
-            return jsonify({"success": False, "message": "文章内容为空"}), 400
-
-        api_key = current_app.config.get("AI_API_KEY", "")
-        base_url = current_app.config.get("AI_BASE_URL", "https://api.deepseek.com")
-        model = current_app.config.get("AI_MODEL", "deepseek-chat")
-
-        if not api_key:
-            return jsonify({"success": False, "message": "AI API Key 未配置"}), 400
-
-        from services.frontmatter_gen_service import generate_frontmatter
-
-        ok, result = generate_frontmatter(
-            content=content,
-            api_key=api_key,
-            base_url=base_url,
-            model=model,
-        )
-
-        if not ok:
-            return jsonify({"success": False, "message": result}), 500
-
-        return jsonify({"success": True, "frontmatter": result})
 
     return bp

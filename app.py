@@ -21,6 +21,7 @@ from routes import (
     register_page_routes,
     register_post_routes,
     register_publish_routes,
+    register_references_routes,
     register_server_routes,
     register_settings_routes,
     register_socketio_handlers,
@@ -190,12 +191,15 @@ app.config["REACT_INDEX"] = REACT_INDEX
 app.register_blueprint(register_page_routes())
 app.register_blueprint(register_server_routes(registry))
 app.register_blueprint(register_post_routes(registry))
+app.register_blueprint(register_references_routes(registry))
 app.register_blueprint(register_file_routes(registry))
 app.register_blueprint(register_image_routes(registry))
 app.register_blueprint(register_publish_routes(registry))
 app.register_blueprint(register_email_routes())
 app.register_blueprint(register_settings_routes(app, registry))
-app.register_blueprint(register_ai_routes(get_ai_service))
+ai_main_bp, fm_bp = register_ai_routes(get_ai_service)
+app.register_blueprint(ai_main_bp)
+app.register_blueprint(fm_bp)
 
 # ============ 注册 SocketIO 事件 ============
 
