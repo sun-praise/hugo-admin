@@ -12,7 +12,7 @@ from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import feedparser
 import requests
@@ -52,7 +52,7 @@ def _normalize_url_for_match(raw_url):
     # path-only（以 / 开头）
     if url.startswith("/"):
         path = url.rstrip("/")
-        return ("", _strip_html_suffix(path))
+        return ("", _strip_html_suffix(unquote(path)))
 
     # 无 scheme 的非路径输入：补 https://
     if "://" not in url:
@@ -64,7 +64,7 @@ def _normalize_url_for_match(raw_url):
         netloc = netloc[4:]
 
     path = parsed.path.rstrip("/")
-    return (netloc, _strip_html_suffix(path))
+    return (netloc, _strip_html_suffix(unquote(path)))
 
 
 class EmailService:
@@ -176,8 +176,7 @@ class EmailService:
                 entry_netloc = parsed.netloc.lower()
                 if entry_netloc.startswith("www."):
                     entry_netloc = entry_netloc[4:]
-                entry_path = _strip_html_suffix(parsed.path.rstrip("/"))
-
+                entry_path = _strip_html_suffix(unquote(parsed.path.rstrip("/")))
                 netloc_matches = (target_netloc == "") or (
                     target_netloc == entry_netloc
                 )
