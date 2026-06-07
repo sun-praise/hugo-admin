@@ -26,11 +26,13 @@ class TestPublishAPI:
     def client(self, temp_content_dir):
         """测试客户端 - 配置 app 使用临时目录"""
         app_module.app.config["TESTING"] = True
-        original_post_service = app_module.post_service
-        app_module.post_service = PostService(temp_content_dir, use_cache=False)
+        original_post_service = app_module.settings_state["post_service"][0]
+        app_module.settings_state["post_service"][0] = PostService(
+            temp_content_dir, use_cache=False
+        )
         with app_module.app.test_client() as client:
             yield client
-        app_module.post_service = original_post_service
+        app_module.settings_state["post_service"][0] = original_post_service
 
     @pytest.fixture
     def temp_article(self, temp_content_dir):
