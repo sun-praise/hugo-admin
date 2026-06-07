@@ -4,16 +4,15 @@ EmailService get_post_by_url URL 匹配测试
 覆盖: 完整 URL、path-only、裸 slug、index.html 后缀、www 变体、HTTP/HTTPS、多匹配兜底
 """
 
-import sys
+
 from unittest.mock import MagicMock, patch
 
-import feedparser
 import pytest
-
 
 from services.email_service import EmailService, _strip_html_suffix
 
 # ── _strip_html_suffix 单元测试 ──
+
 
 @pytest.mark.parametrize(
     "path, expected",
@@ -149,7 +148,9 @@ def test_get_post_by_url(input_url, expected_title, mock_feed):
     if expected_title is None:
         assert result is None, f"expected None for {input_url!r}, got {result}"
     else:
-        assert result is not None, f"expected {expected_title!r} for {input_url!r}, got None"
+        assert (
+            result is not None
+        ), f"expected {expected_title!r} for {input_url!r}, got None"
         assert result["title"] == expected_title, f"wrong match for {input_url!r}"
 
 
