@@ -35,6 +35,9 @@ dependencies = [
     "python-dotenv>=1.1.0",
     "requests>=2.32.0",
     "feedparser>=6.0.12",
+    "grpcio>=1.62.0",
+    "grpcio-tools>=1.62.0",
+    "cryptography>=42.0.0",
 ]
 
 [project.optional-dependencies]
