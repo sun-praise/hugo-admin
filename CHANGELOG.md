@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-06-07
+
+### Added
+- Plugin system proposal (gRPC-based extension architecture) (#92)
+- Frontend build check to CI workflow
+- Docker image push to GHCR on main/tags
+- ServiceRegistry for consistent service access across Blueprints
+
+### Changed
+- Modularize app.py routes into Flask Blueprints (#84)
+- Use pnpm instead of npm in run.sh for consistency with CI
+
+### Fixed
+- Email article URL matching with normalized URL comparison (#88)
+- Stale closure in Ctrl+S keyboard handler
+- Stale closure in handlePaste with functional setState
+- Blank-line accumulation between frontmatter and body
+- Move hasChanges useMemo after frontmatter declarations
+
 ## [Unreleased]
 
 ### Fixed
