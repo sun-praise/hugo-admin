@@ -19,6 +19,7 @@ hugo-admin needs a plugin mechanism to support private, closed-source extensions
 - Affected code:
   - New: `services/plugin_manager.py`, `services/plugin_service.py`, `routes/plugin_routes.py`, `proto/plugin.proto`
   - New: `frontend/src/pages/Plugins.tsx`, `frontend/src/components/PluginCard.tsx`
+  - New: `tests/test_plugin_manager.py`, `tests/test_plugin_routes.py`, `tests/test_plugin_integration.py`
   - Modified: `app.py` (register plugin routes, init plugin manager), `services/registry.py` (expose plugin manager)
   - External: new Go repo `hugo-admin-plugin-cloudflare` (independent repository)
-- New dependencies: `grpcio`, `grpcio-tools` (Python); `google.golang.org/grpc` (Go plugins)
+- New dependencies: `grpcio`, `grpcio-tools`, `cryptography`, `minisign` (Python); `google.golang.org/grpc` (Go plugins)
