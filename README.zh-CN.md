@@ -65,7 +65,7 @@ cp config.py config_local.py
 ```bash
 python app.py
 ```
-5. 在浏览器中打开 `http://127.0.0.1:5000`
+5. 在浏览器中打开 `http://127.0.0.1:5050`
 
 ## 配置
 
@@ -130,18 +130,14 @@ pytest --cov=. --cov-report=html
 hugo-admin/
 ├── app.py                 # Flask 应用
 ├── config.py              # 配置文件
-├── requirements.txt       # 依赖
-├── requirements-dev.txt   # 开发依赖
+├── pyproject.toml         # 依赖和项目元数据
+├── Dockerfile             # Docker 镜像构建
+├── docker-compose.yml     # Docker Compose 配置
 ├── pytest.ini             # Pytest 配置
 ├── services/              # 业务逻辑层
-│   ├── hugo_service.py    # Hugo 服务器管理
-│   ├── post_service.py    # 文章操作
-│   └── cache_service.py   # 缓存层
-├── models/                # 数据库模型
-│   └── database.py        # SQLite 操作
-├── templates/             # Jinja2 模板
-├── static/                # CSS、JS、图片
-└── tests/                 # 测试套件
+├── routes/                # Flask 蓝图（API 路由）
+├── frontend/              # React + Vite SPA
+├── tests/                 # 测试套件
 ```
 
 ## 贡献
