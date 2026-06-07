@@ -31,10 +31,7 @@ export default function Editor() {
   const [content, setContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
   const [preview, setPreview] = useState('');
-  const hasChanges = useMemo(
-    () => content !== originalContent || JSON.stringify(frontmatter) !== JSON.stringify(originalFrontmatter),
-    [content, originalContent, frontmatter, originalFrontmatter],
-  );
+
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -45,6 +42,10 @@ export default function Editor() {
   const [backlinks, setBacklinks] = useState<Backlink[]>([]);
   const [frontmatter, setFrontmatter] = useState<Frontmatter>({});
   const [originalFrontmatter, setOriginalFrontmatter] = useState<Frontmatter>({});
+  const hasChanges = useMemo(
+    () => content !== originalContent || JSON.stringify(frontmatter) !== JSON.stringify(originalFrontmatter),
+    [content, originalContent, frontmatter, originalFrontmatter],
+  );
   const [fmEdit, setFmEdit] = useState<Record<string, string>>({});
   const [fmTagsStr, setFmTagsStr] = useState('');
   const [fmCategoriesStr, setFmCategoriesStr] = useState('');

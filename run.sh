@@ -29,8 +29,22 @@ else
     echo "✓ 依赖已安装"
 fi
 
+
 echo ""
-echo "2. 检查 Hugo..."
+echo "2. 构建前端..."
+if [ -d "frontend/node_modules" ]; then
+    (cd frontend && npm run build)
+else
+    (cd frontend && npm install && npm run build)
+fi
+if [ $? -ne 0 ]; then
+    echo "错误: 前端构建失败"
+    exit 1
+fi
+echo "✓ 前端构建完成"
+
+echo ""
+echo "3. 检查 Hugo..."
 if ! command -v hugo &> /dev/null; then
     echo "警告: 未找到 hugo 命令"
     echo "Hugo 服务器控制功能将不可用"
