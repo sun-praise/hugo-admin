@@ -43,4 +43,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5050/api/server/status || exit 1
 
 # 清理 Docker 挂载可能自动创建的 config.toml 目录（Hugo 会误读为配置文件）
-CMD ["sh", "-c", "rm -rf /app/config.toml && python app.py"]
+CMD ["sh", "-c", "test -d /app/config.toml && rm -rf /app/config.toml; python app.py"]
