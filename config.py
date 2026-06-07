@@ -14,12 +14,12 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY") or "dev-secret-key-change-in-production"
     DEBUG = True
 
-    # 项目路径配置
-    BASE_DIR = Path(__file__).parent.parent
+    # 项目路径配置（支持通过环境变量覆盖，便于 Docker 部署）
+    BASE_DIR = Path(os.environ.get("HUGO_ROOT", str(Path(__file__).parent.parent)))
     WEB_ADMIN_DIR = Path(__file__).parent
     HUGO_ROOT = BASE_DIR
-    CONTENT_DIR = BASE_DIR / "content"
-    PUBLIC_DIR = BASE_DIR / "public"
+    CONTENT_DIR = Path(os.environ.get("CONTENT_DIR", str(BASE_DIR / "content")))
+    PUBLIC_DIR = Path(os.environ.get("PUBLIC_DIR", str(BASE_DIR / "public")))
 
     # Hugo 配置
     HUGO_SERVER_HOST = "0.0.0.0"
