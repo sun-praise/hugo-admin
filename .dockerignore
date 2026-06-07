@@ -68,3 +68,6 @@ specs/
 Dockerfile
 docker-compose.yml
 .dockerignore
+
+# Runtime data (mounted as volume, not copied)
+data/

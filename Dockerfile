@@ -1,5 +1,4 @@
 # Hugo Admin Dockerfile
-# 多阶段构建，用于运行 Hugo Admin 管理界面
 
 FROM python:3.11-slim
 
@@ -37,12 +36,11 @@ RUN pip install --no-cache-dir .
 RUN mkdir -p /app/content /app/public /app/static /app/templates
 
 # 暴露端口
-EXPOSE 5050
-EXPOSE 1313
+EXPOSE 5050 1313
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5050/api/server/status || exit 1
 
-# 运行应用
-CMD ["python", "app.py"]
+# 清理 Docker 挂载可能自动创建的 config.toml 目录（Hugo 会误读为配置文件）
+CMD ["sh", "-c", "rm -rf /app/config.toml && python app.py"]

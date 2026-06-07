@@ -5,6 +5,7 @@
 """
 
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -30,7 +31,10 @@ class CacheService:
         self.content_dir = Path(content_dir)
 
         if db_path is None:
-            db_path = Path(__file__).parent.parent / "data" / "cache.db"
+            _data_dir = os.environ.get(
+                "CACHE_DB_DIR", str(Path(__file__).parent.parent / "data")
+            )
+            db_path = Path(_data_dir) / "cache.db"
 
         self.db = Database(str(db_path))
         self._initialized = False
