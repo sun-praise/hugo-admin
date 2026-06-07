@@ -16,6 +16,8 @@ from flask import Blueprint, Response, current_app, jsonify, request
 
 # 创建 Blueprint
 ai_bp = Blueprint("ai", __name__, url_prefix="/api/ai")
+fm_bp = Blueprint("frontmatter", __name__)
+
 
 DONE_SENTINEL = object()
 
@@ -307,4 +309,34 @@ def register_ai_routes(ai_service_factory):
 
         return Response(generate(), mimetype="text/event-stream")
 
-    return ai_bp
+    @fm_bp.route("/api/frontmatter/generate", methods=["POST"])
+    def generate_frontmatter_api():
+        """根据文章内容 AI 生成 frontmatter 建议"""
+        data = request.get_json(silent=True) or {}
+        content = data.get("content", "")
+
+        if not isinstance(content, str) or not content.strip():
+            return jsonify({"success": False, "message": "文章内容为空"}), 400
+
+        api_key = current_app.config.get("AI_API_KEY", "")
+        base_url = current_app.config.get("AI_BASE_URL", "https://api.deepseek.com")
+        model = current_app.config.get("AI_MODEL", "deepseek-chat")
+
+        if not api_key:
+            return jsonify({"success": False, "message": "AI API Key 未配置"}), 400
+
+        from services.frontmatter_gen_service import generate_frontmatter
+
+        ok, result = generate_frontmatter(
+            content=content,
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+        )
+
+        if not ok:
+            return jsonify({"success": False, "message": result}), 500
+
+        return jsonify({"success": True, "frontmatter": result})
+
+    return ai_bp, fm_bp
