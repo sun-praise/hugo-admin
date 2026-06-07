@@ -32,6 +32,41 @@ def _strip_html_suffix(path):
     return path
 
 
+def _normalize_url_for_match(raw_url):
+    """
+    归一化用户输入的 URL 或路径，用于与 RSS 条目比对。
+
+    返回 (netloc, path) 元组。path 已去尾斜杠、去 index.html/.html 后缀。
+    netloc 为小写、去除 www. 前缀。netloc 为空字符串表示用户输入的是路径。
+    裸 slug（无 / 无 .）返回 None。
+    """
+    if not raw_url or not raw_url.strip():
+        return None
+
+    url = raw_url.strip()
+
+    # 裸 slug（无斜杠、无点号）→ 拒绝
+    if "/" not in url and "." not in url:
+        return None
+
+    # path-only（以 / 开头）
+    if url.startswith("/"):
+        path = url.rstrip("/")
+        return ("", _strip_html_suffix(path))
+
+    # 无 scheme 的非路径输入：补 https://
+    if "://" not in url:
+        url = "https://" + url
+
+    parsed = urlparse(url)
+    netloc = parsed.netloc.lower()
+    if netloc.startswith("www."):
+        netloc = netloc[4:]
+
+    path = parsed.path.rstrip("/")
+    return (netloc, _strip_html_suffix(path))
+
+
 class EmailService:
     """邮件推送服务"""
 
@@ -113,41 +148,6 @@ class EmailService:
         except Exception as e:
             raise Exception(f"获取 RSS 失败: {e}")
 
-    @staticmethod
-    def _normalize_url_for_match(raw_url):
-        """
-        归一化用户输入的 URL 或路径，用于与 RSS 条目比对。
-
-        返回 (netloc, path) 元组。path 已去尾斜杠、去 index.html/.html 后缀。
-        netloc 为小写、去除 www. 前缀。netloc 为空字符串表示用户输入的是路径。
-        裸 slug（无 / 无 .）返回 None。
-        """
-        if not raw_url or not raw_url.strip():
-            return None
-
-        url = raw_url.strip()
-
-        # 裸 slug（无斜杠、无点号）→ 拒绝
-        if "/" not in url and "." not in url:
-            return None
-
-        # path-only（以 / 开头）
-        if url.startswith("/"):
-            path = url.rstrip("/")
-            return ("", _strip_html_suffix(path))
-
-        # 无 scheme 的非路径输入：补 https://
-        if "://" not in url:
-            url = "https://" + url
-
-        parsed = urlparse(url)
-        netloc = parsed.netloc.lower()
-        if netloc.startswith("www."):
-            netloc = netloc[4:]
-
-        path = parsed.path.rstrip("/")
-        return (netloc, _strip_html_suffix(path))
-
     def get_post_by_url(self, url):
         """
         根据 URL 获取指定文章
@@ -158,13 +158,13 @@ class EmailService:
         Returns:
             dict: 包含文章信息的字典，失败返回 None
         """
+        normalized = _normalize_url_for_match(url)
+        if normalized is None:
+            return None
+
+        target_netloc, target_path = normalized
+
         try:
-            normalized = self._normalize_url_for_match(url)
-            if normalized is None:
-                return None
-
-            target_netloc, target_path = normalized
-
             feed = feedparser.parse(self.rss_url)
             if not feed.entries:
                 return None
@@ -178,13 +178,13 @@ class EmailService:
                     entry_netloc = entry_netloc[4:]
                 entry_path = _strip_html_suffix(parsed.path.rstrip("/"))
 
-                # path-only 输入：忽略 netloc，仅比对 path
-                # 完整 URL 输入：netloc 与 path 都需匹配
                 netloc_matches = (target_netloc == "") or (
                     target_netloc == entry_netloc
                 )
                 if netloc_matches and target_path == entry_path:
                     matches.append(entry)
+                    if len(matches) > 1:
+                        return None
 
             if len(matches) == 1:
                 entry = matches[0]
