@@ -4,6 +4,7 @@ Hugo 服务器管理服务
 负责启动、停止和监控 Hugo 开发服务器
 """
 
+import os
 import subprocess
 import threading
 import time
@@ -64,6 +65,10 @@ class HugoServerManager:
             ]
             if debug:
                 cmd.append("-D")
+            # Docker 部署时禁用了 Hugo Modules，需要显式指定主题
+            theme = os.environ.get("HUGO_THEME", "")
+            if theme:
+                cmd.extend(["--theme", theme])
 
             # 启动进程
             self.process = subprocess.Popen(

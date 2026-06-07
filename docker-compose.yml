@@ -12,15 +12,20 @@ services:
       - "5050:5050"  # Hugo Admin 管理界面
       - "1313:1313"  # Hugo 预览服务器
     volumes:
-      # 挂载 Hugo 博客内容目录（需要根据实际情况调整）
-      - ./content:/app/content
-      - ./public:/app/public
-      - ./static:/app/static
-      - ./config.toml:/app/config.toml:ro
-      # 持久化缓存数据库，避免容器重启后缓存丢失
-      - ./data:/app/data
-      # 可选：挂载自定义配置
-      # - ./config_local.py:/app/config_local.py:ro
+      # 挂载 Hugo 博客内容目录（指向实际的 hugo-blog 目录）
+      - ../hugo-blog/content:/app/content
+      - ../hugo-blog/public:/app/public
+      - ../hugo-blog/static:/app/static
+      - ../hugo-blog/config:/app/config:ro
+      # 禁用 Hugo Modules，使用本地主题（覆盖为空文件）
+      - /dev/null:/app/config/_default/module.toml
+      - ../hugo-blog/layouts:/app/layouts
+      - ../hugo-blog/assets:/app/assets
+      - ../hugo-blog/resources:/app/resources
+      # 主题目录：直接挂载实际的 Fried-Rice（Docker 不跟随符号链接）
+      - ../Fried-Rice:/app/themes/stack:ro
+      # 持久化缓存数据库（挂载到 /app 外，避免 Hugo 读取 cache.db）
+      - ./data:/hugo_admin_data
     environment:
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
       - FLASK_ENV=${FLASK_ENV:-development}
@@ -28,6 +33,8 @@ services:
       - CONTENT_DIR=/app/content
       - PUBLIC_DIR=/app/public
       - HUGO_SERVER_BASE_URL=${HUGO_SERVER_BASE_URL:-http://localhost:1313}
+      - CACHE_DB_DIR=/hugo_admin_data
+      - HUGO_THEME=stack
     restart: unless-stopped
     networks:
       - hugo-network
