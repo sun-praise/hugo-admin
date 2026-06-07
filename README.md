@@ -65,7 +65,7 @@ cp config.py config_local.py
 ```bash
 python app.py
 ```
-5. Open your browser and navigate to `http://127.0.0.1:5000`
+5. Open your browser and navigate to `http://127.0.0.1:5050`
 
 ## Configuration
 
@@ -130,18 +130,14 @@ pytest --cov=. --cov-report=html
 hugo-admin/
 ├── app.py                 # Flask application
 ├── config.py              # Configuration
-├── requirements.txt       # Dependencies
-├── requirements-dev.txt   # Dev dependencies
+├── pyproject.toml         # Dependencies and project metadata
+├── Dockerfile             # Docker image build
+├── docker-compose.yml     # Docker Compose configuration
 ├── pytest.ini             # Pytest configuration
 ├── services/              # Business logic
-│   ├── hugo_service.py    # Hugo server management
-│   ├── post_service.py    # Post operations
-│   └── cache_service.py   # Caching layer
-├── models/                # Database models
-│   └── database.py        # SQLite operations
-├── templates/             # Jinja2 templates
-├── static/                # CSS, JS, images
-└── tests/                 # Test suite
+├── routes/                # Flask Blueprints (API routes)
+├── frontend/              # React + Vite SPA
+├── tests/                 # Test suite
 ```
 
 ## Contributing
