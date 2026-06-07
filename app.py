@@ -25,6 +25,7 @@ from routes import (
     register_settings_routes,
     register_socketio_handlers,
 )
+from routes.settings_routes import _ensure_server_url_has_port
 from services.chat_history_service import ChatHistoryService
 from services.git_service import GitService
 from services.hugo_service import HugoServerManager
@@ -94,9 +95,10 @@ settings_service = SettingsService(
 try:
     persisted_settings = settings_service.get_settings()
     _hugo_server_url = persisted_settings.get("hugo", {}).get("server_url", "")
-    from routes.settings_routes import _ensure_server_url_has_port
-
     _hugo_server_url = _ensure_server_url_has_port(app, _hugo_server_url)
+    app.config["AI_BASE_URL"] = persisted_settings["ai"]["base_url"]
+    app.config["AI_MODEL"] = persisted_settings["ai"]["model"]
+    app.config["AI_API_KEY"] = ENV_AI_API_KEY
 except (SettingsValidationError, SettingsStorageError) as e:
     print(f"⚠ 设置文件读取失败，继续使用默认配置: {e}")
     _hugo_server_url = ""
@@ -185,7 +187,7 @@ def get_ai_service():
 # ============ 注册 Blueprint ============
 
 app.config["REACT_INDEX"] = REACT_INDEX
-app.register_blueprint(register_page_routes(app))
+app.register_blueprint(register_page_routes())
 app.register_blueprint(register_server_routes(registry))
 app.register_blueprint(register_post_routes(registry))
 app.register_blueprint(register_file_routes(registry))

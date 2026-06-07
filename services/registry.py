@@ -14,12 +14,6 @@ class ServiceRegistry:
     def __init__(self, **services):
         self._services = services
 
-    def get(self, name):
-        return self._services[name]
-
-    def set(self, name, service):
-        self._services[name] = service
-
     # ---- 便捷属性 ----
 
     @property
