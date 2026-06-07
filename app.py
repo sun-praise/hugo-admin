@@ -30,7 +30,12 @@ from services.git_service import GitService
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
 from services.reference_service import ReferenceService
-from services.settings_service import SettingsService
+from services.registry import ServiceRegistry
+from services.settings_service import (
+    SettingsService,
+    SettingsStorageError,
+    SettingsValidationError,
+)
 
 # 初始化 Flask 应用
 load_dotenv()
@@ -89,7 +94,10 @@ settings_service = SettingsService(
 try:
     persisted_settings = settings_service.get_settings()
     _hugo_server_url = persisted_settings.get("hugo", {}).get("server_url", "")
-except Exception as e:
+    from routes.settings_routes import _ensure_server_url_has_port
+
+    _hugo_server_url = _ensure_server_url_has_port(app, _hugo_server_url)
+except (SettingsValidationError, SettingsStorageError) as e:
     print(f"⚠ 设置文件读取失败，继续使用默认配置: {e}")
     _hugo_server_url = ""
 
@@ -116,22 +124,18 @@ app.chat_history_service = chat_history_service
 # Lazy AI service init to avoid import errors when API key is missing in tests
 ai_service = None
 
-# ============ 可变服务状态（供 settings_routes 在运行时重建服务） ============
 
-# Mutable service state — each key maps to a single-element list so that
-# settings_routes can reassign services on hugo_root change without globals.
-SESSION_AI_API_KEY = ""
-settings_state = {
-    "session_api_key": [SESSION_AI_API_KEY],
-    "env_api_key": [ENV_AI_API_KEY],
-    "post_service": [post_service],
-    "git_service": [git_service],
-    "hugo_manager": [hugo_manager],
-    "settings_service": [settings_service],
-    "ref_service": [ref_service],
-    "ai_service": [ai_service],
-    "socketio": [socketio],
-}
+registry = ServiceRegistry(
+    post_service=post_service,
+    git_service=git_service,
+    hugo_manager=hugo_manager,
+    settings_service=settings_service,
+    ref_service=ref_service,
+    ai_service=ai_service,
+    session_api_key="",
+    env_api_key=ENV_AI_API_KEY,
+    socketio=socketio,
+)
 
 # ============ AI 服务懒加载 ============
 
@@ -152,7 +156,7 @@ class _DisabledAIService:
 
 def get_ai_service():
     """Get or lazily initialize AI service."""
-    ai = settings_state["ai_service"][0]
+    ai = registry.ai_service
     if ai is None:
         from services.ai_service import AIService
 
@@ -167,14 +171,14 @@ def get_ai_service():
                     api_key=api_key,
                     base_url=app.config.get("AI_BASE_URL", "https://api.deepseek.com"),
                     model_name=app.config.get("AI_MODEL", "deepseek-chat"),
-                    post_service=settings_state["post_service"][0],
-                    git_service=settings_state["git_service"][0],
-                    hugo_manager=settings_state["hugo_manager"][0],
+                    post_service=registry.post_service,
+                    git_service=registry.git_service,
+                    hugo_manager=registry.hugo_manager,
                 )
             except Exception as e:
                 print(f"⚠ AI service initialization failed: {e}")
                 ai = _DisabledAIService()
-        settings_state["ai_service"][0] = ai
+        registry.ai_service = ai
     return ai
 
 
@@ -182,18 +186,18 @@ def get_ai_service():
 
 app.config["REACT_INDEX"] = REACT_INDEX
 app.register_blueprint(register_page_routes(app))
-app.register_blueprint(register_server_routes(hugo_manager))
-app.register_blueprint(register_post_routes(post_service, ref_service))
-app.register_blueprint(register_file_routes(post_service, ref_service))
-app.register_blueprint(register_image_routes(post_service))
-app.register_blueprint(register_publish_routes(settings_state))
+app.register_blueprint(register_server_routes(registry))
+app.register_blueprint(register_post_routes(registry))
+app.register_blueprint(register_file_routes(registry))
+app.register_blueprint(register_image_routes(registry))
+app.register_blueprint(register_publish_routes(registry))
 app.register_blueprint(register_email_routes())
-app.register_blueprint(register_settings_routes(app, settings_state))
+app.register_blueprint(register_settings_routes(app, registry))
 app.register_blueprint(register_ai_routes(get_ai_service))
 
 # ============ 注册 SocketIO 事件 ============
 
-register_socketio_handlers(socketio, hugo_manager)
+register_socketio_handlers(registry)
 
 # ============ 错误处理 ============
 

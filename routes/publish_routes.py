@@ -2,7 +2,6 @@
 """
 文章发布、Git 状态、系统发布相关路由
 """
-
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request
@@ -11,12 +10,11 @@ from flask import Blueprint, jsonify, request
 bp = Blueprint("publish", __name__)
 
 
-def register_publish_routes(settings_state):
+def register_publish_routes(registry):
     """
     注册文章发布、Git 状态、系统发布路由
 
-    :param settings_state: 可变状态容器，每个键对应一个单元素列表 [value]。
-        需要键: post_service, git_service
+    :param registry: ServiceRegistry 实例
     :return: Blueprint
     """
 
@@ -38,9 +36,9 @@ def register_publish_routes(settings_state):
             )
 
         file_path = data["file_path"]
-        success, message, operation_id = settings_state["post_service"][
-            0
-        ].publish_article(file_path)
+        success, message, operation_id = registry.post_service.publish_article(
+            file_path
+        )
 
         if success:
             return jsonify(
@@ -86,7 +84,7 @@ def register_publish_routes(settings_state):
                 400,
             )
 
-        status = settings_state["post_service"][0].get_publish_status(file_path)
+        status = registry.post_service.get_publish_status(file_path)
 
         if "error" in status:
             status_code = 404 if "不存在" in status["error"] else 400
@@ -124,7 +122,7 @@ def register_publish_routes(settings_state):
         results = []
 
         for file_path in file_paths:
-            status = settings_state["post_service"][0].get_publish_status(file_path)
+            status = registry.post_service.get_publish_status(file_path)
             results.append({"file_path": file_path, "status": status})
 
         return jsonify({"success": True, "results": results, "count": len(results)})
@@ -150,7 +148,7 @@ def register_publish_routes(settings_state):
         _stop_on_error = data.get("stop_on_first_error", False)  # noqa: F841
 
         try:
-            result = settings_state["post_service"][0].bulk_publish_articles(file_paths)
+            result = registry.post_service.bulk_publish_articles(file_paths)
 
             # 根据结果返回适当的 HTTP 状态码
             if result["success"] or not result["failed_count"]:
@@ -179,7 +177,7 @@ def register_publish_routes(settings_state):
     def git_status():
         """获取 Git 仓库状态"""
         try:
-            status = settings_state["git_service"][0].get_status()
+            status = registry.git_service.get_status()
             return jsonify(status)
         except Exception as e:
             return (
@@ -192,7 +190,7 @@ def register_publish_routes(settings_state):
         """获取最近的提交记录"""
         try:
             count = request.args.get("count", 10, type=int)
-            result = settings_state["git_service"][0].get_recent_commits(count)
+            result = registry.git_service.get_recent_commits(count)
             return jsonify(result)
         except Exception as e:
             return (
@@ -207,7 +205,7 @@ def register_publish_routes(settings_state):
             data = request.get_json() or {}
             commit_message = data.get("message")
 
-            result = settings_state["git_service"][0].publish_system(commit_message)
+            result = registry.git_service.publish_system(commit_message)
 
             if result["success"]:
                 return jsonify(result), 200
