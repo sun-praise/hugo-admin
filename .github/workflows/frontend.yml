@@ -1,0 +1,35 @@
+name: Frontend Build
+
+on:
+  push:
+    branches: [master, main, develop]
+    paths:
+      - 'frontend/**'
+  pull_request:
+    branches: [master, main, develop]
+    paths:
+      - 'frontend/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (tsc + vite)
+        working-directory: frontend
+        run: pnpm run build
