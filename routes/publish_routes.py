@@ -145,7 +145,6 @@ def register_publish_routes(registry):
             )
 
         file_paths = data["file_paths"]
-        _stop_on_error = data.get("stop_on_first_error", False)  # noqa: F841
 
         try:
             result = registry.post_service.bulk_publish_articles(file_paths)

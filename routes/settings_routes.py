@@ -197,9 +197,10 @@ def register_settings_routes(app, registry):
             registry.hugo_manager = new_hugo_manager
             registry.settings_service = new_settings_service
         elif new_server_url != registry.hugo_manager.server_url:
-            registry.hugo_manager.server_url = new_server_url or app.config.get(
-                "HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313"
+            fallback_url = _ensure_server_url_has_port(
+                app, app.config.get("HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313")
             )
+            registry.hugo_manager.server_url = new_server_url or fallback_url
 
         registry.ai_service = None
 
@@ -216,12 +217,5 @@ def register_settings_routes(app, registry):
                 ),
             }
         )
-
-    @bp.route("/api/version")
-    def get_version():
-        """获取应用版本号"""
-        from __version__ import __version__
-
-        return jsonify({"version": __version__})
 
     return bp
