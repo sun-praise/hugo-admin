@@ -10,13 +10,8 @@ from flask import Blueprint, current_app, jsonify, send_file, send_from_director
 bp = Blueprint("pages", __name__)
 
 
-def register_page_routes(app):
-    """
-    注册 SPA 页面路由。
-
-    Args:
-        app: Flask 应用实例（用于 send_from_directory 的 root_path）
-    """
+def register_page_routes():
+    """注册 SPA 页面路由。"""
 
     @bp.route("/")
     def index():
