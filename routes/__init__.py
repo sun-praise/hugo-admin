@@ -9,6 +9,7 @@ from .email_routes import register_email_routes
 from .file_routes import register_file_routes
 from .image_routes import register_image_routes
 from .page_routes import register_page_routes
+from .plugin_routes import register_plugin_routes
 from .post_routes import register_post_routes
 from .publish_routes import register_publish_routes
 from .references_routes import register_references_routes
@@ -28,4 +29,5 @@ __all__ = [
     "register_settings_routes",
     "register_socketio_handlers",
     "register_ai_routes",
+    "register_plugin_routes",
 ]
