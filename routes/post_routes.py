@@ -12,13 +12,12 @@ logger = logging.getLogger(__name__)
 bp = Blueprint("posts", __name__)
 
 
-def register_post_routes(post_service, ref_service):
+def register_post_routes(registry):
     """
     注册文章管理、缓存和引用关系路由
 
     Args:
-        post_service: PostService 实例
-        ref_service: ReferenceService 实例
+        registry: ServiceRegistry 实例
     """
 
     @bp.route("/api/posts")
@@ -30,7 +29,7 @@ def register_post_routes(post_service, ref_service):
         page = int(request.args.get("page", 1))
         per_page = int(request.args.get("per_page", 20))
 
-        result = post_service.get_posts(
+        result = registry.post_service.get_posts(
             query=query, category=category, tag=tag, page=page, per_page=per_page
         )
 
@@ -39,24 +38,24 @@ def register_post_routes(post_service, ref_service):
     @bp.route("/api/posts/tags")
     def get_tags():
         """获取所有标签"""
-        tags = post_service.get_all_tags()
+        tags = registry.post_service.get_all_tags()
         return jsonify({"tags": tags})
 
     @bp.route("/api/posts/categories")
     def get_categories():
         """获取所有分类"""
-        categories = post_service.get_all_categories()
+        categories = registry.post_service.get_all_categories()
         return jsonify({"categories": categories})
 
     @bp.route("/api/cache/refresh", methods=["POST"])
     def refresh_cache():
         """刷新文章缓存"""
-        if post_service.cache_service:
-            post_service.cache_service.refresh()
-            stats = post_service.cache_service.get_stats()
+        if registry.post_service.cache_service:
+            registry.post_service.cache_service.refresh()
+            stats = registry.post_service.cache_service.get_stats()
             # 同步刷新引用索引
             try:
-                ref_service.scan_all()
+                registry.ref_service.scan_all()
             except Exception as e:
                 logger.exception(e)
             return jsonify({"success": True, "message": "缓存刷新成功", "stats": stats})
@@ -66,8 +65,8 @@ def register_post_routes(post_service, ref_service):
     @bp.route("/api/cache/stats")
     def cache_stats():
         """获取缓存统计信息"""
-        if post_service.cache_service:
-            stats = post_service.cache_service.get_stats()
+        if registry.post_service.cache_service:
+            stats = registry.post_service.cache_service.get_stats()
             return jsonify({"success": True, "stats": stats})
         else:
             return jsonify({"success": False, "message": "缓存未启用"}), 400
@@ -76,8 +75,8 @@ def register_post_routes(post_service, ref_service):
     def scan_references():
         """扫描所有文章的引用关系"""
         try:
-            ref_service.scan_all()
-            refs = ref_service.db.get_all_references()
+            registry.ref_service.scan_all()
+            refs = registry.ref_service.db.get_all_references()
             return jsonify({"success": True, "references": refs})
         except Exception as e:
             return jsonify({"success": False, "message": str(e)}), 500
@@ -89,7 +88,7 @@ def register_post_routes(post_service, ref_service):
         if not file_path:
             return jsonify({"success": False, "message": "缺少 path 参数"}), 400
 
-        backlinks = ref_service.get_backlinks(file_path)
+        backlinks = registry.ref_service.get_backlinks(file_path)
         return jsonify({"success": True, "backlinks": backlinks})
 
     @bp.route("/api/posts/search")
@@ -99,7 +98,7 @@ def register_post_routes(post_service, ref_service):
         if not query:
             return jsonify({"success": True, "posts": []})
 
-        posts = ref_service.search_posts(query)
+        posts = registry.ref_service.search_posts(query)
         return jsonify({"success": True, "posts": posts})
 
     return bp

@@ -13,8 +13,8 @@ bp = Blueprint("files", __name__)
 logger = logging.getLogger(__name__)
 
 
-def register_file_routes(post_service, ref_service):
-    """注册文件操作路由，依赖 post_service 和 ref_service"""
+def register_file_routes(registry):
+    """注册文件操作路由，依赖 registry 中的 post_service 和 ref_service"""
 
     @bp.route("/api/file/read", methods=["POST"])
     def read_file():
@@ -25,7 +25,7 @@ def register_file_routes(post_service, ref_service):
         if not file_path:
             return jsonify({"success": False, "message": "缺少文件路径"}), 400
 
-        success, content = post_service.read_file(file_path)
+        success, content = registry.post_service.read_file(file_path)
 
         if success:
             return jsonify({"success": True, "content": content, "path": file_path})
@@ -41,7 +41,9 @@ def register_file_routes(post_service, ref_service):
         if not file_path:
             return jsonify({"success": False, "message": "缺少文件路径"}), 400
 
-        success, content, fm = post_service.read_file_with_frontmatter(file_path)
+        success, content, fm = registry.post_service.read_file_with_frontmatter(
+            file_path
+        )
 
         if success:
             return jsonify(
@@ -66,7 +68,7 @@ def register_file_routes(post_service, ref_service):
         if not file_path or content is None:
             return jsonify({"success": False, "message": "缺少必要参数"}), 400
 
-        success, message = post_service.save_file(
+        success, message = registry.post_service.save_file(
             file_path, content, frontmatter_data=frontmatter_data
         )
 
@@ -78,7 +80,7 @@ def register_file_routes(post_service, ref_service):
                     if Path(file_path).is_absolute()
                     else Path(current_app.config["CONTENT_DIR"]) / file_path
                 )
-                ref_service.update_file(abs_path)
+                registry.ref_service.update_file(abs_path)
             except Exception as e:
                 logger.exception(e)
 
@@ -95,7 +97,7 @@ def register_file_routes(post_service, ref_service):
         if not title:
             return jsonify({"success": False, "message": "缺少文章标题"}), 400
 
-        success, result = post_service.create_post(title)
+        success, result = registry.post_service.create_post(title)
 
         if success:
             return jsonify({"success": True, "path": result, "message": "文章创建成功"})
