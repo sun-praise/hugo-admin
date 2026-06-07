@@ -31,13 +31,11 @@ class TestPublishIntegration:
     def client(self, temp_content_dir):
         """测试客户端 - 配置 app 使用临时目录"""
         app_module.app.config["TESTING"] = True
-        original_post_service = app_module.registry.post_service
-        app_module.registry.post_service = PostService(
-            temp_content_dir, use_cache=False
-        )
+        original_post_service = app_module.post_service
+        app_module.post_service = PostService(temp_content_dir, use_cache=False)
         with app_module.app.test_client() as client:
             yield client
-        app_module.registry.post_service = original_post_service
+        app_module.post_service = original_post_service
 
     def test_full_publish_workflow(self, client, temp_content_dir):
         """测试完整的发布工作流程"""
