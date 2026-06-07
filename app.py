@@ -5,25 +5,33 @@ Hugo Blog Web 管理界面
 """
 
 import logging
-from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from urllib.parse import urlparse, urlunparse
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request, send_file, send_from_directory
-from flask_socketio import SocketIO, emit
-from werkzeug.exceptions import BadRequest
+from flask import Flask, current_app, jsonify, request, send_file
+from flask_socketio import SocketIO
 
 from models.database import Database
-from routes import register_ai_routes
+from routes import (
+    register_ai_routes,
+    register_email_routes,
+    register_file_routes,
+    register_image_routes,
+    register_page_routes,
+    register_post_routes,
+    register_publish_routes,
+    register_server_routes,
+    register_settings_routes,
+    register_socketio_handlers,
+)
+from routes.settings_routes import _ensure_server_url_has_port
 from services.chat_history_service import ChatHistoryService
-from services.email_service import EmailService
-from services.frontmatter_gen_service import generate_frontmatter
 from services.git_service import GitService
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
 from services.reference_service import ReferenceService
+from services.registry import ServiceRegistry
 from services.settings_service import (
     SettingsService,
     SettingsStorageError,
@@ -40,13 +48,9 @@ REACT_INDEX = Path(__file__).parent / "static" / "dist" / "index.html"
 
 # 配置日志 - 写入 app.log，带轮转
 logger = logging.getLogger(__name__)
-
 log_file = Path(__file__).parent / "app.log"
 file_handler = RotatingFileHandler(
-    log_file,
-    maxBytes=1_048_576,  # 1 MB
-    backupCount=5,
-    encoding="utf-8",
+    log_file, maxBytes=5 * 1024 * 1024, backupCount=5, encoding="utf-8"
 )
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(
@@ -70,50 +74,31 @@ except ImportError:
     print("✓ 已加载默认配置 (config.py)")
 
 
-def _ensure_server_url_has_port(url: str) -> str:
-    """若 URL 已带 scheme 但缺少显式端口，则按 HUGO_SERVER_PORT 补齐。"""
-    if not url:
-        return url
-    parsed = urlparse(url)
-    if not parsed.scheme or not parsed.hostname or parsed.port is not None:
-        return url
-    default_port = app.config.get("HUGO_SERVER_PORT", 1313)
-    return urlunparse(parsed._replace(netloc=f"{parsed.hostname}:{default_port}"))
-
-
-app.config["HUGO_SERVER_BASE_URL"] = _ensure_server_url_has_port(
-    app.config.get("HUGO_SERVER_BASE_URL", "")
-)
-
 # 向后兼容的配置
 app.config["HUGO_ROOT"] = app.config.get("HUGO_ROOT", Path(__file__).parent.parent)
 app.config["CONTENT_DIR"] = app.config.get(
     "CONTENT_DIR", app.config["HUGO_ROOT"] / "content"
 )
 ENV_AI_API_KEY = app.config.get("AI_API_KEY", "")
-SESSION_AI_API_KEY = ""
 
-# 初始化可持久化设置（优先级高于环境变量）
+# 初始化可持久化设置
 settings_service = SettingsService(
-    Path(app.config["HUGO_ROOT"]) / ".admin" / "settings.json",
-    legacy_settings_file=Path(app.config["CONTENT_DIR"]) / ".admin" / "settings.json",
+    app.config["HUGO_ROOT"] / ".admin" / "settings.json",
     defaults={
-        "AI_BASE_URL": app.config.get("AI_BASE_URL", "https://api.deepseek.com"),
-        "AI_MODEL": app.config.get("AI_MODEL", "deepseek-chat"),
-        "HUGO_SERVER_URL": app.config.get(
-            "HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313"
-        ),
+        "AI_BASE_URL": app.config.get("AI_BASE_URL"),
+        "AI_MODEL": app.config.get("AI_MODEL"),
+        "HUGO_BASE_DIR": str(app.config.get("HUGO_ROOT", "")),
+        "HUGO_SERVER_URL": app.config.get("HUGO_SERVER_BASE_URL"),
     },
 )
 
 try:
     persisted_settings = settings_service.get_settings()
+    _hugo_server_url = persisted_settings.get("hugo", {}).get("server_url", "")
+    _hugo_server_url = _ensure_server_url_has_port(app, _hugo_server_url)
     app.config["AI_BASE_URL"] = persisted_settings["ai"]["base_url"]
     app.config["AI_MODEL"] = persisted_settings["ai"]["model"]
     app.config["AI_API_KEY"] = ENV_AI_API_KEY
-    _hugo_server_url = _ensure_server_url_has_port(
-        persisted_settings.get("hugo", {}).get("server_url", "")
-    )
 except (SettingsValidationError, SettingsStorageError) as e:
     print(f"⚠ 设置文件读取失败，继续使用默认配置: {e}")
     _hugo_server_url = ""
@@ -142,40 +127,19 @@ app.chat_history_service = chat_history_service
 ai_service = None
 
 
-def _to_public_settings(settings):
-    """将设置转换为前端可展示格式，并补充密钥来源信息"""
-    public_settings = settings_service.to_public_settings(settings)
+registry = ServiceRegistry(
+    post_service=post_service,
+    git_service=git_service,
+    hugo_manager=hugo_manager,
+    settings_service=settings_service,
+    ref_service=ref_service,
+    ai_service=ai_service,
+    session_api_key="",
+    env_api_key=ENV_AI_API_KEY,
+    socketio=socketio,
+)
 
-    public_settings["hugo"]["base_dir"] = public_settings["hugo"]["base_dir"] or str(
-        app.config.get("HUGO_ROOT", "")
-    )
-    public_settings["hugo"]["server_url"] = _ensure_server_url_has_port(
-        public_settings["hugo"].get("server_url", "")
-        or app.config.get("HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313")
-    )
-
-    global SESSION_AI_API_KEY
-    session_api_key = SESSION_AI_API_KEY
-    has_env_api_key = bool(ENV_AI_API_KEY)
-
-    if session_api_key:
-        source = "session"
-        configured = True
-        api_key_hint = settings_service._mask_api_key(session_api_key)
-    elif has_env_api_key:
-        source = "env"
-        configured = True
-        api_key_hint = ""
-    else:
-        source = "none"
-        configured = False
-        api_key_hint = ""
-
-    public_settings["ai"]["api_key_source"] = source
-    public_settings["ai"]["api_key_configured"] = configured
-    public_settings["ai"]["api_key_hint"] = api_key_hint
-
-    return public_settings
+# ============ AI 服务懒加载 ============
 
 
 class _DisabledAIService:
@@ -194,872 +158,48 @@ class _DisabledAIService:
 
 def get_ai_service():
     """Get or lazily initialize AI service."""
-    global ai_service
-    if ai_service is None:
+    ai = registry.ai_service
+    if ai is None:
         from services.ai_service import AIService
 
         api_key = app.config.get("AI_API_KEY", "")
         if not api_key:
             print("⚠ AI service disabled: AI_API_KEY not configured")
-            ai_service = _DisabledAIService()
+            ai = _DisabledAIService()
         else:
             print("✓ Initializing AI service...")
             try:
-                ai_service = AIService(
+                ai = AIService(
                     api_key=api_key,
                     base_url=app.config.get("AI_BASE_URL", "https://api.deepseek.com"),
                     model_name=app.config.get("AI_MODEL", "deepseek-chat"),
-                    post_service=post_service,
-                    git_service=git_service,
-                    hugo_manager=hugo_manager,
+                    post_service=registry.post_service,
+                    git_service=registry.git_service,
+                    hugo_manager=registry.hugo_manager,
                 )
             except Exception as e:
                 print(f"⚠ AI service initialization failed: {e}")
-                ai_service = _DisabledAIService()
-    return ai_service
-
-
-# Register AI routes with lazy initialization
-ai_blueprint = register_ai_routes(get_ai_service)
-app.register_blueprint(ai_blueprint)
-
-
-# ============ 页面路由 ============
-
-
-@app.route("/")
-def index():
-    """首页 - 仪表板"""
-    return send_file(REACT_INDEX)
-
-
-@app.route("/posts")
-def posts_page():
-    """文章列表页面"""
-    return send_file(REACT_INDEX)
-
-
-@app.route("/editor")
-@app.route("/editor/<path:file_path>")
-def editor_page(file_path=None):
-    """文章编辑器页面"""
-    return send_file(REACT_INDEX)
-
-
-@app.route("/server")
-def server_page():
-    """Hugo 服务器控制页面"""
-    return send_file(REACT_INDEX)
-
-
-@app.route("/settings")
-def settings_page():
-    """设置页面"""
-    return send_file(REACT_INDEX)
-
-
-@app.route("/test")
-def test_page():
-    """测试页面"""
-    return send_from_directory(app.root_path, "test_editor.html")
-
-
-@app.route("/content/<path:filename>")
-def serve_content_files(filename):
-    """提供 content 目录下的静态文件（如图片）"""
-    if any(part.startswith(".") for part in Path(filename).parts):
-        return jsonify({"success": False, "message": "访问被拒绝"}), 403
-
-    content_dir = app.config["CONTENT_DIR"]
-    return send_from_directory(content_dir, filename)
-
-
-# ============ API 路由 ============
-
-
-# --- 应用设置 API ---
-
-
-@app.route("/api/settings")
-def get_settings():
-    """获取应用设置"""
-    try:
-        settings = settings_service.get_settings()
-        return jsonify({"success": True, "settings": _to_public_settings(settings)})
-    except (SettingsValidationError, SettingsStorageError) as e:
-        return jsonify({"success": False, "message": str(e)}), 500
-
-
-@app.route("/api/settings", methods=["PUT"])
-def update_settings():
-    """更新应用设置"""
-    global SESSION_AI_API_KEY  # noqa: E501
-    global ai_service, post_service, git_service
-    global hugo_manager, settings_service, ref_service
-    if not request.is_json:
-        return jsonify({"success": False, "message": "请求体必须是 JSON 对象"}), 400
-
-    try:
-        data = request.get_json(silent=False)
-    except BadRequest:
-        return jsonify({"success": False, "message": "请求体不是合法 JSON"}), 400
-
-    if not isinstance(data, dict):
-        return jsonify({"success": False, "message": "请求体必须是 JSON 对象"}), 400
-
-    payload = data.get("settings", data)
-
-    if not isinstance(payload, dict):
-        return jsonify({"success": False, "message": "设置格式无效"}), 400
-
-    settings_payload = payload
-    incoming_session_api_key = None
-    ai_payload = payload.get("ai")
-    if isinstance(ai_payload, dict) and "api_key" in ai_payload:
-        api_key = ai_payload.get("api_key")
-        if not isinstance(api_key, str):
-            return jsonify({"success": False, "message": "AI API Key 格式无效"}), 400
-
-        incoming_session_api_key = api_key.strip()
-        settings_payload = dict(payload)
-        settings_payload["ai"] = dict(ai_payload)
-        settings_payload["ai"].pop("api_key", None)
-
-    try:
-        updated_settings = settings_service.update_settings(settings_payload)
-    except SettingsValidationError as e:
-        return jsonify({"success": False, "message": str(e)}), 400
-    except SettingsStorageError as e:
-        return jsonify({"success": False, "message": str(e)}), 500
-
-    if incoming_session_api_key is not None:
-        SESSION_AI_API_KEY = incoming_session_api_key
-
-    app.config["AI_BASE_URL"] = updated_settings["ai"]["base_url"]
-    app.config["AI_MODEL"] = updated_settings["ai"]["model"]
-    app.config["AI_API_KEY"] = SESSION_AI_API_KEY or ENV_AI_API_KEY
-
-    new_hugo_root = updated_settings.get("hugo", {}).get("base_dir", "")
-    new_server_url = _ensure_server_url_has_port(
-        updated_settings.get("hugo", {}).get("server_url", "")
-    )
-    if new_hugo_root and str(app.config["HUGO_ROOT"]) != new_hugo_root:
-        new_root = Path(new_hugo_root)
-        app.config["HUGO_ROOT"] = new_root
-        app.config["CONTENT_DIR"] = new_root / "content"
-        post_service = PostService(app.config["CONTENT_DIR"], use_cache=True)
-        ref_service = ReferenceService(
-            app.config["CONTENT_DIR"],
-            post_service.cache_service.db if post_service.cache_service else None,
-        )
-        ref_service.scan_all()
-        git_service = GitService(new_root)
-        hugo_manager = HugoServerManager(
-            new_root, socketio, server_url=new_server_url or None
-        )
-        settings_service = SettingsService(
-            new_root / ".admin" / "settings.json",
-            legacy_settings_file=Path(app.config["CONTENT_DIR"])
-            / ".admin"
-            / "settings.json",
-            defaults={
-                "AI_BASE_URL": app.config.get(
-                    "AI_BASE_URL", "https://api.deepseek.com"
-                ),
-                "AI_MODEL": app.config.get("AI_MODEL", "deepseek-chat"),
-                "HUGO_BASE_DIR": str(new_root),
-                "HUGO_SERVER_URL": new_server_url
-                or app.config.get("HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313"),
-            },
-        )
-    elif new_server_url != hugo_manager.server_url:
-        hugo_manager.server_url = new_server_url or app.config.get(
-            "HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313"
-        )
-
-    ai_service = None
-
-    return jsonify(
-        {
-            "success": True,
-            "message": "设置已保存",
-            "settings": _to_public_settings(updated_settings),
-        }
-    )
-
-
-@app.route("/api/version")
-def get_version():
-    """获取应用版本号"""
-    from __version__ import __version__
-
-    return jsonify({"version": __version__})
-
-
-# --- Hugo 服务器管理 API ---
-
-
-@app.route("/api/server/status")
-def server_status():
-    """获取服务器状态"""
-    status = hugo_manager.get_status()
-    return jsonify(status)
-
-
-@app.route("/api/server/start", methods=["POST"])
-def server_start():
-    """启动 Hugo 服务器"""
-    data = request.get_json() or {}
-    debug = data.get("debug", False)
-
-    success, message = hugo_manager.start(debug=debug)
-    return jsonify(
-        {"success": success, "message": message, "status": hugo_manager.get_status()}
-    )
-
-
-@app.route("/api/server/stop", methods=["POST"])
-def server_stop():
-    """停止 Hugo 服务器"""
-    success, message = hugo_manager.stop()
-    return jsonify(
-        {"success": success, "message": message, "status": hugo_manager.get_status()}
-    )
-
-
-# --- 文章管理 API ---
-
-
-@app.route("/api/posts")
-def get_posts():
-    """获取文章列表"""
-    query = request.args.get("q", "")
-    category = request.args.get("category", "")
-    tag = request.args.get("tag", "")
-    page = int(request.args.get("page", 1))
-    per_page = int(request.args.get("per_page", 20))
-
-    result = post_service.get_posts(
-        query=query, category=category, tag=tag, page=page, per_page=per_page
-    )
-
-    return jsonify(result)
-
-
-@app.route("/api/posts/tags")
-def get_tags():
-    """获取所有标签"""
-    tags = post_service.get_all_tags()
-    return jsonify({"tags": tags})
-
-
-@app.route("/api/posts/categories")
-def get_categories():
-    """获取所有分类"""
-    categories = post_service.get_all_categories()
-    return jsonify({"categories": categories})
-
-
-@app.route("/api/cache/refresh", methods=["POST"])
-def refresh_cache():
-    """刷新文章缓存"""
-    if post_service.cache_service:
-        post_service.cache_service.refresh()
-        stats = post_service.cache_service.get_stats()
-        # 同步刷新引用索引
-        try:
-            ref_service.scan_all()
-        except Exception as e:
-            logger.exception(e)
-        return jsonify({"success": True, "message": "缓存刷新成功", "stats": stats})
-    else:
-        return jsonify({"success": False, "message": "缓存未启用"}), 400
-
-
-@app.route("/api/cache/stats")
-def cache_stats():
-    """获取缓存统计信息"""
-    if post_service.cache_service:
-        stats = post_service.cache_service.get_stats()
-        return jsonify({"success": True, "stats": stats})
-    else:
-        return jsonify({"success": False, "message": "缓存未启用"}), 400
-
-
-# --- 引用关系 API ---
-
-
-@app.route("/api/references/scan", methods=["POST"])
-def scan_references():
-    """扫描所有文章的引用关系"""
-    try:
-        ref_service.scan_all()
-        refs = ref_service.db.get_all_references()
-        return jsonify({"success": True, "references": refs})
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
-
-
-@app.route("/api/references/backlinks")
-def get_backlinks():
-    """获取反向链接"""
-    file_path = request.args.get("path")
-    if not file_path:
-        return jsonify({"success": False, "message": "缺少 path 参数"}), 400
-
-    backlinks = ref_service.get_backlinks(file_path)
-    return jsonify({"success": True, "backlinks": backlinks})
-
-
-@app.route("/api/posts/search")
-def search_posts():
-    """文章搜索（自动补全用）"""
-    query = request.args.get("q", "")
-    if not query:
-        return jsonify({"success": True, "posts": []})
-
-    posts = ref_service.search_posts(query)
-    return jsonify({"success": True, "posts": posts})
-
-
-# --- 文件操作 API ---
-
-
-@app.route("/api/file/read", methods=["POST"])
-def read_file():
-    """读取文件内容"""
-    data = request.get_json()
-    file_path = data.get("path")
-
-    if not file_path:
-        return jsonify({"success": False, "message": "缺少文件路径"}), 400
-
-    success, content = post_service.read_file(file_path)
-
-    if success:
-        return jsonify({"success": True, "content": content, "path": file_path})
-    else:
-        return jsonify({"success": False, "message": content}), 404
-
-
-@app.route("/api/file/read-with-frontmatter", methods=["POST"])
-def read_file_with_frontmatter():
-    """读取文件内容，分离 frontmatter 和正文"""
-    data = request.get_json()
-    file_path = data.get("path")
-
-    if not file_path:
-        return jsonify({"success": False, "message": "缺少文件路径"}), 400
-
-    success, content, fm = post_service.read_file_with_frontmatter(file_path)
-
-    if success:
-        return jsonify(
-            {
-                "success": True,
-                "content": content,
-                "frontmatter": fm,
-                "path": file_path,
-            }
-        )
-    else:
-        return jsonify({"success": False, "message": content}), 404
-
-
-@app.route("/api/file/save", methods=["POST"])
-def save_file():
-    """保存文件内容"""
-    data = request.get_json()
-    file_path = data.get("path")
-    content = data.get("content")
-    frontmatter_data = data.get("frontmatter")
-
-    if not file_path or content is None:
-        return jsonify({"success": False, "message": "缺少必要参数"}), 400
-
-    success, message = post_service.save_file(
-        file_path, content, frontmatter_data=frontmatter_data
-    )
-
-    if success:
-        # 增量更新引用关系
-        try:
-            abs_path = str(
-                Path(file_path)
-                if Path(file_path).is_absolute()
-                else Path(app.config["CONTENT_DIR"]) / file_path
-            )
-            ref_service.update_file(abs_path)
-        except Exception as e:
-            logger.exception(e)
-
-    return jsonify({"success": success, "message": message}), 200 if success else 500
-
-
-@app.route("/api/post/create", methods=["POST"])
-def create_post():
-    """创建新文章"""
-    data = request.get_json()
-    title = data.get("title")
-
-    if not title:
-        return jsonify({"success": False, "message": "缺少文章标题"}), 400
-
-    success, result = post_service.create_post(title)
-
-    if success:
-        return jsonify({"success": True, "path": result, "message": "文章创建成功"})
-    else:
-        return jsonify({"success": False, "message": result}), 500
-
-
-@app.route("/api/image/upload", methods=["POST"])
-def upload_image():
-    """上传图片到文章目录"""
-    if "file" not in request.files:
-        return jsonify({"success": False, "message": "没有文件"}), 400
-
-    file = request.files["file"]
-    article_path = request.form.get("article_path")
-
-    if not article_path:
-        return jsonify({"success": False, "message": "缺少文章路径"}), 400
-
-    if file.filename == "":
-        return jsonify({"success": False, "message": "文件名为空"}), 400
-
-    # 检查文件类型
-    allowed_extensions = {"png", "jpg", "jpeg", "gif", "svg", "webp"}
-    filename = file.filename or ""
-    ext = filename.rsplit(".", 1)[1].lower() if "." in filename else ""
-    if ext not in allowed_extensions:
-        return jsonify({"success": False, "message": f"不支持的文件类型: {ext}"}), 400
-
-    success, result = post_service.save_image(article_path, file)
-
-    if success:
-        return jsonify({"success": True, "url": result, "message": "图片上传成功"})
-    else:
-        return jsonify({"success": False, "message": result}), 500
-
-
-@app.route("/api/image/list", methods=["POST"])
-def list_images():
-    """列出文章目录下的所有图片"""
-    data = request.get_json()
-    article_path = data.get("article_path")
-
-    if not article_path:
-        return jsonify({"success": False, "message": "缺少文章路径"}), 400
-
-    success, result = post_service.list_images(article_path)
-
-    if success:
-        return jsonify({"success": True, "images": result})
-    else:
-        return jsonify({"success": False, "message": result}), 500
-
-
-@app.route("/api/image/generate-cover", methods=["POST"])
-def generate_cover():
-    """根据文章内容生成封面图片"""
-    data = request.get_json()
-    article_path = data.get("article_path")
-    title = data.get("title", "")
-    description = data.get("description", "")
-    article_content = data.get("content", "")
-
-    if not article_path:
-        return jsonify({"success": False, "message": "缺少文章路径"}), 400
-
-    api_key = app.config.get("OPENROUTER_API_KEY", "")
-    model = app.config.get("IMAGE_GEN_MODEL", "")
-
-    if not api_key:
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "message": "OPENROUTER_API_KEY 未配置，请设置环境变量",
-                }
-            ),
-            400,
-        )
-
-    from services.image_gen_service import generate_cover_image, save_generated_image
-
-    ok, result = generate_cover_image(
-        title=title,
-        description=description,
-        content=article_content,
-        api_key=api_key,
-        model=model,
-    )
-
-    if not ok:
-        return jsonify({"success": False, "message": result}), 500
-
-    content_dir = Path(app.config["CONTENT_DIR"])
-    save_ok, save_result = save_generated_image(article_path, result, content_dir)
-
-    if not save_ok:
-        return jsonify({"success": False, "message": save_result}), 500
-
-    if post_service.cache_service:
-        abs_path = str(
-            Path(article_path)
-            if Path(article_path).is_absolute()
-            else content_dir / article_path
-        )
-        post_service.cache_service.invalidate_post(abs_path)
-
-    return jsonify({"success": True, "url": save_result, "message": "封面图片生成成功"})
-
-
-@app.route("/api/frontmatter/generate", methods=["POST"])
-def generate_frontmatter_api():
-    """根据文章内容 AI 生成 frontmatter 建议"""
-    data = request.get_json(silent=True) or {}
-    content = data.get("content", "")
-
-    if not isinstance(content, str) or not content.strip():
-        return jsonify({"success": False, "message": "文章内容为空"}), 400
-
-    api_key = app.config.get("AI_API_KEY", "")
-    base_url = app.config.get("AI_BASE_URL", "https://api.deepseek.com")
-    model = app.config.get("AI_MODEL", "deepseek-chat")
-
-    if not api_key:
-        return jsonify({"success": False, "message": "AI API Key 未配置"}), 400
-
-    ok, result = generate_frontmatter(
-        content=content,
-        api_key=api_key,
-        base_url=base_url,
-        model=model,
-    )
-
-    if not ok:
-        return jsonify({"success": False, "message": result}), 500
-
-    return jsonify({"success": True, "frontmatter": result})
-
-
-# --- 文章发布 API ---
-
-
-@app.route("/api/article/publish", methods=["POST"])
-def publish_article():
-    """发布单个文章"""
-    data = request.get_json()
-
-    if not data or "file_path" not in data:
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "缺少 file_path 参数",
-                    "error_code": "MISSING_PARAMETER",
-                }
-            ),
-            400,
-        )
-
-    file_path = data["file_path"]
-    success, message, operation_id = post_service.publish_article(file_path)
-
-    if success:
-        return jsonify(
-            {
-                "success": True,
-                "message": message,
-                "operation_id": operation_id,
-                "article_path": file_path,
-                "draft_status_changed": True,
-                "published_at": datetime.now().isoformat() + "Z",
-            }
-        )
-    else:
-        # 根据错误消息返回适当的 HTTP 状态码
-        if "不存在" in message:
-            status_code = 404
-        elif "已经发布" in message or "访问被拒绝" in message:
-            status_code = 409
-        else:
-            status_code = 400
-
-        return (
-            jsonify(
-                {"success": False, "error": message, "error_code": "PUBLISH_FAILED"}
-            ),
-            status_code,
-        )
-
-
-@app.route("/api/article/status")
-def get_article_status():
-    """获取文章发布状态"""
-    file_path = request.args.get("file_path")
-
-    if not file_path:
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "缺少 file_path 参数",
-                    "error_code": "MISSING_PARAMETER",
-                }
-            ),
-            400,
-        )
-
-    status = post_service.get_publish_status(file_path)
-
-    if "error" in status:
-        status_code = 404 if "不存在" in status["error"] else 400
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": status["error"],
-                    "error_code": "STATUS_CHECK_FAILED",
-                }
-            ),
-            status_code,
-        )
-
-    return jsonify({"success": True, "status": status})
-
-
-@app.route("/api/article/status/bulk", methods=["POST"])
-def get_bulk_article_status():
-    """批量获取文章发布状态"""
-    data = request.get_json()
-
-    if not data or "file_paths" not in data:
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "缺少 file_paths 参数",
-                    "error_code": "MISSING_PARAMETER",
-                }
-            ),
-            400,
-        )
-
-    file_paths = data["file_paths"]
-    results = []
-
-    for file_path in file_paths:
-        status = post_service.get_publish_status(file_path)
-        results.append({"file_path": file_path, "status": status})
-
-    return jsonify({"success": True, "results": results, "count": len(results)})
-
-
-@app.route("/api/article/publish/bulk", methods=["POST"])
-def bulk_publish_articles():
-    """批量发布文章"""
-    data = request.get_json()
-
-    if not data or "file_paths" not in data:
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "缺少 file_paths 参数",
-                    "error_code": "MISSING_PARAMETER",
-                }
-            ),
-            400,
-        )
-
-    file_paths = data["file_paths"]
-    _stop_on_error = data.get("stop_on_first_error", False)  # noqa: F841
-
-    try:
-        result = post_service.bulk_publish_articles(file_paths)
-
-        # 根据结果返回适当的 HTTP 状态码
-        if result["success"] or not result["failed_count"]:
-            status_code = 200
-        elif result["failed_count"] > 0 and result["published_count"] > 0:
-            status_code = 207  # Multi-Status
-        else:
-            status_code = 400
-
-        return jsonify(result), status_code
-    except Exception as e:
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": f"批量发布失败: {str(e)}",
-                    "error_code": "BULK_PUBLISH_FAILED",
-                }
-            ),
-            500,
-        )
-
-
-# ============ Git / 系统发布相关 API ============
-
-
-@app.route("/api/git/status")
-def git_status():
-    """获取 Git 仓库状态"""
-    try:
-        status = git_service.get_status()
-        return jsonify(status)
-    except Exception as e:
-        return (
-            jsonify({"success": False, "message": f"获取 Git 状态失败: {str(e)}"}),
-            500,
-        )
-
-
-@app.route("/api/git/commits")
-def git_commits():
-    """获取最近的提交记录"""
-    try:
-        count = request.args.get("count", 10, type=int)
-        result = git_service.get_recent_commits(count)
-        return jsonify(result)
-    except Exception as e:
-        return (
-            jsonify({"success": False, "message": f"获取提交记录失败: {str(e)}"}),
-            500,
-        )
-
-
-@app.route("/api/publish/system", methods=["POST"])
-def publish_system():
-    """系统发布 - 执行 git add, commit, push 完整流程"""
-    try:
-        data = request.get_json() or {}
-        commit_message = data.get("message")
-
-        result = git_service.publish_system(commit_message)
-
-        if result["success"]:
-            return jsonify(result), 200
-        else:
-            return jsonify(result), 400
-
-    except Exception as e:
-        return (
-            jsonify(
-                {"success": False, "message": f"系统发布失败: {str(e)}", "steps": {}}
-            ),
-            500,
-        )
-
-
-# ============ 邮件推送 API ============
-
-
-@app.route("/api/email/push-latest", methods=["POST"])
-def email_push_latest():
-    """推送最新文章到订阅者"""
-    try:
-        data = request.get_json() or {}
-        debug_mode = data.get("debug_mode", False)
-        force = data.get("force", False)
-
-        email_service = EmailService(debug_mode=debug_mode)
-        result = email_service.push_latest(force=force)
-
-        status_code = 200 if result.get("success") else 400
-        return jsonify(result), status_code
-
-    except FileNotFoundError as e:
-        return jsonify({"success": False, "message": f"配置文件错误: {str(e)}"}), 500
-    except Exception as e:
-        return jsonify({"success": False, "message": f"推送失败: {str(e)}"}), 500
-
-
-@app.route("/api/email/push-article", methods=["POST"])
-def email_push_article():
-    """推送指定文章到订阅者"""
-    try:
-        data = request.get_json() or {}
-        url = data.get("url")
-        debug_mode = data.get("debug_mode", False)
-        force = data.get("force", False)
-
-        if not url:
-            return jsonify({"success": False, "message": "缺少文章 URL 参数"}), 400
-
-        email_service = EmailService(debug_mode=debug_mode)
-        result = email_service.push_article(url, force=force)
-
-        status_code = 200 if result.get("success") else 400
-        return jsonify(result), status_code
-
-    except FileNotFoundError as e:
-        return jsonify({"success": False, "message": f"配置文件错误: {str(e)}"}), 500
-    except Exception as e:
-        return jsonify({"success": False, "message": f"推送失败: {str(e)}"}), 500
-
-
-@app.route("/api/email/preview-latest")
-def email_preview_latest():
-    """预览最新文章邮件（不发送）"""
-    try:
-        email_service = EmailService()
-        result = email_service.preview_latest()
-
-        status_code = 200 if result.get("success") else 400
-        return jsonify(result), status_code
-
-    except FileNotFoundError as e:
-        return jsonify({"success": False, "message": f"配置文件错误: {str(e)}"}), 500
-    except Exception as e:
-        return jsonify({"success": False, "message": f"预览失败: {str(e)}"}), 500
-
-
-@app.route("/api/email/preview-article")
-def email_preview_article():
-    """预览指定文章邮件（不发送）"""
-    try:
-        url = request.args.get("url")
-        if not url:
-            return jsonify({"success": False, "message": "缺少文章 URL 参数"}), 400
-
-        email_service = EmailService()
-        result = email_service.preview_article(url)
-
-        status_code = 200 if result.get("success") else 400
-        return jsonify(result), status_code
-
-    except FileNotFoundError as e:
-        return jsonify({"success": False, "message": f"配置文件错误: {str(e)}"}), 500
-    except Exception as e:
-        return jsonify({"success": False, "message": f"预览失败: {str(e)}"}), 500
-
-
-# ============ WebSocket 事件 ============
-
-
-@socketio.on("connect")
-def handle_connect():
-    """客户端连接"""
-    emit("connected", {"message": "已连接到服务器"})
-
-
-@socketio.on("disconnect")
-def handle_disconnect():
-    """客户端断开连接"""
-    print("Client disconnected")
-
-
-@socketio.on("request_logs")
-def handle_request_logs():
-    """客户端请求日志"""
-    logs = hugo_manager.get_recent_logs()
-    emit("server_log", {"logs": logs})
-
+                ai = _DisabledAIService()
+        registry.ai_service = ai
+    return ai
+
+
+# ============ 注册 Blueprint ============
+
+app.config["REACT_INDEX"] = REACT_INDEX
+app.register_blueprint(register_page_routes())
+app.register_blueprint(register_server_routes(registry))
+app.register_blueprint(register_post_routes(registry))
+app.register_blueprint(register_file_routes(registry))
+app.register_blueprint(register_image_routes(registry))
+app.register_blueprint(register_publish_routes(registry))
+app.register_blueprint(register_email_routes())
+app.register_blueprint(register_settings_routes(app, registry))
+app.register_blueprint(register_ai_routes(get_ai_service))
+
+# ============ 注册 SocketIO 事件 ============
+
+register_socketio_handlers(registry)
 
 # ============ 错误处理 ============
 
@@ -1071,7 +211,7 @@ def not_found(e):
         return jsonify({"success": False, "message": "接口不存在"}), 404
     if request.path.startswith("/static/dist/"):
         return jsonify({"success": False, "message": "静态文件不存在"}), 404
-    return send_file(REACT_INDEX)
+    return send_file(current_app.config["REACT_INDEX"])
 
 
 @app.errorhandler(500)
@@ -1096,9 +236,8 @@ if __name__ == "__main__":
     print(f"内容目录: {app.config['CONTENT_DIR']}")
 
     host = "0.0.0.0"
-    port = app.config.get("PORT", 5050)  # 从配置中读取端口，默认为5050
+    port = app.config.get("PORT", 5050)
 
-    # 获取本机 IP 地址
     import socket
 
     try:
@@ -1113,6 +252,4 @@ if __name__ == "__main__":
     print(f"局域网访问: http://{inet_ip}:{port}")
     print("=" * 50)
 
-    # 运行应用
-    # allow_unsafe_werkzeug=True 允许使用 Werkzeug 开发服务器(仅用于开发环境)
     socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)

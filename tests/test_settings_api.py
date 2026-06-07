@@ -22,46 +22,46 @@ class TestSettingsAPI:
             content_dir.mkdir(parents=True, exist_ok=True)
             settings_file = content_dir / ".admin" / "settings.json"
 
-            original_settings_service = app_module.settings_service
+            original_settings_service = app_module.registry.settings_service
             original_content_dir = app_module.app.config.get("CONTENT_DIR")
             original_hugo_root = app_module.app.config.get("HUGO_ROOT")
             original_ai_base_url = app_module.app.config.get("AI_BASE_URL")
             original_ai_model = app_module.app.config.get("AI_MODEL")
             original_ai_api_key = app_module.app.config.get("AI_API_KEY")
-            original_env_ai_api_key = app_module.ENV_AI_API_KEY
-            original_session_ai_api_key = app_module.SESSION_AI_API_KEY
-            original_ai_service = app_module.ai_service
+            original_env_ai_api_key = app_module.registry.env_api_key
+            original_session_ai_api_key = app_module.registry.session_api_key
+            original_ai_service = app_module.registry.ai_service
 
-            app_module.settings_service = SettingsService(
+            temp_settings_service = SettingsService(
                 settings_file,
                 defaults={
                     "AI_BASE_URL": original_ai_base_url,
                     "AI_MODEL": original_ai_model,
                 },
             )
+            app_module.registry.settings_service = temp_settings_service
             app_module.app.config["CONTENT_DIR"] = content_dir
             app_module.app.config["AI_BASE_URL"] = (
                 original_ai_base_url or "https://api.deepseek.com"
             )
             app_module.app.config["AI_MODEL"] = original_ai_model or "deepseek-chat"
-            app_module.ENV_AI_API_KEY = ""
-            app_module.SESSION_AI_API_KEY = ""
+            app_module.registry.env_api_key = ""
+            app_module.registry.session_api_key = ""
             app_module.app.config["AI_API_KEY"] = ""
             app_module.app.config["TESTING"] = True
-            app_module.ai_service = object()
+            app_module.registry.ai_service = object()
 
             with app_module.app.test_client() as client:
                 yield client, settings_file
-
-            app_module.settings_service = original_settings_service
+            app_module.registry.settings_service = original_settings_service
             app_module.app.config["CONTENT_DIR"] = original_content_dir
             app_module.app.config["HUGO_ROOT"] = original_hugo_root
             app_module.app.config["AI_BASE_URL"] = original_ai_base_url
             app_module.app.config["AI_MODEL"] = original_ai_model
             app_module.app.config["AI_API_KEY"] = original_ai_api_key
-            app_module.ENV_AI_API_KEY = original_env_ai_api_key
-            app_module.SESSION_AI_API_KEY = original_session_ai_api_key
-            app_module.ai_service = original_ai_service
+            app_module.registry.env_api_key = original_env_ai_api_key
+            app_module.registry.session_api_key = original_session_ai_api_key
+            app_module.registry.ai_service = original_ai_service
 
     def test_get_settings_returns_defaults(self, client):
         """获取设置应返回默认值"""
@@ -102,7 +102,7 @@ class TestSettingsAPI:
 
         assert app_module.app.config["AI_BASE_URL"] == payload["ai"]["base_url"]
         assert app_module.app.config["AI_MODEL"] == payload["ai"]["model"]
-        assert app_module.ai_service is None
+        assert app_module.registry.ai_service is None
 
     def test_update_settings_rejects_invalid_base_url(self, client):
         """不合法 base_url 应返回 400"""
@@ -152,12 +152,12 @@ class TestSettingsAPI:
         """设置持久化失败应返回 500"""
         test_client, _ = client
 
-        original_update = app_module.settings_service.update_settings
+        original_update = app_module.registry.settings_service.update_settings
 
         def _raise_storage_error(_):
             raise SettingsStorageError("保存设置失败: disk full")
 
-        app_module.settings_service.update_settings = _raise_storage_error
+        app_module.registry.settings_service.update_settings = _raise_storage_error
 
         try:
             response = test_client.put(
@@ -165,7 +165,7 @@ class TestSettingsAPI:
                 json={"ai": {"model": "deepseek-chat"}},
             )
         finally:
-            app_module.settings_service.update_settings = original_update
+            app_module.registry.settings_service.update_settings = original_update
 
         assert response.status_code == 500
         data = response.get_json()
@@ -209,8 +209,8 @@ class TestSettingsAPI:
         """清除设置中的 API Key 后应回退到环境变量"""
         test_client, _ = client
 
-        app_module.ENV_AI_API_KEY = "env-key-123456"
-        app_module.app.config["AI_API_KEY"] = app_module.ENV_AI_API_KEY
+        app_module.registry.env_api_key = "env-key-123456"
+        app_module.app.config["AI_API_KEY"] = "env-key-123456"
 
         test_client.put("/api/settings", json={"ai": {"api_key": "saved-key-abcdef"}})
 
