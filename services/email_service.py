@@ -6,19 +6,17 @@
 """
 
 import json
-from urllib.parse import urlparse
 import re
 import smtplib
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
+from urllib.parse import urlparse
 
 import feedparser
 import requests
 import yaml
-
-
 
 
 def _strip_html_suffix(path):
@@ -32,6 +30,8 @@ def _strip_html_suffix(path):
     if path.endswith(".htm"):
         return path[: -len(".htm")]
     return path
+
+
 class EmailService:
     """邮件推送服务"""
 
@@ -180,7 +180,9 @@ class EmailService:
 
                 # path-only 输入：忽略 netloc，仅比对 path
                 # 完整 URL 输入：netloc 与 path 都需匹配
-                netloc_matches = (target_netloc == "") or (target_netloc == entry_netloc)
+                netloc_matches = (target_netloc == "") or (
+                    target_netloc == entry_netloc
+                )
                 if netloc_matches and target_path == entry_path:
                     matches.append(entry)
 
