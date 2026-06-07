@@ -1,10 +1,10 @@
 ## ADDED Requirements
 
-### Requirement: Plugin Protocol Definition
 The system SHALL define a gRPC-based plugin protocol (`plugin.proto`) that specifies:
 - A `PluginService` with `Info`, `HealthCheck`, `GetConfigSchema`, and `SetConfig` RPCs
-- An `ImageUploader` service with `Upload` and `Delete` RPCs
-- Standard message types for plugin metadata, image data, and configuration
+- An `ImageUploader` service with client-streaming `Upload` and unary `Delete` RPCs
+- Standard message types including `ImageUploadChunk` (64 KiB chunks) for streaming large files
+- Accepted size constraint: max upload 16 MB (Flask `MAX_CONTENT_LENGTH`), streamed via gRPC client-streaming to avoid double-buffering
 
 #### Scenario: Plugin binary starts and responds to handshake
 - **WHEN** Plugin Manager spawns a plugin binary with `--port <port>`
@@ -27,6 +27,11 @@ The system SHALL require each plugin to provide a `plugin.toml` manifest contain
 - **THEN** it SHALL parse each subdirectory's `plugin.toml`
 - **AND** skip directories that do not contain a valid `plugin.toml`
 
+#### Scenario: Invalid plugin.toml is rejected
+- **WHEN** a `plugin.toml` is missing required fields (`[plugin]` section with `name`, `version`, `entry`) or contains malformed TOML
+- **THEN** Plugin Manager SHALL log a warning and skip that directory
+- **AND** NOT attempt to start the plugin
+
 ### Requirement: Plugin Manager Lifecycle
 The system SHALL provide a `PluginManager` service that:
 - Discovers installed plugins from `~/.hugo-admin/plugins/` on startup
@@ -41,7 +46,11 @@ The system SHALL provide a `PluginManager` service that:
 - **THEN** Plugin Manager SHALL start each plugin binary
 - **AND** register Flask API routes for each discovered capability
 - **AND** skip plugins that fail health check, logging a warning
-
+#### Scenario: Disabled plugin has routes unregistered
+- **WHEN** a plugin is disabled via `POST /api/plugins/<name>/disable`
+- **THEN** the system SHALL stop the plugin process
+- **AND** unregister all Flask API routes that were registered for that plugin's capabilities
+- **AND** retain the plugin's configuration for re-enable
 #### Scenario: Plugin process is terminated on shutdown
 - **WHEN** hugo-admin shuts down
 - **THEN** Plugin Manager SHALL send SIGTERM to all running plugin processes
@@ -55,7 +64,7 @@ The system SHALL automatically register Flask API routes for each plugin capabil
 
 #### Scenario: User uploads image via plugin
 - **WHEN** frontend sends `POST /api/plugins/cloudflare-images/image/upload` with a multipart file
-- **THEN** the Flask proxy route SHALL forward the image data via gRPC `ImageUploader.Upload` to the plugin
+- **THEN** the Flask proxy route SHALL stream the file data to the plugin via gRPC client-streaming `ImageUploader.Upload`
 - **AND** return the plugin's response (including the hosted image URL) to the frontend
 
 ### Requirement: Plugin REST API

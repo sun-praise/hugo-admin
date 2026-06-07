@@ -65,12 +65,19 @@ version = "1.0.0"
 author = "svtter"
 description = "Upload images to Cloudflare Images"
 entry = "./bin/cloudflare-images-plugin"
+protocol_version = "1"
+priority = 100
+
+[build]
+platform = "linux"       # target platform: linux, darwin, windows
+arch = "amd64"           # target architecture: amd64, arm64
 
 [capabilities]
 image_upload = true
 
 [config_schema]
 # JSON Schema describing user-configurable settings
+# Recursion depth is limited to 5 levels; no $ref/allOf/oneOf allowed
 schema = '''
 {
   "type": "object",
@@ -128,20 +135,35 @@ service PluginService {
   rpc SetConfig(SetConfigRequest) returns (SetConfigResponse);
 }
 
-// Optional capability: Image Upload
+// Optional capability: Image Upload (client-streaming for large files)
 service ImageUploader {
-  rpc Upload(ImageUploadRequest) returns (ImageUploadResponse);
+  rpc Upload(stream ImageUploadChunk) returns (ImageUploadResponse);
   rpc Delete(ImageDeleteRequest) returns (ImageDeleteResponse);
+}
+
+message ImageUploadChunk {
+  bytes data = 1;         // file content chunk (64 KiB)
+  string filename = 2;    // original filename
+  string mime_type = 3;   // e.g. "image/png"
+  string article_path = 4;// target article path for context
+  bool is_last = 5;       // true on the final chunk
 }
 ```
 
 ### Decision 7: Market manifest
 
-A simple JSON file hosted at a configurable URL:
+A JSON file hosted at a hardcoded HTTPS URL. Third-party distribution is out of scope for v1 — the market is curated and operated by the hugo-admin maintainer.
+
+**Security constraints**:
+- Market URL MUST use HTTPS; SSRF prevention blocks non-HTTPS and private/internal IP ranges (RFC 1918, link-local)
+- Each plugin package MUST be accompanied by a Minisign signature (`.tar.gz.minisig`)
+- On install: verify SHA256 digest of the downloaded archive, then verify the Minisign signature against the embedded public key
+- Market manifest cache: 5-minute TTL, stored alongside its SHA256; stale cache rejected if digest mismatches
 
 ```json
 {
   "version": 1,
+  "public_key": "RW... (minisign public key)",
   "plugins": [
     {
       "name": "cloudflare-images",
@@ -149,7 +171,10 @@ A simple JSON file hosted at a configurable URL:
       "description": "Upload images to Cloudflare Images",
       "author": "svtter",
       "download_url": "https://releases.example.com/plugins/cloudflare-images/v1.0.0.tar.gz",
+      "signature_url": "https://releases.example.com/plugins/cloudflare-images/v1.0.0.tar.gz.minisig",
       "sha256": "abc123...",
+      "platform": "linux",
+      "arch": "amd64",
       "capabilities": ["image_upload"],
       "config_schema": { ... }
     }
@@ -166,18 +191,55 @@ A simple JSON file hosted at a configurable URL:
 | gRPC port conflict | Dynamic port assignment via OS; plugin accepts `--port` flag |
 | Malicious plugin | Plugins run as the same user as hugo-admin — admin trusts installed plugins. Future: code signing |
 | Plugin breaks on hugo-admin upgrade | Protocol versioning in `PluginInfo`; Manager checks compatibility |
+| Plugin config credential leak | Fernet symmetric encryption; key derived from a machine-specific secret stored in `~/.hugo-admin/.secret_key` |
+| Path traversal in plugin entry | Entry resolved to absolute path and validated to be within the plugin directory; symlinks dereferenced |
+| Man-in-the-middle on plugin download | Minisign signature verification on every install; SHA256 digest double-check |
+| gRPC 4 MiB message size limit | `ImageUploader.Upload` uses client-streaming RPC; Flask reads file in 64 KiB chunks, streams to plugin. Accepted constraint: max upload 16 MB (Flask `MAX_CONTENT_LENGTH`) |
+
+### Decision 8: Plugin config encryption
+
+**Choice**: Fernet symmetric encryption for sensitive plugin configuration values.
+
+**Why**:
+- API tokens, account IDs, and other credentials MUST NOT be stored in plaintext
+- Fernet (via `cryptography` package) provides authenticated encryption — tampering is detectable
+- Key derivation: on first use, generate a random 256-bit key and store it in `~/.hugo-admin/.secret_key` (file permissions `0600`)
+- Non-sensitive config values (e.g., preferred theme) remain plaintext for readability
+
+**Implementation**: The Plugin Manager encrypts values marked `"sensitive": true` in the plugin's `config_schema` before writing to `plugin-config.json`. On read, encrypted values are transparently decrypted before being forwarded to the plugin via gRPC `SetConfig`.
+
+### Decision 9: Plugin binary path validation
+
+**Choice**: Resolve and sandbox the `entry` path before passing to `subprocess.Popen`.
+
+**Implementation**:
+1. Join the plugin directory absolute path with the relative `entry` from `plugin.toml`
+2. Call `os.path.realpath()` to dereference any symlinks
+3. Verify the resolved path starts with the plugin directory (no `../` traversal)
+4. Verify the file exists and has executable bit set
+5. Only then pass the resolved absolute path to `subprocess.Popen`
+
+### Decision 10: Plugin package signature verification
+
+**Choice**: Minisign for plugin package integrity and authenticity.
+
+**Why**:
+- Minisign is lightweight, well-audited, and widely used in the Go ecosystem
+- The market manifest embeds a trusted public key; each plugin archive ships with a `.tar.gz.minisign` signature file
+- On install: download archive + signature, verify SHA256, then verify Minisign signature against the trusted public key
+- A compromised mirror cannot serve malicious plugins without the signer's private key
 
 ## Migration Plan
 
-1. Add `grpcio` / `grpcio-tools` to `pyproject.toml` dependencies
+1. Add `grpcio`, `grpcio-tools`, `cryptography`, `minisign` to `pyproject.toml` dependencies
 2. Add `proto/` directory with `.proto` files
 3. Add plugin infrastructure (`plugin_manager.py`, `plugin_routes.py`)
 4. Add frontend plugin management page
-5. Existing image upload flow remains unchanged — plugin upload is an additional option, not a replacement
+5. Existing image upload flow remains unchanged — plugin upload is an additional option (parallel, not replacement)
 6. No breaking changes to existing APIs
 
-## Open Questions
+## Resolved Questions
 
-- Should the plugin market URL be configurable in Settings, or hardcoded?
-- Should we support plugin hot-reload (install without restart), or require hugo-admin restart?
-- For the Cloudflare plugin repo — should it be public (marketing) or private?
+- **Market URL**: Hardcoded to `https://plugins.hugo-admin.dev/manifest.json` (HTTPS-only, no user configuration in v1)
+- **Hot-reload**: Not supported in v1. Installing a new plugin requires hugo-admin restart. This avoids runtime complexity (route registration/de-registration, in-process gRPC channel teardown)
+- **Cloudflare plugin repo**: Public repository (marketing value); the Go source is readable but the distributed artifact is the compiled binary from CI releases
