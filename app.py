@@ -26,10 +26,12 @@ from routes import (
     register_settings_routes,
     register_socketio_handlers,
 )
+from routes.plugin_routes import register_plugin_routes
 from routes.settings_routes import _ensure_server_url_has_port
 from services.chat_history_service import ChatHistoryService
 from services.git_service import GitService
 from services.hugo_service import HugoServerManager
+from services.plugin_manager import PluginManager
 from services.post_service import PostService
 from services.reference_service import ReferenceService
 from services.registry import ServiceRegistry
@@ -140,6 +142,17 @@ registry = ServiceRegistry(
     socketio=socketio,
 )
 
+# ============ Plugin 系统 ============
+
+plugin_manager = PluginManager()
+try:
+    plugin_manager.start_all()
+    print(
+        f"✓ 已加载 {len([p for p in plugin_manager.list_plugins() if p['enabled']])} 个插件"
+    )
+except Exception as e:
+    print(f"⚠ 插件系统初始化失败: {e}")
+
 # ============ AI 服务懒加载 ============
 
 
@@ -200,6 +213,7 @@ app.register_blueprint(register_settings_routes(app, registry))
 ai_main_bp, fm_bp = register_ai_routes(get_ai_service)
 app.register_blueprint(ai_main_bp)
 app.register_blueprint(fm_bp)
+app.register_blueprint(register_plugin_routes(plugin_manager))
 
 # ============ 注册 SocketIO 事件 ============
 
