@@ -9,7 +9,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from services.email_service import EmailService, _strip_html_suffix
+from services.email_service import (
+    EmailService,
+    _normalize_url_for_match,
+    _strip_html_suffix,
+)
 
 # ── _strip_html_suffix 单元测试 ──
 
@@ -69,7 +73,7 @@ def test_strip_html_suffix(path, expected):
     ],
 )
 def test_normalize_url_for_match(raw_url, expected):
-    assert EmailService._normalize_url_for_match(raw_url) == expected
+    assert _normalize_url_for_match(raw_url) == expected
 
 
 # ── get_post_by_url 集成测试（mock feedparser） ──
