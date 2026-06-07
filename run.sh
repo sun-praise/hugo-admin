@@ -33,9 +33,9 @@ fi
 echo ""
 echo "2. 构建前端..."
 if [ -d "frontend/node_modules" ]; then
-    (cd frontend && npm run build)
+    (cd frontend && pnpm run build)
 else
-    (cd frontend && npm install && npm run build)
+    (cd frontend && pnpm install --frozen-lockfile && pnpm run build)
 fi
 if [ $? -ne 0 ]; then
     echo "错误: 前端构建失败"
