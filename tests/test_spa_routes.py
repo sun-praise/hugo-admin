@@ -22,11 +22,12 @@ class TestSPARoutes:
             f.write("<html><body>React SPA</body></html>")
             temp_path = f.name
 
-        original_react_index = app_module.app.config.get("REACT_INDEX")
-        app_module.app.config["REACT_INDEX"] = Path(temp_path)
+        original_react_index = app_module.REACT_INDEX
+        app_module.REACT_INDEX = Path(temp_path)
 
         original_content_dir = app_module.app.config.get("CONTENT_DIR")
         original_hugo_root = app_module.app.config.get("HUGO_ROOT")
+        original_ai_service = app_module.ai_service
 
         with tempfile.TemporaryDirectory() as temp_dir:
             content_dir = Path(temp_dir) / "content"
@@ -34,13 +35,15 @@ class TestSPARoutes:
             app_module.app.config["CONTENT_DIR"] = content_dir
             app_module.app.config["HUGO_ROOT"] = Path(temp_dir)
             app_module.app.config["TESTING"] = True
+            app_module.ai_service = object()
 
             with app_module.app.test_client() as client:
                 yield client
 
-            app_module.app.config["REACT_INDEX"] = original_react_index
+            app_module.REACT_INDEX = original_react_index
             app_module.app.config["CONTENT_DIR"] = original_content_dir
             app_module.app.config["HUGO_ROOT"] = original_hugo_root
+            app_module.ai_service = original_ai_service
 
         Path(temp_path).unlink(missing_ok=True)
 
