@@ -31,37 +31,41 @@
 - **Database**: SQLite (for caching)
 
 ## Installation
-
-### Requirements
-
+### Docker (Recommended)
+Pull the image from GHCR and run with Docker Compose:
+```bash
+# Clone the repository
+git clone https://github.com/Svtter/hugo-admin.git
+cd hugo-admin
+# Start the service
+docker compose up -d
+```
+Open your browser and navigate to `http://127.0.0.1:5050`.
+See [docker-compose.yml](docker-compose.yml) for volume mounts and environment variables. Adjust the volume paths to match your Hugo site layout.
+### Manual Setup
+#### Requirements
 - Python 3.9+
 - Hugo (installed and in PATH)
-
-### Steps
-
+#### Steps
 1. Clone the repository:
 ```bash
 git clone https://github.com/Svtter/hugo-admin.git
 cd hugo-admin
 ```
-
 2. Install dependencies:
 ```bash
-pip install -r requirements.txt
+pip install .
 ```
-
 3. Configure the application:
 ```bash
 cp config.py config_local.py
 # Edit config_local.py to set your Hugo root directory
 ```
-
 4. Run the application:
 ```bash
 python app.py
 ```
-
-5. Open your browser and navigate to `http://127.0.0.1:5000`
+5. Open your browser and navigate to `http://127.0.0.1:5050`
 
 ## Configuration
 
@@ -126,18 +130,14 @@ pytest --cov=. --cov-report=html
 hugo-admin/
 ├── app.py                 # Flask application
 ├── config.py              # Configuration
-├── requirements.txt       # Dependencies
-├── requirements-dev.txt   # Dev dependencies
+├── pyproject.toml         # Dependencies and project metadata
+├── Dockerfile             # Docker image build
+├── docker-compose.yml     # Docker Compose configuration
 ├── pytest.ini             # Pytest configuration
 ├── services/              # Business logic
-│   ├── hugo_service.py    # Hugo server management
-│   ├── post_service.py    # Post operations
-│   └── cache_service.py   # Caching layer
-├── models/                # Database models
-│   └── database.py        # SQLite operations
-├── templates/             # Jinja2 templates
-├── static/                # CSS, JS, images
-└── tests/                 # Test suite
+├── routes/                # Flask Blueprints (API routes)
+├── frontend/              # React + Vite SPA
+├── tests/                 # Test suite
 ```
 
 ## Contributing
@@ -167,10 +167,10 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [x] SQLite caching system
 - [x] Test suite with CI/CD
 - [x] Image upload and management
+- [x] Docker support
 - [ ] Git operations interface
 - [ ] Batch operations
 - [ ] Multi-user support
-- [ ] Docker support
 
 ## License
 

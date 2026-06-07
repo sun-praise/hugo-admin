@@ -31,37 +31,41 @@
 - **数据库**: SQLite (用于缓存)
 
 ## 安装
-
-### 环境要求
-
+### Docker（推荐）
+从 GHCR 拉取镜像并使用 Docker Compose 启动：
+```bash
+# 克隆仓库
+git clone https://github.com/Svtter/hugo-admin.git
+cd hugo-admin
+# 启动服务
+docker compose up -d
+```
+在浏览器中打开 `http://127.0.0.1:5050`。
+卷挂载和环境变量请参考 [docker-compose.yml](docker-compose.yml)，根据实际 Hugo 站点目录结构调整挂载路径。
+### 手动安装
+#### 环境要求
 - Python 3.9+
 - Hugo (已安装并在 PATH 中)
-
-### 安装步骤
-
+#### 安装步骤
 1. 克隆仓库:
 ```bash
 git clone https://github.com/Svtter/hugo-admin.git
 cd hugo-admin
 ```
-
 2. 安装依赖:
 ```bash
-pip install -r requirements.txt
+pip install .
 ```
-
 3. 配置应用:
 ```bash
 cp config.py config_local.py
 # 编辑 config_local.py 设置你的 Hugo 根目录
 ```
-
 4. 运行应用:
 ```bash
 python app.py
 ```
-
-5. 在浏览器中打开 `http://127.0.0.1:5000`
+5. 在浏览器中打开 `http://127.0.0.1:5050`
 
 ## 配置
 
@@ -126,18 +130,14 @@ pytest --cov=. --cov-report=html
 hugo-admin/
 ├── app.py                 # Flask 应用
 ├── config.py              # 配置文件
-├── requirements.txt       # 依赖
-├── requirements-dev.txt   # 开发依赖
+├── pyproject.toml         # 依赖和项目元数据
+├── Dockerfile             # Docker 镜像构建
+├── docker-compose.yml     # Docker Compose 配置
 ├── pytest.ini             # Pytest 配置
 ├── services/              # 业务逻辑层
-│   ├── hugo_service.py    # Hugo 服务器管理
-│   ├── post_service.py    # 文章操作
-│   └── cache_service.py   # 缓存层
-├── models/                # 数据库模型
-│   └── database.py        # SQLite 操作
-├── templates/             # Jinja2 模板
-├── static/                # CSS、JS、图片
-└── tests/                 # 测试套件
+├── routes/                # Flask 蓝图（API 路由）
+├── frontend/              # React + Vite SPA
+├── tests/                 # 测试套件
 ```
 
 ## 贡献
@@ -167,10 +167,10 @@ hugo-admin/
 - [x] SQLite 缓存系统
 - [x] 测试套件与 CI/CD
 - [x] 图片上传和管理
+- [x] Docker 支持
 - [ ] Git 操作界面
 - [ ] 批量操作
 - [ ] 多用户支持
-- [ ] Docker 支持
 
 ## 许可证
 
