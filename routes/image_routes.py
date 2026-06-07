@@ -3,11 +3,78 @@
 图片上传与管理、AI 封面生成路由
 """
 
+import logging
 from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request
 
 bp = Blueprint("images", __name__)
+
+logger = logging.getLogger(__name__)
+
+
+def _try_plugin_upload(registry, file_storage, article_path):
+    """Attempt to upload via a plugin with image_upload capability.
+
+    Returns the URL string on success, or None to signal fallback.
+    """
+    plugin_manager = getattr(registry, "plugin_manager", None)
+    if plugin_manager is None:
+        return None
+
+    # Find a running plugin with image_upload capability
+    target = None
+    for info in plugin_manager.list_plugins():
+        if (
+            info.get("status") == "running"
+            and info.get("enabled")
+            and "image_upload" in info.get("capabilities", [])
+        ):
+            target = info
+            break
+
+    if target is None:
+        return None
+
+    stub = plugin_manager.get_image_uploader_stub(target["name"])
+    if stub is None:
+        return None
+
+    try:
+        from proto import plugin_pb2
+
+        file_bytes = file_storage.read()
+        filename = file_storage.filename or "upload"
+        content_type = file_storage.content_type or "application/octet-stream"
+        chunk_size = 64 * 1024  # 64 KiB
+
+        def chunk_iterator():
+            offset = 0
+            total = len(file_bytes)
+            while offset < total:
+                end = min(offset + chunk_size, total)
+                is_last = end >= total
+                chunk = plugin_pb2.ImageUploadChunk(
+                    data=file_bytes[offset:end],
+                    is_last=is_last,
+                )
+                # Set metadata on first chunk
+                if offset == 0:
+                    chunk.filename = filename
+                    chunk.mime_type = content_type
+                    chunk.article_path = article_path or ""
+                yield chunk
+                offset = end
+
+        response = stub.Upload(chunk_iterator(), timeout=30)
+        if response.success:
+            return response.url
+        else:
+            logger.warning("Plugin image upload failed: %s", response.message)
+            return None
+    except Exception as e:
+        logger.warning("Plugin image upload error: %s", e)
+        return None
 
 
 def register_image_routes(registry):
@@ -43,6 +110,14 @@ def register_image_routes(registry):
                 400,
             )
 
+        # Try plugin image upload first
+        plugin_url = _try_plugin_upload(registry, file, article_path)
+        if plugin_url is not None:
+            return jsonify(
+                {"success": True, "url": plugin_url, "message": "图片上传成功"}
+            )
+
+        # Fallback: local save
         success, result = registry.post_service.save_image(article_path, file)
         if success:
             return jsonify({"success": True, "url": result, "message": "图片上传成功"})
