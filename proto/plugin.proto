@@ -1,0 +1,93 @@
+syntax = "proto3";
+package hugo_admin.plugin;
+
+// ============================================
+// Core service — every plugin MUST implement
+// ============================================
+
+service PluginService {
+  // Return plugin metadata and supported capabilities
+  rpc Info(Empty) returns (PluginInfo);
+
+  // Liveness probe; Plugin Manager calls this during handshake
+  rpc HealthCheck(Empty) returns (HealthResponse);
+
+  // Return the JSON Schema for user-configurable settings
+  rpc GetConfigSchema(Empty) returns (ConfigSchemaResponse);
+
+  // Push user configuration (decrypted by host before sending)
+  rpc SetConfig(SetConfigRequest) returns (SetConfigResponse);
+}
+
+// ============================================
+// Optional capability: Image Upload
+// ============================================
+
+service ImageUploader {
+  // Client-streaming: host sends file in 64 KiB chunks
+  rpc Upload(stream ImageUploadChunk) returns (ImageUploadResponse);
+  rpc Delete(ImageDeleteRequest) returns (ImageDeleteResponse);
+}
+
+// ============================================
+// Messages
+// ============================================
+
+message Empty {}
+
+// --- PluginService messages ---
+
+message PluginInfo {
+  string name = 1;
+  string version = 2;
+  string description = 3;
+  string author = 4;
+  string protocol_version = 5;     // must match host's expected version
+  repeated string capabilities = 6; // e.g. "image_upload"
+  int32 priority = 7;              // higher = preferred when multiple plugins share a capability
+}
+
+message HealthResponse {
+  bool healthy = 1;
+  string message = 2;  // optional detail when unhealthy
+}
+
+message ConfigSchemaResponse {
+  string schema_json = 1; // JSON Schema string
+}
+
+message SetConfigRequest {
+  // JSON object with decrypted config values
+  string config_json = 1;
+}
+
+message SetConfigResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// --- ImageUploader messages ---
+
+message ImageUploadChunk {
+  bytes data = 1;            // file content chunk (up to 64 KiB)
+  string filename = 2;       // original filename (sent on first chunk)
+  string mime_type = 3;      // e.g. "image/png" (sent on first chunk)
+  string article_path = 4;   // target article path for context (sent on first chunk)
+  bool is_last = 5;          // true on the final chunk
+}
+
+message ImageUploadResponse {
+  bool success = 1;
+  string url = 2;            // public CDN URL of the uploaded image
+  string image_id = 3;       // provider-specific ID for later deletion
+  string message = 4;        // error detail when success=false
+}
+
+message ImageDeleteRequest {
+  string image_id = 1;
+}
+
+message ImageDeleteResponse {
+  bool success = 1;
+  string message = 2;
+}
