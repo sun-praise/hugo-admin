@@ -85,3 +85,6 @@ frontend/.vite/
 
 # React build output (committed if needed, otherwise ignored)
 static/dist/
+
+# Plugin marketplace (separate repo)
+HA-marketplace/
