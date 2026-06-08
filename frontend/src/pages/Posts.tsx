@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, RefreshCw, Plus, Upload, Tag, FolderOpen, Calendar, Clock, FileText } from 'lucide-react';
+import { Search, RefreshCw, Plus, Upload, Tag, FolderOpen, Calendar, Clock, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { get, post } from '../utils/api';
 import type { Post, PostsResponse, Tag as TagType, Category } from '../types';
 
@@ -8,6 +8,7 @@ export default function Posts() {
   const navigate = useNavigate();
   const [posts, setPosts] = useState<Post[]>([]);
   const [pagination, setPagination] = useState({ total: 0, page: 1, per_page: 20, total_pages: 0, has_next: false, has_prev: false });
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tags, setTags] = useState<TagType[]>([]);
@@ -22,6 +23,7 @@ export default function Posts() {
     try {
       const params = new URLSearchParams();
       params.set('per_page', '20');
+      params.set('page', String(currentPage));
       if (filters.query) params.set('q', filters.query);
       if (filters.category) params.set('category', filters.category);
       if (filters.tag) params.set('tag', filters.tag);
@@ -35,12 +37,17 @@ export default function Posts() {
         has_next: data.has_next,
         has_prev: data.has_prev,
       });
+      // 如果服务端回传的页码与请求不符（例如筛选后实际数据变少导致越界），
+      // 跟随服务端纠正到合法页码，避免 UI 一直停留在不存在的页。
+      if (data.page !== currentPage) {
+        setCurrentPage(data.page);
+      }
     } catch (error) {
       console.error('Failed to load posts:', error);
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, currentPage]);
 
   async function loadFilters() {
     try {
@@ -59,6 +66,30 @@ export default function Posts() {
     loadPosts();
     loadFilters();
   }, [loadPosts]);
+
+  // 切换筛选条件时回到第 1 页，避免停留在已不存在的页码上。
+  // 使用显式包装函数而非 effect：setState in effect 会触发级联渲染。
+  function updateFilter<K extends keyof typeof filters>(key: K, value: (typeof filters)[K]) {
+    if (filters[key] === value) return;
+    setFilters((prev) => ({ ...prev, [key]: value }));
+    setCurrentPage(1);
+  }
+
+  function goToPage(page: number) {
+    const total = pagination.total_pages || 1;
+    const next = Math.max(1, Math.min(page, total));
+    if (next !== currentPage) {
+      setCurrentPage(next);
+    }
+  }
+
+  function prevPage() {
+    goToPage(currentPage - 1);
+  }
+
+  function nextPage() {
+    goToPage(currentPage + 1);
+  }
 
   async function refreshCache() {
     setRefreshing(true);
@@ -151,7 +182,7 @@ export default function Posts() {
               <input
                 type="text"
                 value={filters.query}
-                onChange={(e) => setFilters({ ...filters, query: e.target.value })}
+                onChange={(e) => updateFilter('query', e.target.value)}
                 placeholder="搜索标题、内容、标签..."
                 className="w-full pl-10 pr-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400 focus:border-transparent"
               />
@@ -161,7 +192,7 @@ export default function Posts() {
             <label className="block text-sm font-medium text-stone-700 mb-2">分类</label>
             <select
               value={filters.category}
-              onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+              onChange={(e) => updateFilter('category', e.target.value)}
               className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400"
             >
               <option value="">全部分类</option>
@@ -176,7 +207,7 @@ export default function Posts() {
             <label className="block text-sm font-medium text-stone-700 mb-2">标签</label>
             <select
               value={filters.tag}
-              onChange={(e) => setFilters({ ...filters, tag: e.target.value })}
+              onChange={(e) => updateFilter('tag', e.target.value)}
               className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400"
             >
               <option value="">全部标签</option>
@@ -321,6 +352,84 @@ export default function Posts() {
           </div>
         )}
       </div>
+
+      {/*
+        控件本身的可见性：当没有任何文章时隐藏分页栏（避免显示"第 1 页 / 共 0 页"）。
+        加载态下保留分页栏位，但禁用按钮，避免布局跳动。
+      */}
+      {pagination.total > 0 && (
+        <nav
+          aria-label="分页"
+          className="bg-white rounded-md ring-1 ring-stone-900/5 px-6 py-3 mt-6 flex items-center justify-between flex-wrap gap-3"
+        >
+          <div className="text-sm text-stone-500">
+            第 <span className="font-medium text-stone-700">{pagination.page}</span> / {pagination.total_pages} 页
+            <span className="mx-2 text-stone-300">·</span>
+            共 {pagination.total} 篇
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={prevPage}
+              disabled={!pagination.has_prev || loading}
+              className="px-3 py-1.5 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center"
+              aria-label="上一页"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            {getPageNumbers(pagination.page, pagination.total_pages).map((item, idx) =>
+              item === '…' ? (
+                <span
+                  key={`ellipsis-${idx}`}
+                  className="px-2 text-stone-400 select-none"
+                  aria-hidden="true"
+                >
+                  …
+                </span>
+              ) : (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => goToPage(item)}
+                  disabled={loading}
+                  aria-current={item === pagination.page ? 'page' : undefined}
+                  className={
+                    item === pagination.page
+                      ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium cursor-default'
+                      : 'px-3 py-1.5 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors disabled:opacity-50'
+                  }
+                >
+                  {item}
+                </button>
+              ),
+            )}
+            <button
+              type="button"
+              onClick={nextPage}
+              disabled={!pagination.has_next || loading}
+              className="px-3 py-1.5 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center"
+              aria-label="下一页"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </nav>
+      )}
     </div>
   );
+}
+
+function getPageNumbers(current: number, total: number): (number | '…')[] {
+  // 页数较少时直接展开；否则用 1 … current-1 current current+1 … last 的折叠形态。
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const pages: (number | '…')[] = [1];
+  const left = Math.max(2, current - 1);
+  const right = Math.min(total - 1, current + 1);
+  if (left > 2) pages.push('…');
+  for (let p = left; p <= right; p++) pages.push(p);
+  if (right < total - 1) pages.push('…');
+  pages.push(total);
+  return pages;
 }
