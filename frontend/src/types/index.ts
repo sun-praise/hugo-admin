@@ -60,6 +60,12 @@ export interface Settings {
     api_key_source?: string;
     api_key_hint?: string;
   };
+  listmonk: {
+    api_url: string;
+    api_user: string;
+    api_key: string;
+    blog_list_id: number;
+  };
 }
 
 export interface Frontmatter {

@@ -40,6 +40,7 @@ class SettingsService:
         """返回可安全暴露给前端的设置（隐藏敏感值）"""
         ai_settings = settings.get("ai", {})
         hugo_settings = settings.get("hugo", {})
+        listmonk_settings = settings.get("listmonk", {})
 
         return {
             "ai": {
@@ -49,6 +50,12 @@ class SettingsService:
             "hugo": {
                 "base_dir": hugo_settings.get("base_dir", ""),
                 "server_url": hugo_settings.get("server_url", ""),
+            },
+            "listmonk": {
+                "api_url": listmonk_settings.get("api_url", ""),
+                "api_user": listmonk_settings.get("api_user", ""),
+                "api_key": self._mask_api_key(listmonk_settings.get("api_key", "")),
+                "blog_list_id": listmonk_settings.get("blog_list_id", 1),
             },
         }
 
@@ -113,6 +120,20 @@ class SettingsService:
                         "Hugo 服务器 URL 必须以 http:// 或 https:// 开头"
                     )
                 current["hugo"]["server_url"] = server_url
+
+            listmonk_updates = updates.get("listmonk", {})
+            if "listmonk" in updates and not isinstance(listmonk_updates, dict):
+                raise SettingsValidationError("Listmonk 设置格式无效")
+            if "api_url" in listmonk_updates:
+                current["listmonk"]["api_url"] = listmonk_updates["api_url"]
+            if "api_user" in listmonk_updates:
+                current["listmonk"]["api_user"] = listmonk_updates["api_user"]
+            if "api_key" in listmonk_updates:
+                current["listmonk"]["api_key"] = listmonk_updates["api_key"]
+            if "blog_list_id" in listmonk_updates:
+                current["listmonk"]["blog_list_id"] = int(
+                    listmonk_updates["blog_list_id"]
+                )
 
             normalized = self._normalize_and_validate(current)
             self._write_settings_file(normalized)
@@ -184,6 +205,7 @@ class SettingsService:
         file_settings = self._read_file_settings()
         ai_from_file = file_settings.get("ai", {})
         hugo_from_file = file_settings.get("hugo", {})
+        listmonk_from_file = file_settings.get("listmonk", {})
         needs_sanitize = False
 
         if isinstance(ai_from_file, dict):
@@ -199,6 +221,19 @@ class SettingsService:
                 settings["hugo"]["base_dir"] = hugo_from_file["base_dir"]
             if "server_url" in hugo_from_file:
                 settings["hugo"]["server_url"] = hugo_from_file["server_url"]
+
+        if isinstance(listmonk_from_file, dict):
+            if "api_url" in listmonk_from_file:
+                settings["listmonk"]["api_url"] = listmonk_from_file["api_url"]
+            if "api_user" in listmonk_from_file:
+                settings["listmonk"]["api_user"] = listmonk_from_file["api_user"]
+            if "api_key" in listmonk_from_file:
+                settings["listmonk"]["api_key"] = listmonk_from_file["api_key"]
+                needs_sanitize = True
+            if "blog_list_id" in listmonk_from_file:
+                settings["listmonk"]["blog_list_id"] = listmonk_from_file[
+                    "blog_list_id"
+                ]
 
         normalized = self._normalize_and_validate(settings)
         if not file_exists or needs_sanitize:
@@ -216,6 +251,12 @@ class SettingsService:
             "hugo": {
                 "base_dir": self.defaults.get("HUGO_BASE_DIR") or "",
                 "server_url": self.defaults.get("HUGO_SERVER_URL") or "",
+            },
+            "listmonk": {
+                "api_url": self.defaults.get("LISTMONK_API_URL") or "",
+                "api_user": self.defaults.get("LISTMONK_API_USER") or "",
+                "api_key": "",
+                "blog_list_id": 1,
             },
         }
 
@@ -271,6 +312,28 @@ class SettingsService:
         if not isinstance(hugo_server_url, str):
             hugo_server_url = ""
 
+        listmonk_settings = settings.get("listmonk", {})
+        if not isinstance(listmonk_settings, dict):
+            listmonk_settings = {}
+
+        listmonk_api_url = listmonk_settings.get("api_url", "")
+        if not isinstance(listmonk_api_url, str):
+            listmonk_api_url = ""
+
+        listmonk_api_user = listmonk_settings.get("api_user", "")
+        if not isinstance(listmonk_api_user, str):
+            listmonk_api_user = ""
+
+        listmonk_api_key = listmonk_settings.get("api_key", "")
+        if not isinstance(listmonk_api_key, str):
+            listmonk_api_key = ""
+
+        listmonk_blog_list_id = listmonk_settings.get("blog_list_id", 1)
+        if not isinstance(listmonk_blog_list_id, int):
+            listmonk_blog_list_id = (
+                int(listmonk_blog_list_id) if listmonk_blog_list_id else 1
+            )
+
         return {
             "ai": {
                 "base_url": base_url,
@@ -279,6 +342,12 @@ class SettingsService:
             "hugo": {
                 "base_dir": hugo_base_dir.strip(),
                 "server_url": hugo_server_url.strip(),
+            },
+            "listmonk": {
+                "api_url": listmonk_api_url.strip(),
+                "api_user": listmonk_api_user.strip(),
+                "api_key": listmonk_api_key,
+                "blog_list_id": listmonk_blog_list_id,
             },
         }
 
