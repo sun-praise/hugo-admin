@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { get } from '../utils/api';
+import { usePageTitle } from '../contexts/PageTitleContext';
 import type { ServerStatus } from '../types';
 
 const pageTitles: Record<string, string> = {
@@ -11,11 +12,20 @@ const pageTitles: Record<string, string> = {
   '/settings': '设置',
 };
 
+function matchPageTitle(pathname: string): string | undefined {
+  if (pageTitles[pathname]) return pageTitles[pathname];
+  for (const [path, title] of Object.entries(pageTitles)) {
+    if (pathname.startsWith(path + '/')) return title;
+  }
+  return undefined;
+}
+
 export default function Header() {
   const location = useLocation();
   const [status, setStatus] = useState<ServerStatus>({ running: false, pid: null });
+  const { title: articleTitle } = usePageTitle();
 
-  const pageTitle = pageTitles[location.pathname] || 'Hugo Blog 管理';
+  const matchedTitle = matchPageTitle(location.pathname);
 
   useEffect(() => {
     async function fetchStatus() {
@@ -34,7 +44,7 @@ export default function Header() {
   return (
     <header className="bg-white shadow-sm border-b border-stone-200 px-6 py-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold text-stone-800">{pageTitle}</h2>
+        <h2 className="text-2xl font-semibold text-stone-800">{articleTitle || matchedTitle}</h2>
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
             <div
