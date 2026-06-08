@@ -9,9 +9,11 @@ export default function SettingsPage() {
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [apiKeySource, setApiKeySource] = useState('none');
   const [apiKeyHint, setApiKeyHint] = useState('');
+  const [listmonkApiKeyInput, setListmonkApiKeyInput] = useState('');
   const [form, setForm] = useState<SettingsType>({
     hugo: { base_dir: '', server_url: '' },
     ai: { base_url: '', model: '', api_key_source: 'none', api_key_hint: '' },
+    listmonk: { api_url: '', api_user: '', api_key: '', blog_list_id: 1 },
   });
 
   useEffect(() => {
@@ -26,7 +28,7 @@ export default function SettingsPage() {
       if (!data.success) {
         throw new Error(data.message || '加载设置失败');
       }
-      const settings = data.settings || { hugo: { base_dir: '', server_url: '' }, ai: { base_url: '', model: '' } };
+      const settings = data.settings || { hugo: { base_dir: '', server_url: '' }, ai: { base_url: '', model: '' }, listmonk: { api_url: '', api_user: '', api_key: '', blog_list_id: 1 } };
       setForm({
         hugo: {
           base_dir: settings.hugo?.base_dir || '',
@@ -37,6 +39,12 @@ export default function SettingsPage() {
           model: settings.ai?.model || 'deepseek-chat',
           api_key_source: settings.ai?.api_key_source || 'none',
           api_key_hint: settings.ai?.api_key_hint || '',
+        },
+        listmonk: {
+          api_url: settings.listmonk?.api_url || '',
+          api_user: settings.listmonk?.api_user || '',
+          api_key: settings.listmonk?.api_key || '',
+          blog_list_id: settings.listmonk?.blog_list_id || 1,
         },
       });
       setApiKeySource(settings.ai?.api_key_source || 'none');
@@ -62,6 +70,12 @@ export default function SettingsPage() {
           base_url: form.ai.base_url,
           model: form.ai.model,
         },
+        listmonk: {
+          api_url: form.listmonk.api_url,
+          api_user: form.listmonk.api_user,
+          api_key: listmonkApiKeyInput.trim() !== '' ? listmonkApiKeyInput.trim() : form.listmonk.api_key,
+          blog_list_id: form.listmonk.blog_list_id,
+        },
       };
       if (apiKeyInput.trim() !== '') {
         payload.ai.api_key = apiKeyInput.trim();
@@ -72,6 +86,7 @@ export default function SettingsPage() {
       }
       showNotification('设置保存成功', 'success');
       setApiKeyInput('');
+      setListmonkApiKeyInput('');
       await fetchSettings();
     } catch (error) {
       setErrorMessage((error as Error).message);
@@ -172,6 +187,56 @@ export default function SettingsPage() {
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
                 未保存密钥时会自动回退到环境变量（<code>DEEPSEEK_API_KEY</code> 或 <code>AI_API_KEY</code>）。
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
+            <h3 className="text-lg font-medium mb-4">邮件推送 (Listmonk)</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">Listmonk API URL</label>
+                <input
+                  type="text"
+                  value={form.listmonk.api_url}
+                  onChange={(e) => setForm({ ...form, listmonk: { ...form.listmonk, api_url: e.target.value } })}
+                  placeholder="http://localhost:9000/api"
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                />
+                <p className="mt-2 text-xs text-stone-500">Listmonk 服务的 API 地址。</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">API User</label>
+                <input
+                  type="text"
+                  value={form.listmonk.api_user}
+                  onChange={(e) => setForm({ ...form, listmonk: { ...form.listmonk, api_user: e.target.value } })}
+                  placeholder="admin"
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">API Key</label>
+                <input
+                  type="password"
+                  value={listmonkApiKeyInput}
+                  placeholder="留空则保持当前值"
+                  onChange={(e) => setListmonkApiKeyInput(e.target.value)}
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                />
+                {form.listmonk.api_key && (
+                  <p className="mt-2 text-xs text-stone-500">当前密钥: {form.listmonk.api_key}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">订阅列表 ID</label>
+                <input
+                  type="number"
+                  value={form.listmonk.blog_list_id}
+                  onChange={(e) => setForm({ ...form, listmonk: { ...form.listmonk, blog_list_id: parseInt(e.target.value) || 1 } })}
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                />
+                <p className="mt-2 text-xs text-stone-500">博客订阅者的 Listmonk 列表 ID。</p>
               </div>
             </div>
           </div>
