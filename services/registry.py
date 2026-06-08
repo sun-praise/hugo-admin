@@ -87,3 +87,11 @@ class ServiceRegistry:
     @socketio.setter
     def socketio(self, value):
         self._services["socketio"] = value
+
+    @property
+    def plugin_manager(self):
+        return self._services.get("plugin_manager")
+
+    @plugin_manager.setter
+    def plugin_manager(self, value):
+        self._services["plugin_manager"] = value
