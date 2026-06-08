@@ -7,8 +7,8 @@
 ## 架构
 
 ```
-用户 → Nginx (反代) → Docker (hugo-admin:5050)
-                      → Hugo 预览 (1313, 可选)
+用户 → Nginx (反代, HTTPS) → Docker (hugo-admin:5050)
+                            → Hugo 预览 (1313, 可选)
 ```
 
 ## 资源限制
@@ -37,7 +37,13 @@ mount -o loop /opt/hugo-admin-data.img /opt/hugo-admin-data
 echo '/opt/hugo-admin-data.img /opt/hugo-admin-data ext4 loop 0 0' >> /etc/fstab
 ```
 
-### 2. docker-compose.yml 改动
+### 2. SECRET_KEY 生成
+
+```bash
+openssl rand -hex 32
+```
+
+### 3. docker-compose.yml 改动
 
 在现有 `hugo-admin` 服务中添加：
 
@@ -59,22 +65,36 @@ tmpfs:
 - /opt/hugo-admin-data:/hugo_admin_data
 ```
 
-### 3. 环境变量
+<!-- Swarm 模式备用：如果使用 Docker Swarm 部署，将上述 deploy 配置放在服务定义下，
+     并使用 `docker stack deploy -c docker-compose.yml hugo-admin` 替代 `docker compose up`。
+     Swarm 模式下需要先 `docker swarm init`，且不支持 tmpfs 与 volume 混用，
+     磁盘限制改用 Docker volume driver 或宿主机 loop 设备。 -->
+
+### 4. 环境变量
 
 ```bash
-SECRET_KEY=<随机生成的密钥>
+SECRET_KEY=<上一步生成的密钥>
 FLASK_ENV=production
 HUGO_BLOG_DIR=/path/to/demo/hugo-blog
 HUGO_THEME_DIR=/path/to/demo/hugo-theme
-HUGO_SERVER_BASE_URL=http://<服务器IP>:1313
+HUGO_SERVER_BASE_URL=https://<服务器IP或域名>:1313
 ```
 
-### 4. Nginx 反代
+### 5. Nginx 反代 (HTTPS)
 
 ```nginx
 server {
     listen 80;
     server_name demo.yourdomain.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name demo.yourdomain.com;
+
+    ssl_certificate     /etc/letsencrypt/live/demo.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/demo.yourdomain.com/privkey.pem;
 
     location / {
         proxy_pass http://127.0.0.1:5050;
@@ -93,7 +113,12 @@ server {
 }
 ```
 
-### 5. 启动
+证书签发（首次）：
+```bash
+certbot --nginx -d demo.yourdomain.com
+```
+
+### 6. 启动
 
 ```bash
 docker compose up -d --build
@@ -104,5 +129,5 @@ docker compose up -d --build
 - demo 实例裸跑，无登录保护，仅用于试用
 - 使用独立的示例博客目录，避免影响正式数据
 - `FLASK_ENV=production`，关闭 DEBUG
-- `SECRET_KEY` 必须设置为随机值
+- `SECRET_KEY` 必须使用 `openssl rand -hex 32` 生成
 - loop 设备空间用尽时需要手动清理或重建
