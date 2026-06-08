@@ -150,6 +150,7 @@ try:
     print(
         f"✓ 已加载 {len([p for p in plugin_manager.list_plugins() if p['enabled']])} 个插件"
     )
+    registry.plugin_manager = plugin_manager
 except Exception as e:
     print(f"⚠ 插件系统初始化失败: {e}")
 
