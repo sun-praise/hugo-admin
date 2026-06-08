@@ -22,6 +22,7 @@ import {
 import { get, post } from '../utils/api';
 import { renderMarkdown } from '../utils/markdown';
 import type { FileData, ImageItem, Backlink, Frontmatter } from '../types';
+import { usePageTitle } from '../contexts/PageTitleContext';
 
 export default function Editor() {
   const { filePath, '*': restPath } = useParams();
@@ -62,6 +63,14 @@ export default function Editor() {
   insertMarkdownRef.current = insertMarkdown;
   const [generatingCover, setGeneratingCover] = useState(false);
   const [generatingFm, setGeneratingFm] = useState(false);
+  const { setTitle: setPageTitle, resetTitle: resetPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    if (frontmatter.title) {
+      setPageTitle(frontmatter.title);
+    }
+    return () => { resetPageTitle(); };
+  }, [frontmatter.title, setPageTitle, resetPageTitle]);
 
   const currentFile = fullPath;
 
