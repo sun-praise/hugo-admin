@@ -235,6 +235,10 @@ class SettingsService:
                     "blog_list_id"
                 ]
 
+        # 如果 listmonk 未配置，尝试从 ~/.config/secret.yml 迁移
+        if not listmonk_from_file and not settings["listmonk"]["api_url"]:
+            self._try_migrate_listmonk_from_secret_yml(settings)
+
         normalized = self._normalize_and_validate(settings)
         if not file_exists or needs_sanitize:
             self._write_settings_file(normalized)
@@ -360,3 +364,29 @@ class SettingsService:
             return "*" * len(api_key)
 
         return f"{api_key[:4]}...{api_key[-4:]}"
+
+    def _try_migrate_listmonk_from_secret_yml(self, settings):
+        """从 ~/.config/secret.yml 迁移 listmonk 配置到 settings.json"""
+        secret_path = Path.home() / ".config" / "secret.yml"
+        if not secret_path.exists():
+            return
+        try:
+            import yaml
+
+            with secret_path.open("r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            if not isinstance(data, dict):
+                return
+            lm = data.get("listmonk")
+            if not isinstance(lm, dict):
+                return
+            if "api_url" in lm:
+                settings["listmonk"]["api_url"] = str(lm["api_url"])
+            if "api_user" in lm:
+                settings["listmonk"]["api_user"] = str(lm["api_user"])
+            if "api_key" in lm:
+                settings["listmonk"]["api_key"] = str(lm["api_key"])
+            if "blog_list_id" in lm:
+                settings["listmonk"]["blog_list_id"] = int(lm["blog_list_id"])
+        except Exception:
+            return
