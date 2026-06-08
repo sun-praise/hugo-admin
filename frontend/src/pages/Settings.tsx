@@ -73,12 +73,14 @@ export default function SettingsPage() {
         listmonk: {
           api_url: form.listmonk.api_url,
           api_user: form.listmonk.api_user,
-          api_key: listmonkApiKeyInput.trim() !== '' ? listmonkApiKeyInput.trim() : form.listmonk.api_key,
           blog_list_id: form.listmonk.blog_list_id,
         },
       };
       if (apiKeyInput.trim() !== '') {
         payload.ai.api_key = apiKeyInput.trim();
+      }
+      if (listmonkApiKeyInput.trim() !== '') {
+        payload.listmonk.api_key = listmonkApiKeyInput.trim();
       }
       const data = await put<{ success: boolean; message?: string }>('/api/settings', payload);
       if (!data.success) {
@@ -233,7 +235,7 @@ export default function SettingsPage() {
                 <input
                   type="number"
                   value={form.listmonk.blog_list_id}
-                  onChange={(e) => setForm({ ...form, listmonk: { ...form.listmonk, blog_list_id: parseInt(e.target.value) || 1 } })}
+                  onChange={(e) => { const v = parseInt(e.target.value); setForm({ ...form, listmonk: { ...form.listmonk, blog_list_id: isNaN(v) ? 1 : v } }); }}
                   className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
                 />
                 <p className="mt-2 text-xs text-stone-500">博客订阅者的 Listmonk 列表 ID。</p>

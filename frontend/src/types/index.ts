@@ -63,7 +63,7 @@ export interface Settings {
   listmonk: {
     api_url: string;
     api_user: string;
-    api_key: string;
+    api_key?: string;
     blog_list_id: number;
   };
 }

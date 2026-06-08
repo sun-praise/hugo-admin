@@ -236,11 +236,12 @@ class SettingsService:
                 ]
 
         # 如果 listmonk 未配置，尝试从 ~/.config/secret.yml 迁移
+        migrated = False
         if not listmonk_from_file and not settings["listmonk"]["api_url"]:
-            self._try_migrate_listmonk_from_secret_yml(settings)
+            migrated = self._try_migrate_listmonk_from_secret_yml(settings)
 
         normalized = self._normalize_and_validate(settings)
-        if not file_exists or needs_sanitize:
+        if not file_exists or needs_sanitize or migrated:
             self._write_settings_file(normalized)
 
         return normalized
@@ -334,9 +335,10 @@ class SettingsService:
 
         listmonk_blog_list_id = listmonk_settings.get("blog_list_id", 1)
         if not isinstance(listmonk_blog_list_id, int):
-            listmonk_blog_list_id = (
-                int(listmonk_blog_list_id) if listmonk_blog_list_id else 1
-            )
+            try:
+                listmonk_blog_list_id = int(listmonk_blog_list_id)
+            except (ValueError, TypeError):
+                listmonk_blog_list_id = 1
 
         return {
             "ai": {
@@ -369,17 +371,17 @@ class SettingsService:
         """从 ~/.config/secret.yml 迁移 listmonk 配置到 settings.json"""
         secret_path = Path.home() / ".config" / "secret.yml"
         if not secret_path.exists():
-            return
+            return False
         try:
             import yaml
 
             with secret_path.open("r", encoding="utf-8") as f:
                 data = yaml.safe_load(f)
             if not isinstance(data, dict):
-                return
+                return False
             lm = data.get("listmonk")
             if not isinstance(lm, dict):
-                return
+                return False
             if "api_url" in lm:
                 settings["listmonk"]["api_url"] = str(lm["api_url"])
             if "api_user" in lm:
@@ -387,6 +389,10 @@ class SettingsService:
             if "api_key" in lm:
                 settings["listmonk"]["api_key"] = str(lm["api_key"])
             if "blog_list_id" in lm:
-                settings["listmonk"]["blog_list_id"] = int(lm["blog_list_id"])
+                try:
+                    settings["listmonk"]["blog_list_id"] = int(lm["blog_list_id"])
+                except (ValueError, TypeError):
+                    pass
+            return bool(settings["listmonk"]["api_url"])
         except Exception:
-            return
+            return False
