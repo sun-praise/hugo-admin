@@ -11,8 +11,25 @@ from services.email_service import EmailService
 bp = Blueprint("email", __name__, url_prefix="/api/email")
 
 
-def register_email_routes():
-    """注册邮件推送路由（EmailService 按请求创建，无需外部依赖）"""
+def _get_listmonk_config(registry):
+    """从 SettingsService 获取 listmonk 配置"""
+    try:
+        settings = registry.settings_service.get_settings()
+        return settings.get("listmonk", {})
+    except Exception:
+        return {}
+
+
+def _create_email_service(registry, debug_mode=False):
+    """创建 EmailService 并注入 settings 中的 listmonk 配置"""
+    listmonk_config = _get_listmonk_config(registry)
+    email_service = EmailService(debug_mode=debug_mode)
+    email_service.configure_from_settings(listmonk_config)
+    return email_service
+
+
+def register_email_routes(registry):
+    """注册邮件推送路由"""
 
     @bp.route("/push-latest", methods=["POST"])
     def email_push_latest():
@@ -22,7 +39,7 @@ def register_email_routes():
             debug_mode = data.get("debug_mode", False)
             force = data.get("force", False)
 
-            email_service = EmailService(debug_mode=debug_mode)
+            email_service = _create_email_service(registry, debug_mode=debug_mode)
             result = email_service.push_latest(force=force)
 
             status_code = 200 if result.get("success") else 400
@@ -48,7 +65,7 @@ def register_email_routes():
             if not url:
                 return jsonify({"success": False, "message": "缺少文章 URL 参数"}), 400
 
-            email_service = EmailService(debug_mode=debug_mode)
+            email_service = _create_email_service(registry, debug_mode=debug_mode)
             result = email_service.push_article(url, force=force)
 
             status_code = 200 if result.get("success") else 400
@@ -66,7 +83,7 @@ def register_email_routes():
     def email_preview_latest():
         """预览最新文章邮件（不发送）"""
         try:
-            email_service = EmailService()
+            email_service = _create_email_service(registry)
             result = email_service.preview_latest()
 
             status_code = 200 if result.get("success") else 400
@@ -88,7 +105,7 @@ def register_email_routes():
             if not url:
                 return jsonify({"success": False, "message": "缺少文章 URL 参数"}), 400
 
-            email_service = EmailService()
+            email_service = _create_email_service(registry)
             result = email_service.preview_article(url)
 
             status_code = 200 if result.get("success") else 400
