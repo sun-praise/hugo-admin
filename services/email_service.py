@@ -116,6 +116,24 @@ class EmailService:
             "Content-Type": "application/json",
         }
 
+    def configure_from_settings(self, listmonk_config: dict):
+        """从 SettingsService 的 listmonk 配置更新自身字段"""
+        if not isinstance(listmonk_config, dict):
+            return
+        if "api_url" in listmonk_config:
+            self.api_url = listmonk_config["api_url"]
+        if "api_user" in listmonk_config:
+            self.api_user = listmonk_config["api_user"]
+        if "api_key" in listmonk_config:
+            self.api_key = listmonk_config["api_key"]
+        if "blog_list_id" in listmonk_config:
+            self.list_id = listmonk_config["blog_list_id"]
+        self.listmonk = dict(listmonk_config)
+        self.headers = {
+            "Authorization": f"token {self.api_user}:{self.api_key}",
+            "Content-Type": "application/json",
+        }
+
     def get_latest_post(self):
         """
         获取最新文章
