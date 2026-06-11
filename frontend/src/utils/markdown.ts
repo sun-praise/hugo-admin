@@ -21,10 +21,23 @@ marked.setOptions({ breaks: true, gfm: true });
 
 export function renderMarkdown(content: string): string {
   const normalized = content.replace(/\\n/g, '\n');
-  const html = marked.parse(normalized) as string;
-  return DOMPurify.sanitize(html, {
-    ADD_TAGS: ['svg', 'path', 'g', 'circle', 'rect', 'line', 'polyline', 'polygon'],
-    ADD_ATTR: ['target', 'rel', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'viewBox', 'd', 'cx', 'cy', 'r', 'x', 'y', 'width', 'height', 'class'],
+
+  // Extract <details>...</details> blocks before markdown parsing to prevent
+  // marked from mangling them (marked doesn't recognise details as block-level).
+  const placeholders: string[] = [];
+  const stripped = normalized.replace(/<details[\s\S]*?<\/details>/g, (match) => {
+    placeholders.push(match);
+    return `\n<!--PLACEHOLDER_${placeholders.length - 1}-->\n`;
+  });
+
+  const html = marked.parse(stripped) as string;
+
+  // Restore details blocks
+  const restored = html.replace(/<!--PLACEHOLDER_(\d+)-->/g, (_, i) => placeholders[Number(i)]);
+
+  return DOMPurify.sanitize(restored, {
+    ADD_TAGS: ['svg', 'path', 'g', 'circle', 'rect', 'line', 'polyline', 'polygon', 'details', 'summary'],
+    ADD_ATTR: ['target', 'rel', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'viewBox', 'd', 'cx', 'cy', 'r', 'x', 'y', 'width', 'height', 'class', 'open'],
   });
 }
 

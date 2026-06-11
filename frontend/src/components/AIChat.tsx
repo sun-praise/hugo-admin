@@ -1,46 +1,55 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { MessageSquare, X, ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { MessageSquare, X, ChevronDown, Plus, Trash2, StopCircle } from 'lucide-react';
 import { renderMarkdown, escapeHtml } from '../utils/markdown';
 import { get, post, del as deleteReq } from '../utils/api';
 import type { ChatMessage, ChatSession } from '../types';
 
 function formatToolCard(tool: string, args: unknown): string {
   const argsStr = typeof args === 'string' ? args : JSON.stringify(args, null, 2);
-  return `<div class="ai-tool-card">
-    <div class="ai-tool-card-header">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  return `<details class="ai-tool-card">
+    <summary class="ai-tool-card-header">
+      <svg class="ai-tool-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
       </svg>
       <span>调用工具: ${escapeHtml(tool)}</span>
-    </div>
+      <svg class="ai-tool-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+      </svg>
+    </summary>
     <div class="ai-tool-card-body"><pre>${escapeHtml(argsStr)}</pre></div>
-  </div>`;
+  </details>`;
 }
 
 function formatResultCard(result: unknown): string {
   const resultStr = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
-  return `<div class="ai-result-card">
-    <div class="ai-result-card-header">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  return `<details class="ai-result-card">
+    <summary class="ai-result-card-header">
+      <svg class="ai-tool-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
       </svg>
       <span>执行结果</span>
-    </div>
+      <svg class="ai-tool-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+      </svg>
+    </summary>
     <div class="ai-result-card-body"><pre>${escapeHtml(resultStr)}</pre></div>
-  </div>`;
+  </details>`;
 }
 
 function formatErrorCard(error: string): string {
-  return `<div class="ai-error-card">
-    <div class="ai-error-card-header">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  return `<details class="ai-error-card" open>
+    <summary class="ai-error-card-header">
+      <svg class="ai-tool-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
       </svg>
       <span>错误: ${escapeHtml(error)}</span>
-    </div>
-  </div>`;
+      <svg class="ai-tool-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+      </svg>
+    </summary>
+  </details>`;
 }
 
 export default function AIChat() {
@@ -55,6 +64,7 @@ export default function AIChat() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [showMenu, setShowMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const currentFile = location.pathname.startsWith('/editor/')
     ? location.pathname.replace('/editor/', '')
@@ -142,6 +152,9 @@ export default function AIChat() {
     setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
 
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     try {
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
@@ -152,6 +165,7 @@ export default function AIChat() {
           session_id: sessionId,
           current_file: currentFile || undefined,
         }),
+        signal: abortController.signal,
       });
 
       if (!response.ok) throw new Error('Network response was not ok');
@@ -200,17 +214,36 @@ export default function AIChat() {
         }
       }
     } catch (error) {
-      console.error('Chat error:', error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: '抱歉，处理您的请求时发生了错误：' + (error as Error).message,
-        },
-      ]);
+      if ((error as Error).name === 'AbortError') {
+        setMessages((prev) => {
+          const newMessages = [...prev];
+          const last = newMessages[newMessages.length - 1];
+          if (last.role === 'assistant' && last.content === '') {
+            newMessages[newMessages.length - 1] = {
+              role: 'assistant',
+              content: '（已停止生成）',
+            };
+          }
+          return newMessages;
+        });
+      } else {
+        console.error('Chat error:', error);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '抱歉，处理您的请求时发生了错误：' + (error as Error).message,
+          },
+        ]);
+      }
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
     }
+  }
+
+  function stopGeneration() {
+    abortControllerRef.current?.abort();
   }
 
   return (
@@ -328,15 +361,26 @@ export default function AIChat() {
                 className="flex-1 bg-stone-100 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-stone-400 outline-none"
                 disabled={isLoading}
               />
-              <button
-                type="submit"
-                disabled={isLoading || !userInput.trim()}
-                className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              </button>
+              {isLoading ? (
+                <button
+                  type="button"
+                  onClick={stopGeneration}
+                  className="bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-colors"
+                  title="停止生成"
+                >
+                  <StopCircle className="w-5 h-5" />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={!userInput.trim()}
+                  className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                </button>
+              )}
             </div>
           </form>
         </div>

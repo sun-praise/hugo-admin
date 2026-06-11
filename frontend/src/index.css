@@ -243,3 +243,112 @@ body {
   from { background-position: 1rem 0; }
   to { background-position: 0 0; }
 }
+
+/* ===== AI Tool Cards (collapsed by default) ===== */
+.ai-prose details {
+  margin: 0.5em 0;
+  border: 1px solid #e7e5e4;
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.8125rem;
+}
+.ai-prose details[open] {
+  border-color: #d6d3d1;
+}
+.ai-prose details summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  font-weight: 500;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.ai-prose details summary::-webkit-details-marker {
+  display: none;
+}
+.ai-prose details summary::marker {
+  content: '';
+}
+.ai-prose details summary:hover {
+  background: #fafaf9;
+}
+.ai-tool-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.ai-tool-chevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0.4;
+  transition: transform 0.15s ease;
+}
+.ai-prose details[open] .ai-tool-chevron {
+  transform: rotate(90deg);
+}
+
+/* Tool call card */
+.ai-tool-card {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+.ai-tool-card summary {
+  color: #475569;
+}
+.ai-tool-card .ai-tool-icon {
+  color: #64748b;
+}
+
+/* Result card */
+.ai-result-card {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.ai-result-card summary {
+  color: #166534;
+}
+.ai-result-card .ai-tool-icon {
+  color: #22c55e;
+}
+
+/* Error card (expanded by default) */
+.ai-error-card {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+.ai-error-card summary {
+  color: #991b1b;
+}
+.ai-error-card .ai-tool-icon {
+  color: #ef4444;
+}
+
+/* Card body */
+.ai-tool-card-body,
+.ai-result-card-body {
+  padding: 0 10px 8px;
+  border-top: 1px solid #e7e5e4;
+}
+.ai-tool-card-body pre,
+.ai-result-card-body pre {
+  margin: 0;
+  padding: 8px 0 0;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: transparent;
+  color: #57534e;
+}
+.ai-tool-card-body pre code,
+.ai-result-card-body pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
