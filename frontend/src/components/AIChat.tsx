@@ -22,19 +22,35 @@ function formatToolCard(tool: string, args: unknown): string {
   </details>`;
 }
 
+function extractText(result: unknown): string {
+  if (typeof result === 'string') return result;
+  if (Array.isArray(result)) {
+    return result
+      .map((item: unknown) => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object' && 'text' in item) return (item as { text: string }).text;
+        return JSON.stringify(item);
+      })
+      .join('\n');
+  }
+  if (result && typeof result === 'object' && 'text' in result) return (result as { text: string }).text;
+  return JSON.stringify(result, null, 2);
+}
+
 function formatResultCard(result: unknown): string {
-  const resultStr = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+  const text = extractText(result);
+  const preview = text.length > 60 ? text.slice(0, 60) + '…' : text;
   return `<details class="ai-result-card">
     <summary class="ai-result-card-header">
       <svg class="ai-tool-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
       </svg>
-      <span>执行结果</span>
+      <span class="ai-result-preview">${escapeHtml(preview)}</span>
       <svg class="ai-tool-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
       </svg>
     </summary>
-    <div class="ai-result-card-body"><pre>${escapeHtml(resultStr)}</pre></div>
+    <div class="ai-tool-card-body"><pre>${escapeHtml(text)}</pre></div>
   </details>`;
 }
 
