@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-06-11
+
+### Added
+- Plugin system implementation (Phase 1 + Phase 2): gRPC-based extension architecture
+- Plugin management UI page
+- Editor image upload wired to active image plugin
+- Listmonk configuration to settings page with auto-migration from `~/.config/secret.yml`
+- AI assistant awareness of current page and article context
+- 80 unit tests for plugin system
+
+### Changed
+- Split README into English and Chinese versions
+- Add Docker installation instructions to README
+- Posts pagination: wire page param and add pagination controls
+
+### Fixed
+- Extract `tool_result` text content in backend and show preview in summary
+- Fix SSE chunk boundary causing `tool_result` JSON to be rendered as text
+- Fix undefined `session_id` when extracting `tool_result`
+- Wire `plugin_manager` into `ServiceRegistry`
+- Show article title (instead of static text) on editor page
+- Docker deployment: mount hugo-blog dirs, support env-var paths
+- Address PR review suggestions for docker-deploy
+
 ## [2.1.1] - 2026-06-07
 
 ### Added
