@@ -83,9 +83,23 @@ export default function AIChat() {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const currentFile = location.pathname.startsWith('/editor/')
-    ? location.pathname.replace('/editor/', '')
+    ? decodeURIComponent(location.pathname.replace('/editor/', ''))
     : '';
 
+  const currentPage = (() => {
+    const path = location.pathname;
+    if (path === '/' || path === '') return '仪表盘';
+    if (path === '/posts') return '文章列表';
+    if (path.startsWith('/editor/')) return '编辑器';
+    if (path === '/server') return '服务器';
+    if (path === '/plugins') return '插件';
+    if (path === '/settings') return '设置';
+    return '';
+  })();
+
+  const contextLabel = currentFile
+    ? `${currentPage} · ${currentFile}`
+    : currentPage;
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
@@ -180,6 +194,7 @@ export default function AIChat() {
           history: messages,
           session_id: sessionId,
           current_file: currentFile || undefined,
+          current_page: currentPage || undefined,
         }),
         signal: abortController.signal,
       });
@@ -338,6 +353,15 @@ export default function AIChat() {
               <X className="w-5 h-5" />
             </button>
           </div>
+          {contextLabel && (
+            <div className="px-4 py-1.5 bg-stone-100 text-stone-500 text-xs truncate border-b border-stone-200 flex items-center gap-1.5">
+              <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+              <span>{contextLabel}</span>
+            </div>
+          )}
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-stone-50">
             {messages.map((msg, index) => (
