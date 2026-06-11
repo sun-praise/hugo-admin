@@ -189,6 +189,7 @@ export default function AIChat() {
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
       let accumulatedContent = '';
+      let sseBuffer = '';
 
       setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
 
@@ -196,37 +197,44 @@ export default function AIChat() {
         const { value, done } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+        sseBuffer += decoder.decode(value, { stream: true });
+        const parts = sseBuffer.split('\n\n');
+        // Last element may be incomplete; keep it in buffer
+        sseBuffer = parts.pop()!;
 
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (trimmedLine.startsWith('data:')) {
-            const data = trimmedLine.slice(5).trim();
-            if (data === '[DONE]') break;
+        for (const part of parts) {
+          // Each "part" is one SSE event block (may contain multiple data: lines)
+          const dataLines = part.split('\n')
+            .map((l: string) => l.trim())
+            .filter((l: string) => l.startsWith('data:'))
+            .map((l: string) => l.slice(5).trim());
 
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.type === 'tool_call') {
-                accumulatedContent += formatToolCard(parsed.tool, parsed.args);
-              } else if (parsed.type === 'tool_result') {
-                accumulatedContent += formatResultCard(parsed.result);
-              } else if (parsed.type === 'error') {
-                accumulatedContent += formatErrorCard(parsed.error);
-              }
-            } catch {
-              accumulatedContent += data;
+          if (dataLines.length === 0) continue;
+          if (dataLines.includes('[DONE]')) break;
+
+          const data = dataLines.join('');
+
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.type === 'tool_call') {
+              accumulatedContent += formatToolCard(parsed.tool, parsed.args);
+            } else if (parsed.type === 'tool_result') {
+              accumulatedContent += formatResultCard(parsed.result);
+            } else if (parsed.type === 'error') {
+              accumulatedContent += formatErrorCard(parsed.error);
             }
-
-            setMessages((prev) => {
-              const newMessages = [...prev];
-              newMessages[newMessages.length - 1] = {
-                role: 'assistant',
-                content: accumulatedContent,
-              };
-              return newMessages;
-            });
+          } catch {
+            accumulatedContent += data;
           }
+
+          setMessages((prev) => {
+            const newMessages = [...prev];
+            newMessages[newMessages.length - 1] = {
+              role: 'assistant',
+              content: accumulatedContent,
+            };
+            return newMessages;
+          });
         }
       }
     } catch (error) {
