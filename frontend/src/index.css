@@ -316,6 +316,16 @@ body {
 .ai-result-card .ai-tool-icon {
   color: #22c55e;
 }
+.ai-result-preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  font-weight: 400;
+  font-size: 0.6875rem;
+  opacity: 0.8;
+}
 
 /* Error card (expanded by default) */
 .ai-error-card {
