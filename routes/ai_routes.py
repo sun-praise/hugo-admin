@@ -118,10 +118,20 @@ def stream_agent_as_sse_sync(
             elif hasattr(msg, "content") and isinstance(msg.content, list):
                 for block in msg.content:
                     if isinstance(block, ToolResultBlock):
+                        result_text = ""
+                        if isinstance(block.content, list):
+                            result_text = "\n".join(
+                                getattr(item, "text", str(item))
+                                for item in block.content
+                            )
+                        elif isinstance(block.content, str):
+                            result_text = block.content
+                        else:
+                            result_text = str(block.content)
                         payload = {
                             "type": "tool_result",
                             "tool_call_id": block.tool_use_id,
-                            "result": block.content,
+                            "result": result_text,
                         }
                         yield _sse_data_line(json.dumps(payload, ensure_ascii=False))
 
@@ -250,6 +260,7 @@ def register_ai_routes(ai_service_factory):
         data = request.get_json()
         message = data.get("message")
         history = data.get("history", [])
+        session_id = data.get("session_id")
         current_file = data.get("current_file")
         current_page = data.get("current_page")
         if current_file is not None:
@@ -307,8 +318,7 @@ def register_ai_routes(ai_service_factory):
                 # Save assistant response to session if session_id provided
                 if session_id and assistant_response:
                     try:
-                        chat_history_service = current_app.chat_history_service
-                        chat_history_service.add_message(
+                        current_app.chat_history_service.add_message(
                             session_id, "assistant", assistant_response
                         )
                     except Exception:
