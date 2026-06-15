@@ -16,6 +16,25 @@ from services.ai_service import InlineEditEmptyResultError, InlineEditTimeoutErr
 
 logger = logging.getLogger(__name__)
 
+# Per-field input size caps. The frontend already constrains the selection
+# to 5000 chars and slices 600 chars of context on either side, but the
+# backend must enforce its own ceiling: a malicious or buggy client could
+# otherwise submit arbitrarily large payloads and amplify the per-call LLM
+# cost on this unauthenticated endpoint.
+MAX_SELECTED_TEXT = 5000
+MAX_INSTRUCTION = 1000
+MAX_CONTEXT = 1000
+
+# Defense in depth against prompt injection: even though the inline-edit
+# response is currently rendered only as text in a <pre> element (no
+# dangerouslySetInnerHTML), reject any LLM output that contains obvious
+# HTML/script payloads so a future render path can never turn a poisoned
+# rewrite into an XSS sink.
+_DANGEROUS_RESPONSE_PATTERN = re.compile(
+    r"<\s*script\b|<\s*iframe\b|javascript\s*:|on\w+\s*=",
+    re.IGNORECASE,
+)
+
 
 def _looks_like_markdown(line: str) -> bool:
     """A line is treated as Markdown if it carries any Markdown syntax marker.
@@ -125,6 +144,38 @@ def register_inline_edit_routes(ai_service_factory):
                 jsonify({"success": False, "message": "缺少 instruction"}),
                 400,
             )
+        # Per-field size caps — see MAX_* constants. Anything over the cap
+        # is rejected before we hit the LLM, since each call costs money.
+        if len(selected_text) > MAX_SELECTED_TEXT:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"selected_text 超过 {MAX_SELECTED_TEXT} 字符限制",
+                    }
+                ),
+                400,
+            )
+        if len(instruction) > MAX_INSTRUCTION:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"instruction 超过 {MAX_INSTRUCTION} 字符限制",
+                    }
+                ),
+                400,
+            )
+        if len(context_before) > MAX_CONTEXT or len(context_after) > MAX_CONTEXT:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"context 超过 {MAX_CONTEXT} 字符限制",
+                    }
+                ),
+                400,
+            )
 
         ai_service = ai_service_factory()
         if not getattr(ai_service, "enabled", False):
@@ -169,21 +220,18 @@ def register_inline_edit_routes(ai_service_factory):
                 ),
                 504,
             )
+        # All other failure modes collapse to a generic user-facing message;
+        # the actual exception text is logged server-side only.
         except RuntimeError as e:
             logger.warning("quick_rewrite runtime error: %s", e)
             return (
-                jsonify({"success": False, "message": str(e)}),
+                jsonify({"success": False, "message": "改写失败，请稍后重试"}),
                 500,
             )
         except Exception as e:  # noqa: BLE001
-            logger.exception("quick_rewrite failed")
+            logger.exception("quick_rewrite failed: %s", e)
             return (
-                jsonify(
-                    {
-                        "success": False,
-                        "message": f"改写失败：{e}",
-                    }
-                ),
+                jsonify({"success": False, "message": "改写失败，请稍后重试"}),
                 500,
             )
 
@@ -201,6 +249,24 @@ def register_inline_edit_routes(ai_service_factory):
                     {
                         "success": False,
                         "message": "改写失败：模型无输出",
+                    }
+                ),
+                500,
+            )
+        # Reject responses that look like they'd become XSS if a future
+        # render path ever trusts the model output. Today the response goes
+        # only into a <pre> text node and a <textarea>.value, both of which
+        # are safe, but this is a cheap defense-in-depth check.
+        if _DANGEROUS_RESPONSE_PATTERN.search(revised_text):
+            logger.warning(
+                "inline-edit response rejected: dangerous payload | raw=%r",
+                revised_text[:200],
+            )
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "改写失败：模型返回不安全内容",
                     }
                 ),
                 500,

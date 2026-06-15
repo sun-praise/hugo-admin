@@ -240,6 +240,103 @@ class TestInlineEditEndpoint:
         assert "```" not in body["revised_text"]
         assert "## Heading" in body["revised_text"]
 
+    # ---- security: per-field size caps ---------------------------------
+
+    def test_400_when_selected_text_too_long(self):
+        app = _make_app(_FakeAIService(revised="ok"))
+        client = app.test_client()
+        resp = client.post(
+            "/api/ai/inline-edit",
+            data=json.dumps({"selected_text": "x" * 5001, "instruction": "y"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_400_when_instruction_too_long(self):
+        app = _make_app(_FakeAIService(revised="ok"))
+        client = app.test_client()
+        resp = client.post(
+            "/api/ai/inline-edit",
+            data=json.dumps({"selected_text": "x", "instruction": "y" * 1001}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_400_when_context_too_long(self):
+        app = _make_app(_FakeAIService(revised="ok"))
+        client = app.test_client()
+        resp = client.post(
+            "/api/ai/inline-edit",
+            data=json.dumps(
+                {
+                    "selected_text": "x",
+                    "instruction": "y",
+                    "context_before": "a" * 1001,
+                }
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    # ---- security: error message hygiene ------------------------------
+
+    def test_500_uses_generic_message_on_runtime_error(self):
+        ai = MagicMock()
+        ai.enabled = True
+        ai.model_name = "test-model"
+        ai.quick_rewrite = MagicMock(
+            side_effect=RuntimeError("internal stack trace from SDK")
+        )
+        app = _make_app(ai)
+        client = app.test_client()
+        resp = client.post(
+            "/api/ai/inline-edit",
+            data=json.dumps({"selected_text": "x", "instruction": "y"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 500
+        body = resp.get_json()
+        assert "stack trace" not in body["message"]
+        assert "SDK" not in body["message"]
+
+    def test_500_uses_generic_message_on_unexpected_error(self):
+        ai = MagicMock()
+        ai.enabled = True
+        ai.model_name = "test-model"
+        ai.quick_rewrite = MagicMock(side_effect=ValueError("leaky internal detail"))
+        app = _make_app(ai)
+        client = app.test_client()
+        resp = client.post(
+            "/api/ai/inline-edit",
+            data=json.dumps({"selected_text": "x", "instruction": "y"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 500
+        body = resp.get_json()
+        assert "leaky" not in body["message"]
+
+    # ---- security: dangerous response payload -------------------------
+
+    def test_500_when_response_contains_script_tag(self):
+        app = _make_app(_FakeAIService(revised="polished <script>alert(1)</script>"))
+        client = app.test_client()
+        resp = client.post(
+            "/api/ai/inline-edit",
+            data=json.dumps({"selected_text": "x", "instruction": "y"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 500
+
+    def test_500_when_response_contains_javascript_url(self):
+        app = _make_app(_FakeAIService(revised="see [link](javascript:alert(1))"))
+        client = app.test_client()
+        resp = client.post(
+            "/api/ai/inline-edit",
+            data=json.dumps({"selected_text": "x", "instruction": "y"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 500
+
 
 # ---------------------------------------------------------------------------
 # Helpers
