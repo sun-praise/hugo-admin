@@ -6,7 +6,7 @@ Tests for the inline-edit API endpoint and its post-processing helpers.
 import json
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from flask import Flask
 
@@ -185,7 +185,7 @@ class TestInlineEditEndpoint:
         ai = MagicMock()
         ai.enabled = True
         ai.model_name = "test-model"
-        ai.quick_rewrite = MagicMock(side_effect=InlineEditEmptyResultError("empty"))
+        ai.quick_rewrite = AsyncMock(side_effect=InlineEditEmptyResultError("empty"))
         app = _make_app(ai)
         client = app.test_client()
         resp = client.post(
@@ -199,7 +199,7 @@ class TestInlineEditEndpoint:
         ai = MagicMock()
         ai.enabled = True
         ai.model_name = "test-model"
-        ai.quick_rewrite = MagicMock(side_effect=InlineEditTimeoutError("timed out"))
+        ai.quick_rewrite = AsyncMock(side_effect=InlineEditTimeoutError("timed out"))
         app = _make_app(ai)
         client = app.test_client()
         resp = client.post(
@@ -284,7 +284,7 @@ class TestInlineEditEndpoint:
         ai = MagicMock()
         ai.enabled = True
         ai.model_name = "test-model"
-        ai.quick_rewrite = MagicMock(
+        ai.quick_rewrite = AsyncMock(
             side_effect=RuntimeError("internal stack trace from SDK")
         )
         app = _make_app(ai)
@@ -303,7 +303,7 @@ class TestInlineEditEndpoint:
         ai = MagicMock()
         ai.enabled = True
         ai.model_name = "test-model"
-        ai.quick_rewrite = MagicMock(side_effect=ValueError("leaky internal detail"))
+        ai.quick_rewrite = AsyncMock(side_effect=ValueError("leaky internal detail"))
         app = _make_app(ai)
         client = app.test_client()
         resp = client.post(
@@ -344,10 +344,10 @@ class TestInlineEditEndpoint:
 
 
 class _FakeAIService:
-    """Synchronous fake of the async quick_rewrite contract for the route.
+    """Async fake of the ``AIService.quick_rewrite`` contract for the route.
 
     The route calls ``anyio.run(ai_service.quick_rewrite, ...)`` so the fake
-    must be a sync callable that returns the revised text directly.
+    must be an async coroutine function that returns the revised text.
     """
 
     def __init__(self, revised: str = "ok"):
@@ -355,7 +355,7 @@ class _FakeAIService:
         self.enabled = True
         self.model_name = "fake-model"
 
-    def quick_rewrite(
+    async def quick_rewrite(
         self, system_prompt: str, user_prompt: str
     ) -> str:  # noqa: ARG002
         return self.revised

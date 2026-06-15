@@ -4,6 +4,13 @@ Unit tests for ``AIService.quick_rewrite``.
 
 The Claude Agent SDK is mocked at the ``ClaudeSDKClient`` boundary so the
 tests don't hit the network and don't depend on a real LLM.
+
+These tests are written as plain sync functions that drive an async coroutine
+via ``asyncio.run(...)``.  The project pins ``pytest==7.4.3`` and does not
+depend on ``pytest-asyncio``; using ``@pytest.mark.asyncio`` would require
+adding a new test-time dependency just to satisfy pytest's strict-markers
+check.  See the route-level tests in ``test_inline_edit_api.py`` for the
+end-to-end behavior; the tests here cover ``quick_rewrite`` directly.
 """
 
 import asyncio
@@ -65,105 +72,69 @@ def _make_service(enabled: bool = True) -> AIService:
     return svc
 
 
+def _patch_client(svc, receive_iter):
+    """Patch ``ClaudeSDKClient`` so ``svc.quick_rewrite`` sees a fake client.
+
+    Returns the ``_patcher`` context manager so the caller can use it via
+    ``with _patch_client(...) as ...`` to keep mocking scoped to the test.
+    """
+    mock_client = MagicMock()
+    mock_client.query = AsyncMock()
+    mock_client.receive_response = MagicMock(return_value=receive_iter)
+    return patch(
+        "services.ai_service.ClaudeSDKClient",
+        return_value=MagicMock(
+            __aenter__=AsyncMock(return_value=mock_client),
+            __aexit__=AsyncMock(return_value=False),
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # quick_rewrite
 # ---------------------------------------------------------------------------
 
 
 class TestQuickRewrite:
-    @pytest.mark.asyncio
-    async def test_returns_aggregated_text(self):
+    def test_returns_aggregated_text(self):
         svc = _make_service()
-
-        mock_client = MagicMock()
-        mock_client.query = AsyncMock()
-        mock_client.receive_response = MagicMock(
-            return_value=_StubAsyncIter(
-                [_assistant_message("hello "), _assistant_message("world")]
-            )
-        )
-
-        with patch(
-            "services.ai_service.ClaudeSDKClient",
-            return_value=MagicMock(
-                __aenter__=AsyncMock(return_value=mock_client),
-                __aexit__=AsyncMock(return_value=False),
-            ),
+        with _patch_client(
+            svc,
+            _StubAsyncIter([_assistant_message("hello "), _assistant_message("world")]),
         ):
-            result = await svc.quick_rewrite("sys", "usr")
+            result = asyncio.run(svc.quick_rewrite("sys", "usr"))
 
         assert result == "hello world"
-        mock_client.query.assert_awaited_once_with("usr")
 
-    @pytest.mark.asyncio
-    async def test_raises_on_empty_result(self):
+    def test_raises_on_empty_result(self):
         svc = _make_service()
-
-        mock_client = MagicMock()
-        mock_client.query = AsyncMock()
-        mock_client.receive_response = MagicMock(return_value=_StubAsyncIter([]))
-
-        with patch(
-            "services.ai_service.ClaudeSDKClient",
-            return_value=MagicMock(
-                __aenter__=AsyncMock(return_value=mock_client),
-                __aexit__=AsyncMock(return_value=False),
-            ),
-        ):
+        with _patch_client(svc, _StubAsyncIter([])):
             with pytest.raises(InlineEditEmptyResultError):
-                await svc.quick_rewrite("sys", "usr")
+                asyncio.run(svc.quick_rewrite("sys", "usr"))
 
-    @pytest.mark.asyncio
-    async def test_raises_on_whitespace_only_result(self):
+    def test_raises_on_whitespace_only_result(self):
         svc = _make_service()
-
-        mock_client = MagicMock()
-        mock_client.query = AsyncMock()
-        mock_client.receive_response = MagicMock(
-            return_value=_StubAsyncIter([_assistant_message("   \n\t  ")])
-        )
-
-        with patch(
-            "services.ai_service.ClaudeSDKClient",
-            return_value=MagicMock(
-                __aenter__=AsyncMock(return_value=mock_client),
-                __aexit__=AsyncMock(return_value=False),
-            ),
-        ):
+        with _patch_client(svc, _StubAsyncIter([_assistant_message("   \n\t  ")])):
             with pytest.raises(InlineEditEmptyResultError):
-                await svc.quick_rewrite("sys", "usr")
+                asyncio.run(svc.quick_rewrite("sys", "usr"))
 
-    @pytest.mark.asyncio
-    async def test_raises_on_timeout(self):
+    def test_raises_on_timeout(self):
         svc = _make_service()
 
         async def _slow_iter():
             await asyncio.sleep(0.5)
             yield _assistant_message("never")
-            return
 
-        mock_client = MagicMock()
-        mock_client.query = AsyncMock()
-        mock_client.receive_response = MagicMock(return_value=_slow_iter())
-
-        with patch(
-            "services.ai_service.ClaudeSDKClient",
-            return_value=MagicMock(
-                __aenter__=AsyncMock(return_value=mock_client),
-                __aexit__=AsyncMock(return_value=False),
-            ),
-        ):
+        with _patch_client(svc, _slow_iter()):
             with pytest.raises(InlineEditTimeoutError):
-                await svc.quick_rewrite("sys", "usr", timeout_s=0.1)
+                asyncio.run(svc.quick_rewrite("sys", "usr", timeout_s=0.1))
 
-    @pytest.mark.asyncio
-    async def test_raises_when_disabled(self):
+    def test_raises_when_disabled(self):
         svc = _make_service(enabled=False)
         with pytest.raises(RuntimeError):
-            await svc.quick_rewrite("sys", "usr")
+            asyncio.run(svc.quick_rewrite("sys", "usr"))
 
-    @pytest.mark.asyncio
-    async def test_ignores_non_text_blocks(self):
+    def test_ignores_non_text_blocks(self):
         svc = _make_service()
 
         text_block = MagicMock(spec=TextBlock)
@@ -173,18 +144,8 @@ class TestQuickRewrite:
         msg = MagicMock(spec=AssistantMessage)
         msg.content = [text_block, other_block]
 
-        mock_client = MagicMock()
-        mock_client.query = AsyncMock()
-        mock_client.receive_response = MagicMock(return_value=_StubAsyncIter([msg]))
-
-        with patch(
-            "services.ai_service.ClaudeSDKClient",
-            return_value=MagicMock(
-                __aenter__=AsyncMock(return_value=mock_client),
-                __aexit__=AsyncMock(return_value=False),
-            ),
-        ):
-            result = await svc.quick_rewrite("sys", "usr")
+        with _patch_client(svc, _StubAsyncIter([msg])):
+            result = asyncio.run(svc.quick_rewrite("sys", "usr"))
 
         assert result == "kept"
 
