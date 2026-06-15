@@ -1,12 +1,15 @@
 """AI Service using Claude Agent SDK with DeepSeek provider."""
 
+import asyncio
 import os
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from claude_agent_sdk import (
+    AssistantMessage,
     ClaudeAgentOptions,
     ClaudeSDKClient,
+    TextBlock,
     create_sdk_mcp_server,
     tool,
 )
@@ -14,6 +17,17 @@ from claude_agent_sdk import (
 from services.git_service import GitService
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
+
+# Inline edit rewrite path
+INLINE_EDIT_TIMEOUT_S = 10.0
+
+
+class InlineEditEmptyResultError(RuntimeError):
+    """Raised when quick_rewrite completes but the model returns no text."""
+
+
+class InlineEditTimeoutError(RuntimeError):
+    """Raised when quick_rewrite exceeds the configured timeout."""
 
 
 @dataclass
@@ -207,3 +221,67 @@ class AIService:
             # Stream responses
             async for msg in client.receive_response():
                 yield msg
+
+    def _build_quick_rewrite_options(
+        self,
+        system_prompt: str,
+    ) -> ClaudeAgentOptions:
+        """Build a one-off ClaudeAgentOptions for the non-streaming rewrite path.
+
+        Tools are disabled, streaming is off, and the configured model is reused.
+        """
+        if not self.enabled:
+            raise RuntimeError("AI service is not configured")
+        return ClaudeAgentOptions(
+            model=self.model_name,
+            allowed_tools=[],
+            include_partial_messages=False,
+            env={
+                "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+                "ANTHROPIC_AUTH_TOKEN": os.environ.get("ANTHROPIC_AUTH_TOKEN", ""),
+                "ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_AUTH_TOKEN", ""),
+                "ANTHROPIC_MODEL": self.model_name,
+            },
+            system_prompt=system_prompt,
+        )
+
+    async def quick_rewrite(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        timeout_s: float = INLINE_EDIT_TIMEOUT_S,
+    ) -> str:
+        """Run a single non-streaming LLM call for the inline-edit rewrite.
+
+        The agent is invoked with tools disabled and `include_partial_messages`
+        off, so the SDK returns a single ``AssistantMessage`` we can fully
+        buffer. Bounded by ``timeout_s``; on timeout raises
+        :class:`InlineEditTimeoutError`, on empty result raises
+        :class:`InlineEditEmptyResultError`.
+        """
+        if not self.enabled:
+            raise RuntimeError("AI service is not configured")
+
+        options = self._build_quick_rewrite_options(system_prompt)
+
+        async def _run() -> str:
+            async with ClaudeSDKClient(options=options) as client:
+                await client.query(user_prompt)
+                parts: List[str] = []
+                async for msg in client.receive_response():
+                    if isinstance(msg, AssistantMessage):
+                        for block in msg.content:
+                            if isinstance(block, TextBlock) and block.text:
+                                parts.append(block.text)
+                return "".join(parts).strip()
+
+        try:
+            result = await asyncio.wait_for(_run(), timeout=timeout_s)
+        except asyncio.TimeoutError as e:
+            raise InlineEditTimeoutError(
+                f"quick_rewrite timed out after {timeout_s}s"
+            ) from e
+
+        if not result:
+            raise InlineEditEmptyResultError("quick_rewrite returned empty text")
+        return result

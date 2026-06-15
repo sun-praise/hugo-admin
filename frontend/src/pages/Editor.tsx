@@ -23,6 +23,7 @@ import { get, post } from '../utils/api';
 import { renderMarkdown } from '../utils/markdown';
 import type { FileData, ImageItem, Backlink, Frontmatter } from '../types';
 import { usePageTitle } from '../contexts/PageTitleContext';
+import { InlineEditOverlay } from '../components/InlineEdit/Overlay';
 
 export default function Editor() {
   const { filePath, '*': restPath } = useParams();
@@ -265,6 +266,25 @@ export default function Editor() {
       textarea.focus();
       textarea.setSelectionRange(start + cursorOffset, start + cursorOffset);
     });
+  }
+
+  function applyInlineEdit(revisedText: string, anchorStart: number, anchorEnd: number) {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const newContent =
+      content.substring(0, anchorStart) + revisedText + content.substring(anchorEnd);
+    setContent(newContent);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(
+        anchorStart,
+        anchorStart + revisedText.length,
+      );
+    });
+  }
+
+  function handleInlineEditDrift() {
+    showNotification('选区已变化，已取消', 'warning');
   }
 
   async function loadFile() {
@@ -685,6 +705,12 @@ export default function Editor() {
               placeholder="在此输入 Markdown 内容..."
               className="flex-1 w-full font-mono text-sm p-4 border border-stone-200 rounded-lg bg-white resize-none focus:ring-2 focus:ring-stone-400 focus:border-transparent outline-none"
               style={{ lineHeight: 1.6 }}
+            />
+            <InlineEditOverlay
+              textareaRef={textareaRef}
+              content={content}
+              onAccept={applyInlineEdit}
+              onDrift={handleInlineEditDrift}
             />
           </div>
           <div className="flex flex-col">
