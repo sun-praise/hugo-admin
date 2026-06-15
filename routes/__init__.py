@@ -8,6 +8,7 @@ from .ai_routes import register_ai_routes
 from .email_routes import register_email_routes
 from .file_routes import register_file_routes
 from .image_routes import register_image_routes
+from .inline_edit_routes import register_inline_edit_routes
 from .page_routes import register_page_routes
 from .plugin_routes import register_plugin_routes
 from .post_routes import register_post_routes
@@ -29,5 +30,6 @@ __all__ = [
     "register_settings_routes",
     "register_socketio_handlers",
     "register_ai_routes",
+    "register_inline_edit_routes",
     "register_plugin_routes",
 ]
