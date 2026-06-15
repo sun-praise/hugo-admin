@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Inline AI edit (rewrite) in the editor: select text → floating ✨ trigger → instruction input + 4 Chinese presets (润色 / 翻译为英文 / 精简 / 详细化) → non-streaming LLM call → original-vs-revised side-by-side diff → accept replaces the selection. Backed by a new `POST /api/ai/inline-edit` endpoint and `AIService.quick_rewrite` (Claude Agent SDK with tools disabled, 10s timeout).
+- Tests for the new endpoint and the `quick_rewrite` service method.
+
 ## [2.2.0] - 2026-06-11
 
 ### Added

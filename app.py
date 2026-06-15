@@ -18,6 +18,7 @@ from routes import (
     register_email_routes,
     register_file_routes,
     register_image_routes,
+    register_inline_edit_routes,
     register_page_routes,
     register_post_routes,
     register_publish_routes,
@@ -214,6 +215,7 @@ app.register_blueprint(register_settings_routes(app, registry))
 ai_main_bp, fm_bp = register_ai_routes(get_ai_service)
 app.register_blueprint(ai_main_bp)
 app.register_blueprint(fm_bp)
+app.register_blueprint(register_inline_edit_routes(get_ai_service))
 app.register_blueprint(register_plugin_routes(plugin_manager))
 
 # ============ 注册 SocketIO 事件 ============
