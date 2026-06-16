@@ -311,7 +311,7 @@ export default function Editor() {
           showNotification('加载文件失败', 'error');
         }
       }
-    } catch (error) {
+    } catch {
       showNotification('加载文件失败', 'error');
     } finally {
       setLoading(false);
@@ -337,7 +337,7 @@ export default function Editor() {
       } else {
         showNotification('保存失败: ' + data.message, 'error');
       }
-    } catch (error) {
+    } catch {
       showNotification('保存失败', 'error');
     } finally {
       setSaving(false);
@@ -364,7 +364,7 @@ export default function Editor() {
       } else {
         showNotification('发布失败: ' + data.message, 'error');
       }
-    } catch (error) {
+    } catch {
       showNotification('发布失败', 'error');
     } finally {
       setPublishing(false);
@@ -408,7 +408,7 @@ export default function Editor() {
       } else {
         showNotification('上传失败: ' + data.message, 'error');
       }
-    } catch (error) {
+    } catch {
       showNotification('上传失败', 'error');
     }
   }
@@ -434,7 +434,7 @@ export default function Editor() {
       } else {
         showNotification('生成失败: ' + (data.message || '未知错误'), 'error');
       }
-    } catch (error) {
+    } catch {
       showNotification('生成封面失败', 'error');
     } finally {
       setGeneratingCover(false);
