@@ -6,6 +6,7 @@ import Editor from './pages/Editor';
 import Server from './pages/Server';
 import Settings from './pages/Settings';
 import Plugins from './pages/Plugins';
+import Git from './pages/Git';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
           <Route path="editor" element={<Editor />} />
           <Route path="editor/:filePath/*" element={<Editor />} />
           <Route path="server" element={<Server />} />
+          <Route path="git" element={<Git />} />
           <Route path="plugins" element={<Plugins />} />
           <Route path="settings" element={<Settings />} />
         </Route>

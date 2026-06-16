@@ -9,6 +9,7 @@ from urllib.parse import urlparse, urlunparse
 from flask import Blueprint, jsonify, request
 from werkzeug.exceptions import BadRequest
 
+from models.database import Database
 from services.git_service import GitService
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
@@ -168,8 +169,9 @@ def register_settings_routes(app, registry):
                     else None
                 ),
             )
-            new_ref_service.scan_all()
-            new_git_service = GitService(new_root)
+            new_db_path = Path(app.config["CONTENT_DIR"]) / ".admin" / "cache.db"
+            new_db = Database(str(new_db_path))
+            new_git_service = GitService(new_root, database=new_db)
             new_hugo_manager = HugoServerManager(
                 new_root,
                 registry.socketio,
@@ -195,6 +197,7 @@ def register_settings_routes(app, registry):
             registry.ref_service = new_ref_service
             registry.git_service = new_git_service
             registry.hugo_manager = new_hugo_manager
+            registry.database = new_db
             registry.settings_service = new_settings_service
         elif new_server_url != registry.hugo_manager.server_url:
             fallback_url = _ensure_server_url_has_port(
