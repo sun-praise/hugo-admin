@@ -62,7 +62,7 @@ export default function Dashboard() {
       } else {
         showNotification('创建失败: ' + (data.message || ''), 'error');
       }
-    } catch (error) {
+    } catch {
       showNotification('创建失败', 'error');
     }
   }
@@ -87,7 +87,7 @@ export default function Dashboard() {
       } else {
         showNotification('发布失败: ' + result.message, 'error');
       }
-    } catch (error) {
+    } catch {
       showNotification('系统发布失败', 'error');
     } finally {
       setPublishing(false);
@@ -115,7 +115,7 @@ export default function Dashboard() {
       } else {
         showNotification('推送失败: ' + result.message, 'error');
       }
-    } catch (error) {
+    } catch {
       showNotification('邮件推送失败', 'error');
     } finally {
       setPushingEmail(false);
@@ -147,7 +147,7 @@ export default function Dashboard() {
       } else {
         showNotification('推送失败: ' + result.message, 'error');
       }
-    } catch (error) {
+    } catch {
       showNotification('邮件推送失败', 'error');
     } finally {
       setPushingEmail(false);

@@ -98,7 +98,7 @@ export default function Posts() {
       await post('/api/cache/refresh');
       await loadPosts();
       showNotification('缓存刷新成功', 'success');
-    } catch (error) {
+    } catch {
       showNotification('刷新失败', 'error');
     } finally {
       setRefreshing(false);
@@ -116,7 +116,7 @@ export default function Posts() {
       } else {
         showNotification('创建失败: ' + (data.message || ''), 'error');
       }
-    } catch (error) {
+    } catch {
       showNotification('创建失败', 'error');
     }
   }
@@ -181,7 +181,7 @@ export default function Posts() {
       } else {
         showNotification('导入失败: ' + (data.message || ''), 'error');
       }
-    } catch (error) {
+    } catch {
       showNotification('导入失败', 'error');
     } finally {
       setImporting(false);
@@ -221,7 +221,7 @@ export default function Posts() {
       } else {
         showNotification('批量发布失败: ' + result.message, 'error');
       }
-    } catch (error) {
+    } catch {
       showNotification('批量发布失败', 'error');
     } finally {
       setBulkPublishing(false);
