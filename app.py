@@ -120,10 +120,10 @@ ref_service = ReferenceService(
     post_service.cache_service.db if post_service.cache_service else None,
 )
 ref_service.scan_all()
-git_service = GitService(app.config["HUGO_ROOT"])
 
 db_path = Path(app.config["CONTENT_DIR"]) / ".admin" / "cache.db"
 db = Database(str(db_path))
+git_service = GitService(app.config["HUGO_ROOT"], database=db)
 chat_history_service = ChatHistoryService(db)
 app.chat_history_service = chat_history_service
 
@@ -134,6 +134,7 @@ ai_service = None
 registry = ServiceRegistry(
     post_service=post_service,
     git_service=git_service,
+    database=db,
     hugo_manager=hugo_manager,
     settings_service=settings_service,
     ref_service=ref_service,

@@ -6,6 +6,7 @@
 
 import json
 import sqlite3
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -146,6 +147,28 @@ class Database:
             CREATE INDEX IF NOT EXISTS idx_updated_at ON chat_sessions(updated_at)
         """
         )
+        # Git 推送历史表（记录每次 GitService.push() 的结果）
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS git_push_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                remote TEXT NOT NULL,
+                branch TEXT NOT NULL,
+                from_sha TEXT DEFAULT '',
+                to_sha TEXT DEFAULT '',
+                commit_count INTEGER DEFAULT 0,
+                commit_message TEXT DEFAULT '',
+                success INTEGER NOT NULL,
+                message TEXT DEFAULT '',
+                pushed_at REAL NOT NULL
+            )
+        """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_pushed_at ON git_push_history(pushed_at)
+        """
+        )
 
         conn.commit()
         conn.close()
@@ -163,6 +186,89 @@ class Database:
             conn.commit()
 
         conn.close()
+
+    def record_push(
+        self,
+        *,
+        remote: str,
+        branch: str,
+        from_sha: str,
+        to_sha: str,
+        commit_count: int,
+        commit_message: str,
+        success: bool,
+        message: str,
+    ) -> int:
+        """记录一次 git push 的结果，返回新行 id。"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        pushed_at = time.time()
+        cursor.execute(
+            """
+            INSERT INTO git_push_history
+                (remote, branch, from_sha, to_sha, commit_count,
+                 commit_message, success, message, pushed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                remote,
+                branch,
+                from_sha or "",
+                to_sha or "",
+                int(commit_count or 0),
+                commit_message or "",
+                1 if success else 0,
+                message or "",
+                pushed_at,
+            ),
+        )
+        conn.commit()
+        row_id = cursor.lastrowid
+        conn.close()
+        return row_id or 0
+
+    def list_pushes(self, limit: int = 20, offset: int = 0) -> Dict[str, Any]:
+        """返回推送历史（按 pushed_at 倒序）与总数。"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT COUNT(*) AS total FROM git_push_history")
+        total_row = cursor.fetchone()
+        total = int(total_row["total"]) if total_row else 0
+
+        cursor.execute(
+            """
+            SELECT id, remote, branch, from_sha, to_sha, commit_count,
+                   commit_message, success, message, pushed_at
+            FROM git_push_history
+            ORDER BY pushed_at DESC, id DESC
+            LIMIT ? OFFSET ?
+            """,
+            (int(limit), int(offset)),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        pushes: List[Dict[str, Any]] = []
+        for row in rows:
+            pushed_at = float(row["pushed_at"])
+            pushes.append(
+                {
+                    "id": row["id"],
+                    "remote": row["remote"],
+                    "branch": row["branch"],
+                    "from_sha": row["from_sha"] or "",
+                    "to_sha": row["to_sha"] or "",
+                    "commit_count": int(row["commit_count"] or 0),
+                    "commit_message": row["commit_message"] or "",
+                    "success": bool(row["success"]),
+                    "message": row["message"] or "",
+                    "pushed_at": pushed_at,
+                    "pushed_at_iso": datetime.fromtimestamp(pushed_at).isoformat(),
+                }
+            )
+
+        return {"success": True, "pushes": pushes, "total": total}
 
     def get_post(self, file_path: str) -> Optional[Dict[str, Any]]:
         """
