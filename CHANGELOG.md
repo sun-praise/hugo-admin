@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Git 管理页面（`/git`）：查看最近的提交记录（含 refs 与 diffstat）与本 admin 触发的推送历史（remote/branch、commit range、成功/失败与时间）。
+- 推送历史持久化到 per-repo `content/.admin/cache.db`（新增 `git_push_history` 表）；`GitService.push()` 在成功/失败时各记录一条（best-effort 捕获 from/to SHA 与 commit_count，HEAD 摘要作为 commit_message）；hugo-root 切换时为新 content 目录重建 `Database`。
+- `GET /api/git/commits` 增强：单次 `git log --numstat` 调用即返回 `refs` 与 `stats`（files/insertions/deletions），`count` 钳制到 `[1, 50]`；旧字段与响应结构不变。
+- 新增 `GET /api/git/pushes`（分页、倒序，参数钳制）。
+- 测试：推送历史 DB、`GitService.push()` 记录（成功/失败/`database=None` no-op）、commits 富化、`/api/git/pushes` 与 `/api/git/commits` 路由。
+
 ## [2.3.0] - 2026-06-16
 
 ### Added

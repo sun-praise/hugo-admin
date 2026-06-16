@@ -197,6 +197,47 @@ def register_publish_routes(registry):
                 500,
             )
 
+    @bp.route("/api/git/pushes")
+    def git_pushes():
+        """获取推送历史（按时间倒序，分页）"""
+        try:
+            database = getattr(registry, "database", None)
+            if database is None:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": "推送历史不可用：数据库未初始化",
+                        }
+                    ),
+                    500,
+                )
+
+            page = request.args.get("page", 1, type=int)
+            per_page = request.args.get("per_page", 20, type=int)
+            page = max(1, page or 1)
+            per_page = max(1, min(per_page or 20, 100))
+            offset = (page - 1) * per_page
+
+            result = database.list_pushes(limit=per_page, offset=offset)
+            total = result["total"]
+            total_pages = (total + per_page - 1) // per_page if per_page else 1
+            return jsonify(
+                {
+                    "success": True,
+                    "pushes": result["pushes"],
+                    "total": total,
+                    "page": page,
+                    "per_page": per_page,
+                    "total_pages": total_pages,
+                }
+            )
+        except Exception as e:
+            return (
+                jsonify({"success": False, "message": f"获取推送历史失败: {str(e)}"}),
+                500,
+            )
+
     @bp.route("/api/publish/system", methods=["POST"])
     def publish_system():
         """系统发布 - 执行 git add, commit, push 完整流程"""

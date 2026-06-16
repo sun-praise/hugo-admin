@@ -41,6 +41,14 @@ class ServiceRegistry:
         self._services["git_service"] = value
 
     @property
+    def database(self):
+        return self._services.get("database")
+
+    @database.setter
+    def database(self, value):
+        self._services["database"] = value
+
+    @property
     def hugo_manager(self):
         return self._services["hugo_manager"]
 
