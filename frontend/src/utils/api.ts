@@ -18,7 +18,7 @@ export async function request<T>(url: string, options?: RequestInit): Promise<T>
       throw new Error(error.message || `HTTP ${response.status}`);
     } catch (e) {
       if (e instanceof Error && e.message !== `HTTP ${response.status}`) throw e;
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`, { cause: e });
     }
   }
 
