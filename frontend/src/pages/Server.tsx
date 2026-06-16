@@ -76,7 +76,7 @@ export default function ServerPage() {
       } else {
         showNotification('启动失败: ' + data.message, 'error');
       }
-    } catch (error) {
+    } catch {
       showNotification('启动失败', 'error');
     } finally {
       setLoading(false);
@@ -93,7 +93,7 @@ export default function ServerPage() {
       } else {
         showNotification('停止失败: ' + data.message, 'error');
       }
-    } catch (error) {
+    } catch {
       showNotification('停止失败', 'error');
     } finally {
       setLoading(false);
