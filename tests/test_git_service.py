@@ -373,8 +373,6 @@ class TestGitService:
         （某些 git 版本 rev-parse 不存在的 ref 仍 exit 0 并回显名称），
         两种情况下 _count_commits 都应回退到 0，避免把全历史提交数误记为本次推送量。
         """
-        import tempfile
-
         repo = temp_git_repo
         with tempfile.TemporaryDirectory() as remote_temp:
             remote_dir = Path(remote_temp) / "origin.git"
