@@ -52,14 +52,29 @@ export function InlineEditOverlay({
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [open, setOpen] = useState(false);
   const aliveRef = useRef(true);
+  // The selection debounce timer is held in a ref so closeAll() can cancel
+  // any in-flight trigger. Without this, a selection event scheduled while
+  // the popup was open can fire its callback ~300ms *after* closeAll() has
+  // run — by then the `open` guard inside onSelectionChange is false again,
+  // so setAnchor() fires and re-arms the trigger against a stale selection
+  // (the source of the "first invocation leaks into the second" residue).
+  const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
       aliveRef.current = false;
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
     };
   }, []);
 
   const closeAll = useCallback(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
     setOpen(false);
     setAnchor(null);
   }, []);
@@ -92,18 +107,16 @@ export function InlineEditOverlay({
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
-    let timer: number | null = null;
     const schedule = () => {
-      if (timer !== null) window.clearTimeout(timer);
-      timer = window.setTimeout(() => {
-        timer = null;
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+      timerRef.current = window.setTimeout(() => {
+        timerRef.current = null;
         onSelectionChange();
       }, DEBOUNCE_MS);
     };
     const events: (keyof HTMLElementEventMap)[] = ['select', 'keyup', 'mouseup', 'focus'];
     events.forEach((e) => ta.addEventListener(e, schedule));
     return () => {
-      if (timer !== null) window.clearTimeout(timer);
       events.forEach((e) => ta.removeEventListener(e, schedule));
     };
   }, [textareaRef, onSelectionChange]);
