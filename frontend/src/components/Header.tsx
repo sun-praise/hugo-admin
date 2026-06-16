@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { get } from '../utils/api';
-import { usePageTitle } from '../contexts/PageTitleContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 import type { ServerStatus } from '../types';
 
 const pageTitles: Record<string, string> = {
