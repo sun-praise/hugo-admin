@@ -15,16 +15,19 @@ logger = logging.getLogger(__name__)
 class GitService:
     """Git 操作服务"""
 
-    def __init__(self, repo_path):
+    def __init__(self, repo_path, database=None):
         """
         初始化 Git 服务
 
         Args:
             repo_path: Git 仓库路径（Hugo 项目根目录）
+            database: 可选的 Database 实例，用于持久化推送历史；
+                为 None 时 push() 的记录行为是 no-op（便于测试）。
         """
         self.repo_path = Path(repo_path)
         if not self.repo_path.exists():
             raise ValueError(f"仓库路径不存在: {repo_path}")
+        self.database = database
 
     def _run_git_command(self, command, check=True):
         """
@@ -46,7 +49,7 @@ class GitService:
                 text=True,
                 check=check,
             )
-            return True, result.stdout, result.stderr
+            return result.returncode == 0, result.stdout, result.stderr
         except subprocess.CalledProcessError as e:
             logger.error(f"Git 命令执行失败: {' '.join(command)}\n{e.stderr}")
             return False, e.stdout, e.stderr
@@ -161,9 +164,51 @@ class GitService:
                 return False, "没有需要提交的改动"
             return False, f"提交失败: {stderr}"
 
+    def _remote_head(self, remote, branch):
+        """尽力获取 remote-tracking 分支的 HEAD SHA, 失败或不存在时返回空串。"""
+        success, stdout, _ = self._run_git_command(
+            ["rev-parse", f"{remote}/{branch}"], check=False
+        )
+        if not success:
+            return ""
+        return stdout.strip()
+
+    def _head_subject(self):
+        """尽力获取当前 HEAD 提交的 subject（push 不改变 HEAD，失败时也有效）。"""
+        success, stdout, _ = self._run_git_command(
+            ["log", "-1", "--pretty=format:%s"], check=False
+        )
+        if not success:
+            return ""
+        return stdout.strip()
+
+    def _count_commits(self, from_sha, to_sha):
+        """尽力计算 from..to 之间的提交数, from_sha 为空（首次推送）或失败时返回 0。
+
+        首次推送时 from_sha 缺失, 无法界定本次推送范围; 此前回退到
+        `rev-list --count <to_sha>` 会返回 to_sha 可达的全部历史提交数,
+        对用户有误导, 故改为返回 0（UI 会在 commit_count 为 0 时隐藏该字段）。
+        """
+        if to_sha and from_sha:
+            success, stdout, _ = self._run_git_command(
+                ["rev-list", "--count", f"{from_sha}..{to_sha}"], check=False
+            )
+            if success and stdout.strip().isdigit():
+                return int(stdout.strip())
+        return 0
+
+    def _record_push(self, **fields):
+        """安全地记录一次推送, 任何异常都被吞掉并记录日志, 绝不影响推送结果。"""
+        if self.database is None:
+            return
+        try:
+            self.database.record_push(**fields)
+        except Exception as e:  # noqa: BLE001 - 记录失败绝不能影响发布流程
+            logger.error(f"记录推送历史失败: {e}")
+
     def push(self, remote="origin", branch=None, set_upstream=False):
         """
-        推送到远程仓库
+        推送到远程仓库，并在成功/失败时记录一条推送历史（当 database 已注入）。
 
         Args:
             remote: 远程仓库名称，默认为 origin
@@ -181,6 +226,10 @@ class GitService:
             if not success:
                 return False, f"获取当前分支失败: {stderr}"
             branch = stdout.strip()
+        # 推送前尽力捕获 remote-tracking HEAD（首次推送可能不存在）
+        from_sha = self._remote_head(remote, branch)
+        # HEAD 的提交摘要（push 不改变 HEAD，失败时也有效）
+        commit_message = self._head_subject()
 
         # 构建 push 命令
         push_command = ["push"]
@@ -191,10 +240,36 @@ class GitService:
 
         # 执行 push
         success, stdout, stderr = self._run_git_command(push_command)
+
+        to_sha = self._remote_head(remote, branch) if success else ""
+        commit_count = self._count_commits(from_sha, to_sha) if success else 0
+
         if success:
-            return True, f"推送成功到 {remote}/{branch}"
+            message = f"推送成功到 {remote}/{branch}"
+            self._record_push(
+                remote=remote,
+                branch=branch,
+                from_sha=from_sha,
+                to_sha=to_sha,
+                commit_count=commit_count,
+                commit_message=commit_message,
+                success=True,
+                message=message,
+            )
+            return True, message
         else:
-            return False, f"推送失败: {stderr}"
+            message = f"推送失败: {stderr}"
+            self._record_push(
+                remote=remote,
+                branch=branch,
+                from_sha=from_sha,
+                to_sha=to_sha,
+                commit_count=0,
+                commit_message=commit_message,
+                success=False,
+                message=message,
+            )
+            return False, message
 
     def publish_system(self, commit_message=None):
         """
@@ -257,14 +332,17 @@ class GitService:
 
     def get_recent_commits(self, count=10):
         """
-        获取最近的提交记录
+        获取最近的提交记录（含 refs 与 diffstat，单次 git log 调用）。
+
+        每条提交在原有字段基础上新增：
+        - refs: 指向该提交的分支/标签（%d，已去除首尾括号）
+        - stats: {files, insertions, deletions}（来自 --numstat）
 
         Args:
-            count: 获取的提交数量
-
-        Returns:
-            dict: 包含提交记录的字典
+            count: 获取的提交数量，会被钳制到 [1, 50]
         """
+        count = max(1, min(int(count or 10), 50))
+
         if not self.is_git_repo():
             return {
                 "success": False,
@@ -272,8 +350,16 @@ class GitService:
                 "message": "当前目录不是有效的 git 仓库",
             }
 
+        # 单次 git log 同时输出提交信息与每文件增删（--numstat），
+        # 提交行与 numstat 行之间用空行分隔。
         success, stdout, stderr = self._run_git_command(
-            ["log", f"-{count}", "--pretty=format:%H|%an|%ae|%ad|%s", "--date=iso"]
+            [
+                "log",
+                f"-{count}",
+                "--pretty=format:%H|%an|%ae|%ad|%d|%s",
+                "--date=iso",
+                "--numstat",
+            ]
         )
 
         if not success:
@@ -284,20 +370,51 @@ class GitService:
             }
 
         commits = []
-        for line in stdout.strip().split("\n"):
-            if not line:
-                continue
-            parts = line.split("|")
-            if len(parts) >= 5:
-                commits.append(
-                    {
-                        "hash": parts[0],
-                        "author": parts[1],
-                        "email": parts[2],
-                        "date": parts[3],
-                        "message": parts[4],
+        current = None
+
+        for line in stdout.split("\n"):
+            stripped = line.strip()
+
+            # numstat 行格式: <insertions>\t<deletions>\t<path>，二进制文件为 -\t-\t<path>
+            if current is not None and "\t" in stripped and not stripped.endswith("|"):
+                parts = stripped.split("\t")
+                if len(parts) >= 3:
+                    ins_raw, del_raw = parts[0], parts[1]
+                    stats = current["stats"]
+                    stats["files"] += 1
+                    if ins_raw.lstrip("-").isdigit():
+                        stats["insertions"] += int(ins_raw)
+                    if del_raw.lstrip("-").isdigit():
+                        stats["deletions"] += int(del_raw)
+                    continue
+
+            # 提交行: %H|%an|%ae|%ad|%d|%s （message 可能包含 |，故只在前 5 个分隔）
+            if "|" in stripped and not stripped.startswith("\t"):
+                fields = stripped.split("|", 5)
+                if len(fields) >= 6:
+                    # 收尾上一条提交
+                    if current is not None:
+                        commits.append(current)
+                    refs_raw = fields[4].strip()
+                    # %d 形如 " (HEAD -> main, tag: v1.0)" -> 去掉首尾括号与空格
+                    refs = refs_raw.strip().strip("()")
+                    current = {
+                        "hash": fields[0],
+                        "author": fields[1],
+                        "email": fields[2],
+                        "date": fields[3],
+                        "refs": refs,
+                        "message": fields[5],
+                        "stats": {
+                            "files": 0,
+                            "insertions": 0,
+                            "deletions": 0,
+                        },
                     }
-                )
+                    continue
+
+        if current is not None:
+            commits.append(current)
 
         return {
             "success": True,

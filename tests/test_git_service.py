@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from models.database import Database
 from services.git_service import GitService
 
 
@@ -50,6 +51,53 @@ class TestGitService:
     def git_service(self, temp_git_repo):
         """GitService 实例"""
         return GitService(temp_git_repo)
+
+    @pytest.fixture
+    def temp_db(self):
+        """临时 Database 实例（用于推送历史记录）"""
+        with tempfile.TemporaryDirectory() as d:
+            yield Database(str(Path(d) / "cache.db"))
+
+    @pytest.fixture
+    def pushable_repo(self, temp_git_repo, temp_db):
+        """带本地 bare 远程仓库的 GitService（可真正 push + 记录历史）。
+
+        远程仓库放在独立的临时目录里（temp_git_repo 的 parent 解析到 /tmp，
+        复用会让多个测试/多次运行共享同一个 origin.git 而互相污染）。
+        """
+        repo = temp_git_repo
+        with tempfile.TemporaryDirectory() as remote_temp:
+            remote_dir = Path(remote_temp) / "origin.git"
+            subprocess.run(
+                ["git", "init", "--bare", str(remote_dir)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "remote", "add", "origin", str(remote_dir)],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            # 首次推送建立 remote-tracking 分支
+            subprocess.run(
+                ["git", "push", "-q", "-u", "origin", "HEAD"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            # 新增一次提交，供后续 push 推送
+            (repo / "new.txt").write_text("new")
+            subprocess.run(
+                ["git", "add", "-A"], cwd=repo, check=True, capture_output=True
+            )
+            subprocess.run(
+                ["git", "commit", "-qm", "second commit"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            yield GitService(repo, database=temp_db), temp_db
 
     def test_is_git_repo(self, git_service):
         """测试 Git 仓库检测"""
@@ -223,3 +271,125 @@ class TestGitService:
 
             assert status["success"] is False
             assert "不是有效的 git 仓库" in status["message"]
+
+    def test_push_records_success(self, pushable_repo):
+        """push 成功时应记录一条 success=True 的历史。"""
+        gs, db = pushable_repo
+        ok, _ = gs.push()
+        assert ok is True
+        pushes = db.list_pushes()["pushes"]
+        assert len(pushes) == 1
+        rec = pushes[0]
+        assert rec["success"] is True
+        assert rec["remote"] == "origin"
+        assert rec["to_sha"]  # 推送后捕获到目标 SHA
+        assert rec["commit_count"] >= 1
+        assert rec["commit_message"] == "second commit"
+
+    def test_push_records_failure(self, temp_git_repo, temp_db):
+        """push 失败时应记录一条 success=False 的历史。"""
+        gs = GitService(temp_git_repo, database=temp_db)
+        ok, _ = gs.push(remote="does-not-exist")
+        assert ok is False
+        rec = temp_db.list_pushes()["pushes"][0]
+        assert rec["success"] is False
+        # 失败时仍捕获到 HEAD 摘要（push 不改变 HEAD）
+        assert rec["commit_message"] == "Initial commit"
+
+    def test_push_noop_without_database(self, temp_git_repo):
+        """database=None 时 push() 不记录，也不抛异常。"""
+        gs = GitService(temp_git_repo, database=None)
+        ok, _ = gs.push(remote="does-not-exist")
+        assert ok is False
+        # 无法访问 database，但不报错即视为通过
+
+    def test_first_push_records_empty_from_sha(self, temp_git_repo, temp_db):
+        """回归: 首次推送（remote-tracking ref 不存在）时 from_sha 必须为空串,
+        而不是被 git 的错误输出污染。覆盖 _run_git_command(check=False) 的成功判定。"""
+        repo = temp_git_repo
+        # 在独立临时目录建 bare 远程（temp_git_repo 的 parent 解析到 /tmp, 复用会污染）
+        with tempfile.TemporaryDirectory() as remote_temp:
+            remote_dir = Path(remote_temp) / "origin.git"
+            subprocess.run(
+                ["git", "init", "--bare", str(remote_dir)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "remote", "add", "origin", str(remote_dir)],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            gs = GitService(repo, database=temp_db)
+            ok, _ = gs.push()  # 首次推送, origin/HEAD 尚不存在
+            assert ok is True
+            rec = temp_db.list_pushes()["pushes"][0]
+            assert rec["success"] is True
+            assert rec["from_sha"] == ""  # 关键断言: 未被污染
+            assert rec["to_sha"]  # 推送后建立了 remote-tracking, 捕获到 to_sha
+
+    def test_get_recent_commits_has_refs_and_stats(self, git_service, temp_git_repo):
+        """get_recent_commits 返回 refs 与 stats 字段。"""
+        # 多文件改动以保证 stats.files > 1
+        (temp_git_repo / "f1.txt").write_text("aaa")
+        (temp_git_repo / "f2.txt").write_text("bbbb")
+        subprocess.run(
+            ["git", "add", "-A"], cwd=temp_git_repo, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-qm", "multi file change"],
+            cwd=temp_git_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        result = git_service.get_recent_commits(count=5)
+        assert result["success"] is True
+        commit = result["commits"][0]
+        # 新字段
+        assert "refs" in commit
+        assert "stats" in commit
+        stats = commit["stats"]
+        assert stats["files"] >= 2
+        assert stats["insertions"] >= 2
+        assert stats["deletions"] >= 0
+        # 旧字段保留
+        for key in ("hash", "author", "email", "date", "message"):
+            assert key in commit
+        assert commit["message"] == "multi file change"
+
+    def test_get_recent_commits_count_clamped(self, git_service):
+        """count 超过 50 被钳制，非正数被钳制到最小值。"""
+        big = git_service.get_recent_commits(count=999)
+        assert len(big["commits"]) <= 50
+        small = git_service.get_recent_commits(count=0)
+        assert len(small["commits"]) >= 1
+
+    def test_push_first_push_commit_count_is_zero(self, temp_git_repo, temp_db):
+        """首次推送时 commit_count 应为 0，而非 to_sha 的全历史计数。
+
+        首次推送无 remote-tracking 分支，from_sha 要么为空、要么不是有效 SHA
+        （某些 git 版本 rev-parse 不存在的 ref 仍 exit 0 并回显名称），
+        两种情况下 _count_commits 都应回退到 0，避免把全历史提交数误记为本次推送量。
+        """
+        repo = temp_git_repo
+        with tempfile.TemporaryDirectory() as remote_temp:
+            remote_dir = Path(remote_temp) / "origin.git"
+            subprocess.run(
+                ["git", "init", "--bare", str(remote_dir)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "remote", "add", "origin", str(remote_dir)],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            gs = GitService(repo, database=temp_db)
+            ok, _ = gs.push(set_upstream=True)
+            assert ok is True
+            rec = temp_db.list_pushes()["pushes"][0]
+            # 关键：首次推送 commit_count 不应包含 Initial commit 的历史
+            assert rec["commit_count"] == 0

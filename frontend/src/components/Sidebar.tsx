@@ -6,6 +6,7 @@ import {
   Server,
   Settings,
   Puzzle,
+  GitBranch,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -15,6 +16,7 @@ const navItems = [
   { to: '/posts', icon: FileText, label: '文章管理' },
   { to: '/editor', icon: Edit3, label: '编辑器' },
   { to: '/server', icon: Server, label: '服务器控制' },
+  { to: '/git', icon: GitBranch, label: 'Git' },
   { to: '/plugins', icon: Puzzle, label: '插件' },
   { to: '/settings', icon: Settings, label: '设置' },
 ];
