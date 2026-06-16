@@ -117,6 +117,10 @@ export function InlineEditOverlay({
     const events: (keyof HTMLElementEventMap)[] = ['select', 'keyup', 'mouseup', 'focus'];
     events.forEach((e) => ta.addEventListener(e, schedule));
     return () => {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
       events.forEach((e) => ta.removeEventListener(e, schedule));
     };
   }, [textareaRef, onSelectionChange]);
