@@ -1,13 +1,23 @@
 name: OpenCode PR Review
 
+# 手动触发：仅当给 PR 添加 `ai-review` 标签时才运行（不再随 push / 打开 PR 自动触发）。
+# 重新触发：移除 `ai-review` 标签后再次添加即可。
+#
+# 为什么用标签而不是 workflow_dispatch 按钮：
+# multi-review action 通过 GITHUB_REF 中的 refs/pull/<N>/merge 来定位 PR 并回写评论，
+# 只有 pull_request 事件才会提供该上下文；若改用 workflow_dispatch（分支运行），
+# review 结果只会打印到日志、无法回写到 PR 评论。
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [labeled]
 
 jobs:
   review:
     name: AI Code Review
-    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
+    if: |
+      github.event.label.name == 'ai-review' &&
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
     timeout-minutes: 15
     runs-on: ubuntu-latest
     permissions:
