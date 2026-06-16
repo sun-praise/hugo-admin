@@ -22,7 +22,7 @@ import {
 import { get, post } from '../utils/api';
 import { renderMarkdown } from '../utils/markdown';
 import type { FileData, ImageItem, Backlink, Frontmatter } from '../types';
-import { usePageTitle } from '../contexts/PageTitleContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { InlineEditOverlay } from '../components/InlineEdit/Overlay';
 
 export default function Editor() {

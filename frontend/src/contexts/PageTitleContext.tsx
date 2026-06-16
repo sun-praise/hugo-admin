@@ -1,10 +1,5 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
-
-const PageTitleContext = createContext<{
-  title: string;
-  setTitle: (title: string) => void;
-  resetTitle: () => void;
-}>({ title: '', setTitle: () => {}, resetTitle: () => {} });
+import { useState, useCallback, type ReactNode } from 'react';
+import { PageTitleContext } from '../hooks/usePageTitle';
 
 export function PageTitleProvider({ children }: { children: ReactNode }) {
   const [title, setTitleState] = useState('');
@@ -16,8 +11,4 @@ export function PageTitleProvider({ children }: { children: ReactNode }) {
       {children}
     </PageTitleContext.Provider>
   );
-}
-
-export function usePageTitle() {
-  return useContext(PageTitleContext);
 }
