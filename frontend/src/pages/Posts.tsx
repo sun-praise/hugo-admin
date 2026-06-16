@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, RefreshCw, Plus, Upload, Tag, FolderOpen, Calendar, Clock, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
-import { get, post } from '../utils/api';
+import { Search, RefreshCw, Plus, Upload, FileUp, Tag, FolderOpen, Calendar, Clock, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { get, post, uploadMarkdown } from '../utils/api';
+import { useSocket } from '../hooks/useSocket';
 import type { Post, PostsResponse, Tag as TagType, Category } from '../types';
 
 export default function Posts() {
@@ -120,6 +121,73 @@ export default function Posts() {
     }
   }
 
+  const socketRef = useSocket();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+
+  function handleUploadClick() {
+    fileInputRef.current?.click();
+  }
+
+  // 订阅本次导入的封面后台进度。导航到编辑器后组件卸载，订阅随之失效；
+  // 若封面在停留期间完成则给出即时反馈。
+  function subscribeCoverProgress(scope?: string) {
+    const socket = socketRef.current;
+    if (!socket) return;
+    const onDone = (payload: { scope?: string; url?: string }) => {
+      if (scope && payload.scope && payload.scope !== scope) return;
+      showNotification('封面已生成', 'success');
+      socket.off('article_import.cover_done', onDone);
+      socket.off('article_import.cover_failed', onFail);
+    };
+    const onFail = (payload: { scope?: string; message?: string }) => {
+      if (scope && payload.scope && payload.scope !== scope) return;
+      showNotification('封面生成失败：' + (payload.message || ''), 'warning');
+      socket.off('article_import.cover_done', onDone);
+      socket.off('article_import.cover_failed', onFail);
+    };
+    socket.on('article_import.cover_done', onDone);
+    socket.on('article_import.cover_failed', onFail);
+  }
+
+  async function handleFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // 重置 value，便于再次选择同一文件
+    e.target.value = '';
+    if (!file) return;
+
+    if (!/\.(md|markdown)$/i.test(file.name)) {
+      showNotification('请选择 .md / .markdown 文件', 'error');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const data = await uploadMarkdown(file, { generate_cover: true });
+      if (data.success && data.path) {
+        await loadPosts();
+        const hasWarnings = (data.warnings?.length ?? 0) > 0;
+        if (hasWarnings) {
+          showNotification('导入完成（部分步骤跳过）：' + (data.warnings ?? []).join('；'), 'warning');
+        }
+        if (data.cover_pending) {
+          showNotification('文章已导入，封面后台生成中…', 'info');
+          subscribeCoverProgress(data.event_scope);
+        } else if (!hasWarnings) {
+          showNotification('导入成功', 'success');
+        }
+        const path = data.path;
+        setTimeout(() => navigate(`/editor/${path}`), 1200);
+      } else {
+        showNotification('导入失败: ' + (data.message || ''), 'error');
+      }
+    } catch (error) {
+      showNotification('导入失败', 'error');
+    } finally {
+      setImporting(false);
+    }
+  }
+
   function togglePostSelection(path: string) {
     setSelectedPosts((prev) => {
       const next = new Set(prev);
@@ -172,6 +240,13 @@ export default function Posts() {
 
   return (
     <div>
+      <input
+        type="file"
+        accept=".md,.markdown"
+        ref={fileInputRef}
+        onChange={handleFilePicked}
+        className="hidden"
+      />
       {/* 搜索和筛选 */}
       <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -241,6 +316,14 @@ export default function Posts() {
                   >
                     <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                     {refreshing ? '刷新中...' : '刷新缓存'}
+                  </button>
+                  <button
+                    onClick={handleUploadClick}
+                    disabled={importing}
+                    className="px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors disabled:opacity-50 flex items-center"
+                  >
+                    <FileUp className={`w-4 h-4 mr-2 ${importing ? 'animate-spin' : ''}`} />
+                    {importing ? '导入中...' : '上传 Markdown'}
                   </button>
                   <button
                     onClick={createNewPost}

@@ -46,3 +46,32 @@ export async function put<T>(url: string, body?: unknown): Promise<T> {
 export async function del<T>(url: string): Promise<T> {
   return request<T>(url, { method: 'DELETE' });
 }
+
+export interface ImportResult {
+  success: boolean;
+  path?: string;
+  title?: string;
+  warnings?: string[];
+  cover_pending?: boolean;
+  event_scope?: string;
+  message?: string;
+}
+
+/**
+ * 上传一个 Markdown 文件，后端通过 AI 自动补全 frontmatter 与封面后导入为草稿。
+ */
+export async function uploadMarkdown(
+  file: File,
+  opts?: { title?: string; generate_frontmatter?: boolean; generate_cover?: boolean },
+): Promise<ImportResult> {
+  const form = new FormData();
+  form.append('file', file);
+  if (opts?.title) form.append('title', opts.title);
+  if (opts?.generate_frontmatter !== undefined) {
+    form.append('generate_frontmatter', String(opts.generate_frontmatter));
+  }
+  if (opts?.generate_cover !== undefined) {
+    form.append('generate_cover', String(opts.generate_cover));
+  }
+  return request<ImportResult>('/api/article/import', { method: 'POST', body: form });
+}
