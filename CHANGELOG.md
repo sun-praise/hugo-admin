@@ -7,12 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-06-16
+
 ### Added
 - Inline AI edit (rewrite) in the editor: select text → floating ✨ trigger → instruction input + 4 Chinese presets (润色 / 翻译为英文 / 精简 / 详细化) → non-streaming LLM call → original-vs-revised side-by-side diff → accept replaces the selection. Backed by a new `POST /api/ai/inline-edit` endpoint and `AIService.quick_rewrite` (Claude Agent SDK with tools disabled, 10s timeout).
 - Tests for the new endpoint and the `quick_rewrite` service method.
 
 ### Fixed
 - Inline AI edit: cancel the pending selection-debounce timer when the popup closes, so a selection event registered while the popup was open can no longer re-arm the ✨ trigger against a stale selection after close (the "first invocation leaks into the second" residue).
+- Prevent image paste from overwriting previous uploads on filename collision (#70)
+- Add file size limit (20 MB) and extension whitelist for image uploads
 
 ## [2.2.0] - 2026-06-11
 
@@ -56,12 +60,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stale closure in handlePaste with functional setState
 - Blank-line accumulation between frontmatter and body
 - Move hasChanges useMemo after frontmatter declarations
-
-## [Unreleased]
-
-### Fixed
-- Prevent image paste from overwriting previous uploads on filename collision (#70)
-- Add file size limit (20 MB) and extension whitelist for image uploads
 
 ## [2.1.0] - 2026-06-04
 
