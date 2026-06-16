@@ -300,14 +300,14 @@ function EmptyState({ text }: { text: string }) {
 function relativeFromNow(value: number | string): string {
   const ms = typeof value === 'string' ? new Date(value).getTime() : value * 1000;
   if (Number.isNaN(ms)) return String(value);
-  const diff = Date.now() - ms;
-  const sec = Math.round(diff / 1000);
+  const diff = Math.max(0, Date.now() - ms); // clamp 负数（时钟回拨）
+  const sec = Math.floor(diff / 1000);
   if (sec < 60) return `${sec} 秒前`;
-  const min = Math.round(sec / 60);
+  const min = Math.floor(sec / 60);
   if (min < 60) return `${min} 分钟前`;
-  const hr = Math.round(min / 60);
+  const hr = Math.floor(min / 60);
   if (hr < 24) return `${hr} 小时前`;
-  const day = Math.round(hr / 24);
+  const day = Math.floor(hr / 24);
   if (day < 30) return `${day} 天前`;
   return new Date(ms).toLocaleDateString('zh-CN');
 }

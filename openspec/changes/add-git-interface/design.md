@@ -101,7 +101,7 @@ stale-db fix onto `chat_history_service` — that is an independent pre-existing
 
 ### 5. Push-record shape and best-effort commit range
 Row schema:
-```
+```text
 git_push_history(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   remote TEXT NOT NULL,            -- e.g. 'origin'

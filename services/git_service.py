@@ -49,7 +49,7 @@ class GitService:
                 text=True,
                 check=check,
             )
-            return True, result.stdout, result.stderr
+            return result.returncode == 0, result.stdout, result.stderr
         except subprocess.CalledProcessError as e:
             logger.error(f"Git 命令执行失败: {' '.join(command)}\n{e.stderr}")
             return False, e.stdout, e.stderr
@@ -165,7 +165,7 @@ class GitService:
             return False, f"提交失败: {stderr}"
 
     def _remote_head(self, remote, branch):
-        """尽力获取 remote-tracking 分支的 HEAD SHA；失败或不存在时返回空串。"""
+        """尽力获取 remote-tracking 分支的 HEAD SHA, 失败或不存在时返回空串。"""
         success, stdout, _ = self._run_git_command(
             ["rev-parse", f"{remote}/{branch}"], check=False
         )
@@ -183,11 +183,11 @@ class GitService:
         return stdout.strip()
 
     def _count_commits(self, from_sha, to_sha):
-        """尽力计算 from..to 之间的提交数；from_sha 为空（首次推送）或失败时返回 0。
+        """尽力计算 from..to 之间的提交数, from_sha 为空（首次推送）或失败时返回 0。
 
-        首次推送时 from_sha 缺失，无法界定本次推送范围；此前回退到
-        `rev-list --count <to_sha>` 会返回 to_sha 可达的全部历史提交数，
-        对用户有误导，故改为返回 0（UI 会在 commit_count 为 0 时隐藏该字段）。
+        首次推送时 from_sha 缺失, 无法界定本次推送范围; 此前回退到
+        `rev-list --count <to_sha>` 会返回 to_sha 可达的全部历史提交数,
+        对用户有误导, 故改为返回 0（UI 会在 commit_count 为 0 时隐藏该字段）。
         """
         if to_sha and from_sha:
             success, stdout, _ = self._run_git_command(
@@ -198,7 +198,7 @@ class GitService:
         return 0
 
     def _record_push(self, **fields):
-        """安全地记录一次推送；任何异常都被吞掉并记录日志，绝不影响推送结果。"""
+        """安全地记录一次推送, 任何异常都被吞掉并记录日志, 绝不影响推送结果。"""
         if self.database is None:
             return
         try:

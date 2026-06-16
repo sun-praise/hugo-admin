@@ -303,6 +303,32 @@ class TestGitService:
         assert ok is False
         # 无法访问 database，但不报错即视为通过
 
+    def test_first_push_records_empty_from_sha(self, temp_git_repo, temp_db):
+        """回归: 首次推送（remote-tracking ref 不存在）时 from_sha 必须为空串,
+        而不是被 git 的错误输出污染。覆盖 _run_git_command(check=False) 的成功判定。"""
+        repo = temp_git_repo
+        # 在独立临时目录建 bare 远程（temp_git_repo 的 parent 解析到 /tmp, 复用会污染）
+        with tempfile.TemporaryDirectory() as remote_temp:
+            remote_dir = Path(remote_temp) / "origin.git"
+            subprocess.run(
+                ["git", "init", "--bare", str(remote_dir)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "remote", "add", "origin", str(remote_dir)],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            gs = GitService(repo, database=temp_db)
+            ok, _ = gs.push()  # 首次推送, origin/HEAD 尚不存在
+            assert ok is True
+            rec = temp_db.list_pushes()["pushes"][0]
+            assert rec["success"] is True
+            assert rec["from_sha"] == ""  # 关键断言: 未被污染
+            assert rec["to_sha"]  # 推送后建立了 remote-tracking, 捕获到 to_sha
+
     def test_get_recent_commits_has_refs_and_stats(self, git_service, temp_git_repo):
         """get_recent_commits 返回 refs 与 stats 字段。"""
         # 多文件改动以保证 stats.files > 1
