@@ -125,6 +125,23 @@ class TestGitHistoryAPI:
         assert data2["per_page"] == 100
         assert len(data2["pushes"]) == 3
 
+    def test_pushes_missing_database(self, client):
+        """registry 未注入 database 时返回显式错误而非通用 500。"""
+        services = app_module.registry._services
+        orig = services.get("database")
+        # 模拟 database 未初始化：临时移除 key
+        if "database" in services:
+            del services["database"]
+        try:
+            resp = client.get("/api/git/pushes")
+            assert resp.status_code == 500
+            data = resp.get_json()
+            assert data["success"] is False
+            assert "数据库未初始化" in data["message"]
+        finally:
+            if orig is not None:
+                services["database"] = orig
+
     # ---------- /api/git/commits (enriched) ----------
 
     def test_commits_have_refs_and_stats(self, client, temp_repo_with_db):

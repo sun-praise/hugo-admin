@@ -42,7 +42,7 @@ class ServiceRegistry:
 
     @property
     def database(self):
-        return self._services["database"]
+        return self._services.get("database")
 
     @database.setter
     def database(self, value):
