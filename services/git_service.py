@@ -183,16 +183,15 @@ class GitService:
         return stdout.strip()
 
     def _count_commits(self, from_sha, to_sha):
-        """尽力计算 from..to 之间的提交数；任一为空或失败时回退。"""
-        if to_sha:
-            if from_sha:
-                success, stdout, _ = self._run_git_command(
-                    ["rev-list", "--count", f"{from_sha}..{to_sha}"], check=False
-                )
-                if success and stdout.strip().isdigit():
-                    return int(stdout.strip())
+        """尽力计算 from..to 之间的提交数；from_sha 为空（首次推送）或失败时返回 0。
+
+        首次推送时 from_sha 缺失，无法界定本次推送范围；此前回退到
+        `rev-list --count <to_sha>` 会返回 to_sha 可达的全部历史提交数，
+        对用户有误导，故改为返回 0（UI 会在 commit_count 为 0 时隐藏该字段）。
+        """
+        if to_sha and from_sha:
             success, stdout, _ = self._run_git_command(
-                ["rev-list", "--count", to_sha], check=False
+                ["rev-list", "--count", f"{from_sha}..{to_sha}"], check=False
             )
             if success and stdout.strip().isdigit():
                 return int(stdout.strip())

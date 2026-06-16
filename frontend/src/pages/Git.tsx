@@ -60,12 +60,15 @@ export default function Git() {
     }
   }, []);
 
+  // 仅在 tab 切换时拉取对应数据；loadCommits/loadPushes 为 useCallback([]) 稳定引用，
+  // commitsCount/pushPage 在切 tab 时读取最新值即可，故依赖数组只含 [tab]。
   useEffect(() => {
     if (tab === 'commits') {
       loadCommits(commitsCount);
     } else {
       loadPushes(pushPage);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
   function refresh() {

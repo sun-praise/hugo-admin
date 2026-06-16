@@ -8,7 +8,7 @@ import json
 import sqlite3
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -264,7 +264,9 @@ class Database:
                     "success": bool(row["success"]),
                     "message": row["message"] or "",
                     "pushed_at": pushed_at,
-                    "pushed_at_iso": datetime.fromtimestamp(pushed_at).isoformat(),
+                    "pushed_at_iso": datetime.fromtimestamp(
+                        pushed_at, tz=timezone.utc
+                    ).isoformat(),
                 }
             )
 

@@ -339,3 +339,33 @@ class TestGitService:
         assert len(big["commits"]) <= 50
         small = git_service.get_recent_commits(count=0)
         assert len(small["commits"]) >= 1
+
+    def test_push_first_push_commit_count_is_zero(self, temp_git_repo, temp_db):
+        """首次推送时 commit_count 应为 0，而非 to_sha 的全历史计数。
+
+        首次推送无 remote-tracking 分支，from_sha 要么为空、要么不是有效 SHA
+        （某些 git 版本 rev-parse 不存在的 ref 仍 exit 0 并回显名称），
+        两种情况下 _count_commits 都应回退到 0，避免把全历史提交数误记为本次推送量。
+        """
+        import tempfile
+
+        repo = temp_git_repo
+        with tempfile.TemporaryDirectory() as remote_temp:
+            remote_dir = Path(remote_temp) / "origin.git"
+            subprocess.run(
+                ["git", "init", "--bare", str(remote_dir)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "remote", "add", "origin", str(remote_dir)],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            gs = GitService(repo, database=temp_db)
+            ok, _ = gs.push(set_upstream=True)
+            assert ok is True
+            rec = temp_db.list_pushes()["pushes"][0]
+            # 关键：首次推送 commit_count 不应包含 Initial commit 的历史
+            assert rec["commit_count"] == 0

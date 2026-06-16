@@ -97,7 +97,7 @@ export interface Commit {
 export interface CommitsResponse {
   success: boolean;
   commits: Commit[];
- message?: string;
+  message?: string;
 }
 
 export interface PushRecord {
