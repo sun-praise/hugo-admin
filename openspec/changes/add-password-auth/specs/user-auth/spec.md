@@ -15,6 +15,10 @@ The system SHALL persist the admin account in a JSON store at `WEB_ADMIN_DIR/dat
 - **WHEN** the app starts and `data/auth.json` already contains an account
 - **THEN** the system does not recreate or reset the account, and any previously changed password is preserved.
 
+#### Scenario: Corrupt credential file fails closed
+- **WHEN** `data/auth.json` exists but is unreadable, contains invalid JSON, or is missing the `username`/`password_hash` fields
+- **THEN** the system raises an error at startup rather than bootstrapping a new default admin, so a disk/permission/edit error can never silently reset or weaken credentials.
+
 ### Requirement: Login establishes an authenticated session
 The system SHALL expose `POST /api/auth/login` accepting `username` and `password`. On a correct username/password pair it SHALL store the authenticated user identity in the Flask session and return `{success: true, user: {username}}`; on any mismatch it SHALL return `401` with `{success: false, message}` and SHALL NOT modify the session.
 
@@ -61,7 +65,7 @@ The system SHALL expose `POST /api/auth/password` (session-protected) accepting 
 
 #### Scenario: Wrong current password rejected
 - **WHEN** a logged-in client sends `POST /api/auth/password` with an incorrect `current_password`
-- **THEN** the response is `401` (or `400`) with `{success: false, message}` and the stored password hash is unchanged.
+- **THEN** the response is `400` with `{success: false, message}` and the stored password hash is unchanged (401 is reserved for "not logged in", so the frontend 401→login redirect is not triggered).
 
 #### Scenario: Requires authentication
 - **WHEN** a client with no session sends `POST /api/auth/password`

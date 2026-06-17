@@ -116,9 +116,10 @@ def register_auth_routes(registry):
         username = session.get("username")
         auth_service = getattr(registry, "auth_service", None)
         if auth_service is None or not auth_service.verify(username, current_password):
+            # 401 专用于“未登录”（前端据此跳转登录页）；当前密码错误属于校验失败，用 400
             return (
                 jsonify({"success": False, "message": "当前密码错误"}),
-                401,
+                400,
             )
 
         try:

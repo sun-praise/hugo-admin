@@ -101,7 +101,9 @@ def test_change_password_wrong_current(client, login):
         "/api/auth/password",
         json={"current_password": "bad", "new_password": "newpw"},
     )
-    assert resp.status_code == 401
+    # 当前密码错误是校验失败（400），不是会话过期（401）
+    assert resp.status_code == 400
+    assert resp.get_json()["success"] is False
 
 
 def test_change_password_requires_session(client):

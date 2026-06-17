@@ -16,6 +16,15 @@ from typing import Optional
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
+class AuthStoreError(RuntimeError):
+    """凭据存储损坏/不可读/不完整时抛出。
+
+    采用 fail closed：绝不静默回退到默认管理员（那会把一次磁盘/权限/
+    手工编辑错误变成认证弱化）。该异常会在应用启动时上抛，阻止以不安全
+    状态启动。
+    """
+
+
 class AuthService:
     """单管理员账户的密码认证服务。"""
 
@@ -34,24 +43,25 @@ class AuthService:
         self.store_path.parent.mkdir(parents=True, exist_ok=True)
         self._default_username = default_username
         self._default_password = default_password
-        self._bootstrap_default()
-        self._account = self._load()
+        self._account = self._bootstrap_or_load()
 
-    # ============ 首次启动引导 ============
+    # ============ 加载 / 首次启动引导 ============
 
-    def _bootstrap_default(self):
-        """首次启动（凭据文件不存在或为空）时创建默认账户；已存在则绝不覆盖。"""
-        if self._account_exists():
-            return
+    def _bootstrap_or_load(self) -> dict:
+        """加载已存在账户；仅在文件不存在/为空（首次启动）时引导默认账户。
+
+        - 文件不存在或为空 → 创建默认账户（首次启动）。
+        - 文件存在且合法 → 原样加载，绝不覆盖。
+        - 文件存在但损坏/不可读/字段缺失 → 抛 ``AuthStoreError``（fail closed）。
+        """
+        account = self._read_account()  # None | dict | raises
+        if account is not None:
+            return account
 
         username = self._default_username or os.environ.get("ADMIN_USERNAME") or "admin"
         password = self._default_password or os.environ.get("ADMIN_PASSWORD") or "admin"
-        self._write(
-            {
-                "username": username,
-                "password_hash": generate_password_hash(password),
-            }
-        )
+        password_hash = generate_password_hash(password)
+        self._write({"username": username, "password_hash": password_hash})
 
         from_env = bool(self._default_password or os.environ.get("ADMIN_PASSWORD"))
         if from_env:
@@ -65,28 +75,39 @@ class AuthService:
                 "（默认弱密码，不安全！）。请设置环境变量 ADMIN_PASSWORD，"
                 "或登录后在应用内修改密码。"
             )
+        return {"username": username, "password_hash": password_hash}
 
-    def _account_exists(self) -> bool:
+    def _read_account(self) -> Optional[dict]:
+        """读取并校验账户文件。
+
+        - 文件不存在或为空 → 返回 ``None``（视为首次启动）。
+        - 文件存在但不可读 / JSON 非法 / 缺少必要字段 → 抛 ``AuthStoreError``。
+        """
         if not self.store_path.exists():
-            return False
+            return None
         try:
-            data = json.loads(self.store_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            return False
-        return isinstance(data, dict) and bool(
-            data.get("username") and data.get("password_hash")
-        )
-
-    # ============ 读写（原子写入） ============
-
-    def _load(self) -> dict:
-        if not self.store_path.exists():
-            return {}
+            raw = self.store_path.read_text(encoding="utf-8")
+        except OSError as e:
+            raise AuthStoreError(f"凭据文件不可读 {self.store_path}: {e}") from e
+        if not raw.strip():
+            return None  # 空文件 == 首次启动
         try:
-            data = json.loads(self.store_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            return {}
-        return data if isinstance(data, dict) else {}
+            data = json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise AuthStoreError(
+                f"凭据文件已损坏（JSON 解析失败）{self.store_path}: {e}"
+            ) from e
+        if (
+            not isinstance(data, dict)
+            or not data.get("username")
+            or not data.get("password_hash")
+        ):
+            raise AuthStoreError(
+                f"凭据文件内容不完整（缺少 username/password_hash）{self.store_path}"
+            )
+        return data
+
+    # ============ 写入（原子） ============
 
     def _write(self, account: dict):
         """原子写入：先写临时文件再 os.replace，避免崩溃损坏凭据文件。"""

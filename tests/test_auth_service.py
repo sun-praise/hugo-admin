@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from services.auth_service import AuthService
+from services.auth_service import AuthService, AuthStoreError
 
 
 def _store(tmp_path: Path) -> Path:
@@ -78,3 +78,39 @@ def test_get_user_returns_public_info(tmp_path):
         _store(tmp_path), default_username="admin", default_password="pw"
     )
     assert auth.get_user() == {"username": "admin"}
+
+
+# ---------- fail closed：损坏的凭据文件绝不静默重置账户 ----------
+
+
+def test_corrupt_json_fails_closed(tmp_path):
+    store = _store(tmp_path)
+    store.write_text("{not valid json", encoding="utf-8")
+    with pytest.raises(AuthStoreError):
+        AuthService(store, default_username="admin", default_password="pw")
+
+
+def test_incomplete_store_fails_closed(tmp_path):
+    store = _store(tmp_path)
+    store.write_text(json.dumps({"username": "admin"}), encoding="utf-8")
+    with pytest.raises(AuthStoreError):
+        AuthService(store, default_username="admin", default_password="pw")
+
+
+def test_unreadable_store_fails_closed(tmp_path):
+    store = _store(tmp_path)
+    store.write_text("ok-ignore", encoding="utf-8")
+    store.chmod(0o000)
+    try:
+        with pytest.raises(AuthStoreError):
+            AuthService(store, default_username="admin", default_password="pw")
+    finally:
+        store.chmod(0o600)  # 恢复权限，便于 tmp_path 清理
+
+
+def test_empty_store_bootstraps(tmp_path):
+    """空文件视为首次启动，正常引导默认账户（不视为损坏）。"""
+    store = _store(tmp_path)
+    store.write_text("", encoding="utf-8")
+    auth = AuthService(store, default_username="admin", default_password="pw")
+    assert auth.verify("admin", "pw") is True
