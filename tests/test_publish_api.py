@@ -23,7 +23,7 @@ class TestPublishAPI:
             yield content_dir
 
     @pytest.fixture
-    def client(self, temp_content_dir):
+    def client(self, temp_content_dir, login):
         """测试客户端 - 配置 app 使用临时目录"""
         app_module.app.config["TESTING"] = True
         original_post_service = app_module.registry.post_service
@@ -31,6 +31,7 @@ class TestPublishAPI:
             temp_content_dir, use_cache=False
         )
         with app_module.app.test_client() as client:
+            login(client)
             yield client
         app_module.registry.post_service = original_post_service
 

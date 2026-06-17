@@ -21,6 +21,7 @@
 - **🔍 Advanced Search**: Full-text search with category and tag filtering
 - **⚡ Real-time Updates**: WebSocket-based live log streaming
 - **💾 Cache System**: SQLite-based caching for fast post retrieval
+- **🔐 Password Login**: Single-admin authentication gates every API and the realtime channel
 
 ## Tech Stack
 
@@ -152,10 +153,11 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 
 ## Security
 
-- Application binds to `127.0.0.1` by default (localhost only)
-- File operations are restricted to the `content` directory
-- Path traversal protection included
-- Not recommended for production use on public networks without additional security measures
+- **Login required**: every `/api/*` endpoint and the SocketIO realtime channel are gated behind a password-authenticated session; unauthenticated requests get `401`.
+- On first start a default `admin`/`admin` account is created — set `ADMIN_USERNAME`/`ADMIN_PASSWORD` (or change the password in-app) before exposing the service.
+- Passwords are stored only as salted hashes (`werkzeug.security`); credentials live in `data/auth.json` and are never committed. A corrupt/unreadable credential file fails closed (startup aborts) rather than silently resetting the admin.
+- File operations are restricted to the `content` directory, with path-traversal protection.
+- Set a strong `SECRET_KEY` in production and keep the service on a trusted network or behind a reverse proxy.
 
 ## Roadmap
 
@@ -168,7 +170,8 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [x] Test suite with CI/CD
 - [x] Image upload and management
 - [x] Docker support
-- [ ] Git operations interface
+- [x] Git operations interface
+- [x] Password-based admin login
 - [ ] Batch operations
 - [ ] Multi-user support
 

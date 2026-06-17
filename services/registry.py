@@ -65,6 +65,14 @@ class ServiceRegistry:
         self._services["settings_service"] = value
 
     @property
+    def auth_service(self):
+        return self._services.get("auth_service")
+
+    @auth_service.setter
+    def auth_service(self, value):
+        self._services["auth_service"] = value
+
+    @property
     def ai_service(self):
         return self._services["ai_service"]
 

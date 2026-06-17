@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Home,
   FileText,
@@ -9,7 +9,9 @@ import {
   GitBranch,
   ChevronLeft,
   ChevronRight,
+  LogOut,
 } from 'lucide-react';
+import { logout } from '../utils/api';
 
 const navItems = [
   { to: '/', icon: Home, label: '仪表板' },
@@ -27,6 +29,17 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
+  const navigate = useNavigate();
+
+  async function handleLogout() {
+    try {
+      await logout();
+    } catch {
+      // 忽略：无论如何都跳转登录页
+    }
+    navigate('/login', { replace: true });
+  }
+
   return (
     <aside
       className={`${
@@ -75,6 +88,16 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </nav>
 
       <div className="p-2 border-t border-stone-700">
+        <button
+          onClick={handleLogout}
+          title="退出登录"
+          className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all text-[15px] text-stone-400 hover:bg-stone-800 hover:text-stone-200 ${
+            collapsed ? 'justify-center' : ''
+          }`}
+        >
+          <LogOut className="w-5 h-5 flex-shrink-0" />
+          {!collapsed && <span>退出登录</span>}
+        </button>
         <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'} px-1 py-1`}>
           {!collapsed && <p className="text-xs text-stone-500">Hugo Blog Admin</p>}
           <a

@@ -4,6 +4,7 @@
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 
@@ -13,6 +14,11 @@ class Config:
     # Flask 配置
     SECRET_KEY = os.environ.get("SECRET_KEY") or "dev-secret-key-change-in-production"
     DEBUG = True
+
+    # 登录会话配置（基于 Flask 签名 cookie）
+    PERMANENT_SESSION_LIFETIME = timedelta(days=30)
+    # 同源 SPA：Lax 可缓解 CSRF，HttpOnly 默认开启；不设 Secure 以兼容局域网 HTTP
+    SESSION_COOKIE_SAMESITE = "Lax"
 
     # 项目路径配置（支持通过环境变量覆盖，便于 Docker 部署）
     BASE_DIR = Path(os.environ.get("HUGO_ROOT", str(Path(__file__).parent.parent)))
@@ -73,6 +79,8 @@ class ProductionConfig(Config):
     TESTING = False
     # 生产环境应该从环境变量读取密钥
     SECRET_KEY = os.environ.get("SECRET_KEY") or "production-secret-key-please-change"
+    # 生产环境假定在 HTTPS/反向代理之后，会话 cookie 仅走加密通道
+    SESSION_COOKIE_SECURE = True
 
 
 # 配置字典
