@@ -15,7 +15,7 @@ from services.settings_service import SettingsService, SettingsStorageError
 
 class TestSettingsAPI:
     @pytest.fixture
-    def client(self):
+    def client(self, login):
         """测试客户端，使用临时 settings 文件"""
         with tempfile.TemporaryDirectory() as temp_dir:
             content_dir = Path(temp_dir) / "content"
@@ -52,6 +52,7 @@ class TestSettingsAPI:
             app_module.registry.ai_service = object()
 
             with app_module.app.test_client() as client:
+                login(client)
                 yield client, settings_file
             app_module.registry.settings_service = original_settings_service
             app_module.app.config["CONTENT_DIR"] = original_content_dir

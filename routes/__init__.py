@@ -5,6 +5,7 @@
 
 # Keep existing
 from .ai_routes import register_ai_routes
+from .auth_routes import install_auth_guard, register_auth_routes
 from .email_routes import register_email_routes
 from .file_routes import register_file_routes
 from .image_routes import register_image_routes
@@ -32,4 +33,6 @@ __all__ = [
     "register_ai_routes",
     "register_inline_edit_routes",
     "register_plugin_routes",
+    "register_auth_routes",
+    "install_auth_guard",
 ]

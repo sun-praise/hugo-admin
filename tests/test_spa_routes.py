@@ -16,7 +16,7 @@ class TestSPARoutes:
     """Test SPA route serving for React migration."""
 
     @pytest.fixture
-    def client(self):
+    def client(self, login):
         """Create test client with a temp React index.html."""
         with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w") as f:
             f.write("<html><body>React SPA</body></html>")
@@ -36,6 +36,7 @@ class TestSPARoutes:
             app_module.app.config["TESTING"] = True
 
             with app_module.app.test_client() as client:
+                login(client)
                 yield client
 
             app_module.app.config["REACT_INDEX"] = original_react_index
