@@ -79,6 +79,8 @@ class ProductionConfig(Config):
     TESTING = False
     # 生产环境应该从环境变量读取密钥
     SECRET_KEY = os.environ.get("SECRET_KEY") or "production-secret-key-please-change"
+    # 生产环境假定在 HTTPS/反向代理之后，会话 cookie 仅走加密通道
+    SESSION_COOKIE_SECURE = True
 
 
 # 配置字典

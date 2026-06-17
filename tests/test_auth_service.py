@@ -114,15 +114,18 @@ def test_incomplete_store_fails_closed(tmp_path):
         AuthService(store, default_username="admin", default_password="pw")
 
 
-def test_unreadable_store_fails_closed(tmp_path):
+def test_unreadable_store_fails_closed(tmp_path, monkeypatch):
+    # 用 monkeypatch 强制 read_text 抛 OSError，避免 chmod 0o000 在 root 下
+    # 跑 CI 时不生效（root 仍可读），从而稳定覆盖“不可读 → fail closed”路径。
     store = _store(tmp_path)
-    store.write_text("ok-ignore", encoding="utf-8")
-    store.chmod(0o000)
-    try:
-        with pytest.raises(AuthStoreError):
-            AuthService(store, default_username="admin", default_password="pw")
-    finally:
-        store.chmod(0o600)  # 恢复权限，便于 tmp_path 清理
+    store.write_text('{"username": "admin", "password_hash": "x"}', encoding="utf-8")
+
+    def raise_oserror(self, *args, **kwargs):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr("pathlib.Path.read_text", raise_oserror)
+    with pytest.raises(AuthStoreError):
+        AuthService(store, default_username="admin", default_password="pw")
 
 
 def test_empty_store_bootstraps(tmp_path):
