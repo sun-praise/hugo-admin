@@ -146,12 +146,19 @@ class AuthService:
         return check_password_hash(pwhash, password)
 
     def set_password(self, username: str, new_password: str):
-        """更新指定账户的密码（重新哈希）。需严格匹配用户名。"""
+        """更新指定账户的密码（重新哈希）。需严格匹配用户名。
+
+        先落盘成功、再更新内存，避免写盘失败时内存与磁盘凭据不一致。
+        """
         if not new_password:
             raise ValueError("新密码不能为空")
         if not self._account:
             raise ValueError("账户不存在")
         if username != self._account.get("username"):
             raise ValueError("用户名不匹配")
-        self._account["password_hash"] = generate_password_hash(new_password)
-        self._write(self._account)
+        updated = {
+            **self._account,
+            "password_hash": generate_password_hash(new_password),
+        }
+        self._write(updated)  # 失败则抛出，self._account 保持旧值
+        self._account = updated

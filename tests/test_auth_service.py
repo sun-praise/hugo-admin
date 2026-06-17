@@ -73,6 +73,23 @@ def test_set_password_rejects_mismatch_and_empty(tmp_path):
         auth.set_password("admin", "")
 
 
+def test_set_password_atomic_on_write_failure(tmp_path, monkeypatch):
+    """写盘失败时内存不得漂移到新密码。"""
+    auth = AuthService(
+        _store(tmp_path), default_username="admin", default_password="old"
+    )
+
+    def boom(account):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(auth, "_write", boom)
+    with pytest.raises(OSError):
+        auth.set_password("admin", "newpw")
+    # 写盘失败：内存仍为旧密码
+    assert auth.verify("admin", "old") is True
+    assert auth.verify("admin", "newpw") is False
+
+
 def test_get_user_returns_public_info(tmp_path):
     auth = AuthService(
         _store(tmp_path), default_username="admin", default_password="pw"

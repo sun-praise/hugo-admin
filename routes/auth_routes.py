@@ -29,6 +29,15 @@ def _unauthorized(message: str = "未登录或会话已过期"):
     )
 
 
+def _json_dict() -> dict:
+    """读取 JSON 请求体；非对象（list/str/number/None 等）一律视为空 dict。
+
+    避免对非 dict 调 ``.get`` 导致 500 暴露在公开认证接口上。
+    """
+    data = request.get_json(silent=True)
+    return data if isinstance(data, dict) else {}
+
+
 def login_required(func):
     """要求已登录的装饰器（返回 401 JSON）。"""
 
@@ -65,7 +74,7 @@ def register_auth_routes(registry):
 
     @bp.route("/api/auth/login", methods=["POST"])
     def login():
-        data = request.get_json(silent=True) or {}
+        data = _json_dict()
         username = data.get("username")
         password = data.get("password")
         if not username or not password:
@@ -104,7 +113,7 @@ def register_auth_routes(registry):
     @bp.route("/api/auth/password", methods=["POST"])
     @login_required
     def change_password():
-        data = request.get_json(silent=True) or {}
+        data = _json_dict()
         current_password = data.get("current_password")
         new_password = data.get("new_password")
         if not current_password or not new_password:

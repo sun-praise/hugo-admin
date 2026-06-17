@@ -51,6 +51,14 @@ def test_login_missing_fields(client):
     assert resp.status_code == 400
 
 
+def test_login_non_object_body_returns_400(client):
+    # 非 JSON 对象（list）不应导致 500
+    resp = client.post(
+        "/api/auth/login", data="[1, 2, 3]", content_type="application/json"
+    )
+    assert resp.status_code == 400
+
+
 # ---------- /api/auth/me ----------
 
 
