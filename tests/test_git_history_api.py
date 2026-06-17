@@ -46,9 +46,10 @@ class TestGitHistoryAPI:
                 app_module.registry.database = orig_db
 
     @pytest.fixture
-    def client(self):
+    def client(self, login):
         app_module.app.config["TESTING"] = True
         with app_module.app.test_client() as c:
+            login(c)
             yield c
 
     # ---------- /api/git/pushes ----------

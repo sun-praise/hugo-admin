@@ -12,6 +12,12 @@ export async function request<T>(url: string, options?: RequestInit): Promise<T>
     headers: { ...headers, ...(options?.headers as Record<string, string>) },
   });
 
+  // 会话过期：除登录接口外，统一跳转登录页（硬跳转以清空前端状态）
+  if (response.status === 401 && url !== '/api/auth/login') {
+    window.location.href = '/login';
+    throw new Error('未登录或会话已过期');
+  }
+
   if (!response.ok) {
     try {
       const error = await response.json();
@@ -134,4 +140,45 @@ export async function getPushes(page = 1, perPage = 20): Promise<PushesResponse>
   return get<PushesResponse>(
     `/api/git/pushes?page=${page}&per_page=${perPage}`,
   );
+}
+
+// ============ 认证 ============
+
+export interface AuthUser {
+  username: string;
+}
+
+export interface AuthResponse {
+  success: boolean;
+  user?: AuthUser;
+  message?: string;
+}
+
+/** 登录（失败时由调用方捕获 message 展示）。 */
+export async function login(
+  username: string,
+  password: string,
+): Promise<AuthResponse> {
+  return post<AuthResponse>('/api/auth/login', { username, password });
+}
+
+/** 登出，清除服务端会话。 */
+export async function logout(): Promise<{ success: boolean }> {
+  return post<{ success: boolean }>('/api/auth/logout');
+}
+
+/** 获取当前登录用户；未登录返回 success:false（401 会被全局拦截器跳转）。 */
+export async function getMe(): Promise<AuthResponse> {
+  return get<AuthResponse>('/api/auth/me');
+}
+
+/** 修改当前用户密码。 */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ success: boolean; message?: string }> {
+  return post<{ success: boolean; message?: string }>('/api/auth/password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
 }
