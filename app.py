@@ -14,7 +14,9 @@ from flask_socketio import SocketIO
 
 from models.database import Database
 from routes import (
+    install_auth_guard,
     register_ai_routes,
+    register_auth_routes,
     register_email_routes,
     register_file_routes,
     register_image_routes,
@@ -29,6 +31,7 @@ from routes import (
 )
 from routes.plugin_routes import register_plugin_routes
 from routes.settings_routes import _ensure_server_url_has_port
+from services.auth_service import AuthService
 from services.chat_history_service import ChatHistoryService
 from services.git_service import GitService
 from services.hugo_service import HugoServerManager
@@ -131,6 +134,10 @@ app.chat_history_service = chat_history_service
 ai_service = None
 
 
+# 认证服务：凭据存放在仓库安装目录的 data/auth.json，与 HUGO_ROOT 解耦
+# （切换博客仓库不会重置登录账户）。首次启动自动引导默认管理员。
+auth_service = AuthService(Path(__file__).parent / "data" / "auth.json")
+
 registry = ServiceRegistry(
     post_service=post_service,
     git_service=git_service,
@@ -139,6 +146,7 @@ registry = ServiceRegistry(
     settings_service=settings_service,
     ref_service=ref_service,
     ai_service=ai_service,
+    auth_service=auth_service,
     session_api_key="",
     env_api_key=ENV_AI_API_KEY,
     socketio=socketio,
@@ -218,6 +226,11 @@ app.register_blueprint(ai_main_bp)
 app.register_blueprint(fm_bp)
 app.register_blueprint(register_inline_edit_routes(get_ai_service))
 app.register_blueprint(register_plugin_routes(plugin_manager))
+app.register_blueprint(register_auth_routes(registry))
+
+# 全局会话守卫：在所有 Blueprint 注册后挂载，未登录访问 /api/* 一律 401
+# （白名单 /api/auth/login、/api/auth/me、/api/version 除外）。
+install_auth_guard(app)
 
 # ============ 注册 SocketIO 事件 ============
 
