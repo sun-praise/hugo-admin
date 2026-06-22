@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { Popup } from './Popup';
 import { Trigger } from './Trigger';
@@ -59,6 +59,12 @@ export function InlineEditOverlay({
   // so setAnchor() fires and re-arms the trigger against a stale selection
   // (the source of the "first invocation leaks into the second" residue).
   const timerRef = useRef<number | null>(null);
+  const [layout, setLayout] = useState<{
+    popupTop: number;
+    popupLeft: number;
+    triggerTop: number;
+    triggerLeft: number;
+  } | null>(null);
 
   useEffect(() => {
     return () => {
@@ -166,51 +172,66 @@ export function InlineEditOverlay({
     [textareaRef, anchor, onAccept, onDrift, closeAll],
   );
 
-  if (!anchor) return null;
-  const ta = textareaRef.current;
-  if (!ta) return null;
+  // Compute the trigger/popup layout inside a layout effect so we never read
+  // the textarea ref during render (which the React refs rule forbids).
+  useLayoutEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta || !anchor) {
+      setLayout(null);
+      return;
+    }
+    const rect = ta.getBoundingClientRect();
+    const cs = window.getComputedStyle(ta);
+    const lineHeight = parseFloat(cs.lineHeight) || 22;
+    const paddingTop = parseFloat(cs.paddingTop) || 0;
+    const paddingLeft = parseFloat(cs.paddingLeft) || 0;
+    const textBeforeEnd = ta.value.substring(0, anchor.end);
+    const linesBefore = textBeforeEnd.split('\n').length - 1;
+    const lastLine = textBeforeEnd.split('\n').pop() || '';
+    // Rough character width for monospace 14px ≈ 8.4px. We don't have
+    // canvas-measured char width, so this is a heuristic. The trigger clamps
+    // itself to the viewport, so being slightly off is fine.
+    const charWidth = 8.4;
+    const approxLeft = rect.left + paddingLeft + Math.min(lastLine.length, 80) * charWidth + 6;
+    const approxTop = rect.top + paddingTop + linesBefore * lineHeight + 2;
 
-  // Approximate the viewport position of the selection end.
-  // We don't have line-level pixel coords for a textarea, so we use a
-  // best-effort approach: number of newlines up to `end` × line-height,
-  // plus a small horizontal offset. This is rough but stable enough for a
-  // 36×36 button and matches what the user sees.
-  const rect = ta.getBoundingClientRect();
-  const cs = window.getComputedStyle(ta);
-  const lineHeight = parseFloat(cs.lineHeight) || 22;
-  const paddingTop = parseFloat(cs.paddingTop) || 0;
-  const paddingLeft = parseFloat(cs.paddingLeft) || 0;
-  const textBeforeEnd = ta.value.substring(0, anchor.end);
-  const linesBefore = textBeforeEnd.split('\n').length - 1;
-  const lastLine = textBeforeEnd.split('\n').pop() || '';
-  // Rough character width for monospace 14px ≈ 8.4px. We don't have
-  // canvas-measured char width, so this is a heuristic. The trigger clamps
-  // itself to the viewport, so being slightly off is fine.
-  const charWidth = 8.4;
-  const approxLeft = rect.left + paddingLeft + Math.min(lastLine.length, 80) * charWidth + 6;
-  const approxTop = rect.top + paddingTop + linesBefore * lineHeight + 2;
-
-  if (open) {
     const popupWidth = 320;
-    const left = clamp(
+    const popupLeft = clamp(
       approxLeft,
       VIEWPORT_MARGIN,
       Math.max(VIEWPORT_MARGIN, window.innerWidth - popupWidth - VIEWPORT_MARGIN),
     );
     const popupHeightEstimate = 280;
     const below = approxTop + 8;
-    const top =
+    const popupTop =
       below + popupHeightEstimate > window.innerHeight
         ? Math.max(VIEWPORT_MARGIN, approxTop - popupHeightEstimate - 8)
         : below;
+
+    const triggerTop = clamp(
+      approxTop - 2,
+      VIEWPORT_MARGIN,
+      Math.max(VIEWPORT_MARGIN, window.innerHeight - TRIGGER_SIZE - VIEWPORT_MARGIN),
+    );
+    const triggerLeft = clamp(
+      approxLeft,
+      VIEWPORT_MARGIN,
+      Math.max(VIEWPORT_MARGIN, window.innerWidth - TRIGGER_SIZE - VIEWPORT_MARGIN),
+    );
+    setLayout({ popupTop, popupLeft, triggerTop, triggerLeft });
+  }, [anchor, textareaRef]);
+
+  if (!anchor || !layout) return null;
+
+  if (open) {
     return (
       <div data-inline-edit-root="true">
         <Popup
           selectedText={anchor.text}
           contextBefore={anchor.contextBefore}
           contextAfter={anchor.contextAfter}
-          top={top}
-          left={left}
+          top={layout.popupTop}
+          left={layout.popupLeft}
           onClose={closeAll}
           onAccept={handleAccept}
         />
@@ -219,21 +240,11 @@ export function InlineEditOverlay({
   }
 
   // Trigger mode
-  const triggerTop = clamp(
-    approxTop - 2,
-    VIEWPORT_MARGIN,
-    Math.max(VIEWPORT_MARGIN, window.innerHeight - TRIGGER_SIZE - VIEWPORT_MARGIN),
-  );
-  const triggerLeft = clamp(
-    approxLeft,
-    VIEWPORT_MARGIN,
-    Math.max(VIEWPORT_MARGIN, window.innerWidth - TRIGGER_SIZE - VIEWPORT_MARGIN),
-  );
   return (
     <div data-inline-edit-root="true">
       <Trigger
-        top={triggerTop}
-        left={triggerLeft}
+        top={layout.triggerTop}
+        left={layout.triggerLeft}
         onClick={() => setOpen(true)}
       />
     </div>

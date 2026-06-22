@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Save,
@@ -58,10 +58,8 @@ export default function Editor() {
   const [refSearchQuery, setRefSearchQuery] = useState('');
   const [refSearchResults, setRefSearchResults] = useState<Array<{ path: string; title: string }>>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const saveFileRef = useRef(saveFile);
-  saveFileRef.current = saveFile;
-  const insertMarkdownRef = useRef(insertMarkdown);
-  insertMarkdownRef.current = insertMarkdown;
+  const saveFileRef = useRef<() => Promise<void>>(async () => {});
+  const insertMarkdownRef = useRef<(type: string) => void>(() => {});
   const [generatingCover, setGeneratingCover] = useState(false);
   const [generatingFm, setGeneratingFm] = useState(false);
   const { setTitle: setPageTitle, resetTitle: resetPageTitle } = usePageTitle();
@@ -75,18 +73,50 @@ export default function Editor() {
 
   const currentFile = fullPath;
 
-  useEffect(() => {
+  const updatePreview = useCallback(() => {
+    let html = renderMarkdown(content || '');
     if (currentFile) {
-      loadFile();
-      loadImages();
-      loadBacklinks();
+      const articleDir = currentFile.replace(/[^/]+$/, '');
+      html = html.replace(/<img\s+src="([^"]+)"/g, (_, src) => {
+        if (!src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('/')) {
+          src = `/content/${articleDir}${src}`;
+        }
+        return `<img src="${src}"`;
+      });
+    }
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    html = html.replace(/\{\{&lt;\s*ref\s+"([^"]+)"\s*&gt;\}\}/g, (_: string, path: string) => {
+      const p = esc(path);
+      return `<a href="/editor/${p}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${p}">🔗 ${p}</a>`;
+    });
+    html = html.replace(/\{\{<\s*ref\s+"([^"]+)"\s*>\}\}/g, (_: string, path: string) => {
+      const p = esc(path);
+      return `<a href="/editor/${p}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${p}">🔗 ${p}</a>`;
+    });
+    setPreview(html);
+  }, [content, currentFile]);
+
+  const loadBacklinks = useCallback(async () => {
+    if (!currentFile) return;
+    try {
+      const data = await get<{ backlinks: Backlink[] }>(`/api/references/backlinks?path=${encodeURIComponent(currentFile)}`);
+      setBacklinks(data.backlinks || []);
+    } catch (error) {
+      console.error('Failed to load backlinks:', error);
     }
   }, [currentFile]);
 
-  useEffect(() => {
-    updatePreview();
-  }, [content, currentFile]);
-
+  const loadImages = useCallback(async () => {
+    if (!currentFile) return;
+    try {
+      const data = await post<{ success: boolean; images?: ImageItem[] }>('/api/image/list', { article_path: currentFile });
+      if (data.success) {
+        setImages(data.images || []);
+      }
+    } catch (error) {
+      console.error('Failed to load images:', error);
+    }
+  }, [currentFile]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -175,30 +205,7 @@ export default function Editor() {
     setShowFrontmatterDrawer(false);
   }
 
-  function updatePreview() {
-    let html = renderMarkdown(content || '');
-    if (currentFile) {
-      const articleDir = currentFile.replace(/[^/]+$/, '');
-      html = html.replace(/<img\s+src="([^"]+)"/g, (_, src) => {
-        if (!src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('/')) {
-          src = `/content/${articleDir}${src}`;
-        }
-        return `<img src="${src}"`;
-      });
-    }
-    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    html = html.replace(/\{\{&lt;\s*ref\s+"([^"]+)"\s*&gt;\}\}/g, (_: string, path: string) => {
-      const p = esc(path);
-      return `<a href="/editor/${p}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${p}">🔗 ${p}</a>`;
-    });
-    html = html.replace(/\{\{<\s*ref\s+"([^"]+)"\s*>\}\}/g, (_: string, path: string) => {
-      const p = esc(path);
-      return `<a href="/editor/${p}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${p}">🔗 ${p}</a>`;
-    });
-    setPreview(html);
-  }
-
-  function insertMarkdown(type: string) {
+  const insertMarkdown = useCallback((type: string) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
     const start = textarea.selectionStart;
@@ -266,7 +273,7 @@ export default function Editor() {
       textarea.focus();
       textarea.setSelectionRange(start + cursorOffset, start + cursorOffset);
     });
-  }
+  }, [content]);
 
   function applyInlineEdit(revisedText: string, anchorStart: number, anchorEnd: number) {
     const textarea = textareaRef.current;
@@ -287,38 +294,7 @@ export default function Editor() {
     showNotification('选区已变化，已取消', 'warning');
   }
 
-  async function loadFile() {
-    setLoading(true);
-    try {
-      const data = await post<FileData & { success: boolean; message?: string }>('/api/file/read-with-frontmatter', { path: currentFile });
-      if (data.success) {
-        setContent(data.content || '');
-        setOriginalContent(data.content || '');
-        const fm = (data.frontmatter || {}) as Frontmatter;
-        setFrontmatter(fm);
-        setOriginalFrontmatter(JSON.parse(JSON.stringify(fm)));
-        syncFmEdit(fm);
-        await checkPublishStatus();
-      } else {
-        const fallback = await post<FileData & { success: boolean }>('/api/file/read', { path: currentFile });
-        if (fallback.success) {
-          setContent(fallback.content || '');
-          setOriginalContent(fallback.content || '');
-          setFrontmatter({});
-          setOriginalFrontmatter({});
-          await checkPublishStatus();
-        } else {
-          showNotification('加载文件失败', 'error');
-        }
-      }
-    } catch {
-      showNotification('加载文件失败', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function saveFile() {
+  const saveFile = useCallback(async () => {
     if (!currentFile) {
       showNotification('未选择文件', 'error');
       return;
@@ -342,7 +318,7 @@ export default function Editor() {
     } finally {
       setSaving(false);
     }
-  }
+  }, [currentFile, content, frontmatter]);
 
   async function publishArticle() {
     if (!currentFile) {
@@ -371,7 +347,7 @@ export default function Editor() {
     }
   }
 
-  async function checkPublishStatus() {
+  const checkPublishStatus = useCallback(async () => {
     if (!currentFile) return;
     try {
       const data = await get<{ status: { is_draft?: boolean } }>(`/api/article/status?file_path=${encodeURIComponent(currentFile)}`);
@@ -379,19 +355,7 @@ export default function Editor() {
     } catch (error) {
       console.error('Failed to check publish status:', error);
     }
-  }
-
-  async function loadImages() {
-    if (!currentFile) return;
-    try {
-      const data = await post<{ success: boolean; images?: ImageItem[] }>('/api/image/list', { article_path: currentFile });
-      if (data.success) {
-        setImages(data.images || []);
-      }
-    } catch (error) {
-      console.error('Failed to load images:', error);
-    }
-  }
+  }, [currentFile]);
 
   async function uploadImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -478,16 +442,6 @@ export default function Editor() {
     showNotification('图片链接已复制', 'success');
   }
 
-  async function loadBacklinks() {
-    if (!currentFile) return;
-    try {
-      const data = await get<{ backlinks: Backlink[] }>(`/api/references/backlinks?path=${encodeURIComponent(currentFile)}`);
-      setBacklinks(data.backlinks || []);
-    } catch (error) {
-      console.error('Failed to load backlinks:', error);
-    }
-  }
-
   async function searchRefs() {
     if (!refSearchQuery.trim()) {
       setRefSearchResults([]);
@@ -556,6 +510,60 @@ export default function Editor() {
     document.body.appendChild(notification);
     setTimeout(() => notification.remove(), 3000);
   }
+
+  const loadFile = useCallback(async () => {
+    if (!currentFile) return;
+    setLoading(true);
+    try {
+      const data = await post<FileData & { success: boolean; message?: string }>('/api/file/read-with-frontmatter', { path: currentFile });
+      if (data.success) {
+        setContent(data.content || '');
+        setOriginalContent(data.content || '');
+        const fm = (data.frontmatter || {}) as Frontmatter;
+        setFrontmatter(fm);
+        setOriginalFrontmatter(JSON.parse(JSON.stringify(fm)));
+        syncFmEdit(fm);
+        await checkPublishStatus();
+      } else {
+        const fallback = await post<FileData & { success: boolean }>('/api/file/read', { path: currentFile });
+        if (fallback.success) {
+          setContent(fallback.content || '');
+          setOriginalContent(fallback.content || '');
+          setFrontmatter({});
+          setOriginalFrontmatter({});
+          await checkPublishStatus();
+        } else {
+          showNotification('加载文件失败', 'error');
+        }
+      }
+    } catch {
+      showNotification('加载文件失败', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [currentFile, checkPublishStatus]);
+
+  // Keep callback refs current without writing during render.
+  useEffect(() => {
+    saveFileRef.current = saveFile;
+    insertMarkdownRef.current = insertMarkdown;
+  }, [saveFile, insertMarkdown]);
+
+  useEffect(() => {
+    (async () => {
+      if (currentFile) {
+        await loadFile();
+        await loadImages();
+        await loadBacklinks();
+      }
+    })();
+  }, [currentFile, loadFile, loadImages, loadBacklinks]);
+
+  useEffect(() => {
+    (async () => {
+      await updatePreview();
+    })();
+  }, [content, currentFile, updatePreview]);
 
   if (!currentFile) {
     return (
