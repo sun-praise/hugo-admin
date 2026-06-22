@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { get, put, post } from '../utils/api';
 import {
   Puzzle,
@@ -312,11 +312,7 @@ function ConfigPanel({ name }: { name: string }) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadConfig();
-  }, [name]);
-
-  async function loadConfig() {
+  const loadConfig = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -335,7 +331,13 @@ function ConfigPanel({ name }: { name: string }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [name]);
+
+  useEffect(() => {
+    (async () => {
+      await loadConfig();
+    })();
+  }, [loadConfig]);
 
   async function saveConfig() {
     setSaving(true);
