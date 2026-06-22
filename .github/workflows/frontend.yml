@@ -30,6 +30,10 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
+      - name: Lint
+        working-directory: frontend
+        run: pnpm run lint --max-warnings=0
+
       - name: Build (tsc + vite)
         working-directory: frontend
         run: pnpm run build
