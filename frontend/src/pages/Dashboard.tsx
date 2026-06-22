@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FileText, Tag, FolderOpen, Server, Search, Plus, Settings, Upload, Mail, Send } from 'lucide-react';
 import { get, post } from '../utils/api';
@@ -12,13 +12,7 @@ export default function Dashboard() {
   const [publishing, setPublishing] = useState(false);
   const [pushingEmail, setPushingEmail] = useState(false);
 
-  useEffect(() => {
-    loadStats();
-    loadRecentPosts();
-    loadServerStatus();
-  }, []);
-
-  async function loadStats() {
+  const loadStats = useCallback(async () => {
     try {
       const posts = await get<PostsResponse>('/api/posts?per_page=1000');
       const tags = await get<{ tags: TagType[] }>('/api/posts/tags');
@@ -31,25 +25,33 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Failed to load stats:', error);
     }
-  }
+  }, []);
 
-  async function loadRecentPosts() {
+  const loadRecentPosts = useCallback(async () => {
     try {
       const data = await get<PostsResponse>('/api/posts?per_page=5');
       setRecentPosts(data.posts);
     } catch (error) {
       console.error('Failed to load recent posts:', error);
     }
-  }
+  }, []);
 
-  async function loadServerStatus() {
+  const loadServerStatus = useCallback(async () => {
     try {
       const data = await get<ServerStatus>('/api/server/status');
       setServerStatus(data);
     } catch (error) {
       console.error('Failed to load server status:', error);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      await loadStats();
+      await loadRecentPosts();
+      await loadServerStatus();
+    })();
+  }, [loadStats, loadRecentPosts, loadServerStatus]);
 
   async function createNewPost() {
     const title = prompt('请输入文章标题:');

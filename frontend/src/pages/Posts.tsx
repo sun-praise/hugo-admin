@@ -50,7 +50,7 @@ export default function Posts() {
     }
   }, [filters, currentPage]);
 
-  async function loadFilters() {
+  const loadFilters = useCallback(async () => {
     try {
       const [tagsData, catsData] = await Promise.all([
         get<{ tags: TagType[] }>('/api/posts/tags'),
@@ -61,12 +61,14 @@ export default function Posts() {
     } catch (error) {
       console.error('Failed to load filters:', error);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    loadPosts();
-    loadFilters();
-  }, [loadPosts]);
+    (async () => {
+      await loadPosts();
+      await loadFilters();
+    })();
+  }, [loadPosts, loadFilters]);
 
   // 切换筛选条件时回到第 1 页，避免停留在已不存在的页码上。
   // 使用显式包装函数而非 effect：setState in effect 会触发级联渲染。
