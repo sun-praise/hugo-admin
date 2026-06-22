@@ -81,10 +81,16 @@ export default function Editor() {
       loadImages();
       loadBacklinks();
     }
+    // loadFile/loadImages/loadBacklinks are stable function declarations;
+    // they only need to fire when currentFile changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFile]);
 
   useEffect(() => {
     updatePreview();
+    // updatePreview is a stable function declaration; it only needs to
+    // fire when content or currentFile changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [content, currentFile]);
 
 

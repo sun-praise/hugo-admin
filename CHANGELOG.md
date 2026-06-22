@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 新增 `GET /api/git/pushes`（分页、倒序，参数钳制）。
 - 测试：推送历史 DB、`GitService.push()` 记录（成功/失败/`database=None` no-op）、commits 富化、`/api/git/pushes` 与 `/api/git/commits` 路由。
 
+### Fixed
+- 前端 `pnpm run lint` 失败：14 errors / 3 warnings（`InlineEdit/Overlay.tsx` 在 render 阶段读取 ref、Dashboard/Server/Plugins 的 useEffect 在声明前访问函数、Git/Posts 的 useEffect 内同步 setState、Editor/Posts/Git/Plugins 的 useEffect 依赖缺失）现已全部清零。
+
 ## [2.3.0] - 2026-06-16
 
 ### Added

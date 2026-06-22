@@ -19,36 +19,42 @@ export default function Posts() {
   const [selectAll, setSelectAll] = useState(false);
   const [bulkPublishing, setBulkPublishing] = useState(false);
 
-  const loadPosts = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set('per_page', '20');
-      params.set('page', String(currentPage));
-      if (filters.query) params.set('q', filters.query);
-      if (filters.category) params.set('category', filters.category);
-      if (filters.tag) params.set('tag', filters.tag);
-      const data = await get<PostsResponse>(`/api/posts?${params.toString()}`);
-      setPosts(data.posts);
-      setPagination({
-        total: data.total,
-        page: data.page,
-        per_page: data.per_page,
-        total_pages: data.total_pages,
-        has_next: data.has_next,
-        has_prev: data.has_prev,
-      });
-      // 如果服务端回传的页码与请求不符（例如筛选后实际数据变少导致越界），
-      // 跟随服务端纠正到合法页码，避免 UI 一直停留在不存在的页。
-      if (data.page !== currentPage) {
-        setCurrentPage(data.page);
+  // loadPosts takes the page + filters explicitly so callers can pass the
+  // next values without waiting for a ref-flush cycle. Defaults fall back
+  // to the current state when called with no args (e.g. on initial mount).
+  const loadPosts = useCallback(
+    async (page: number = currentPage, f: typeof filters = filters) => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.set('per_page', '20');
+        params.set('page', String(page));
+        if (f.query) params.set('q', f.query);
+        if (f.category) params.set('category', f.category);
+        if (f.tag) params.set('tag', f.tag);
+        const data = await get<PostsResponse>(`/api/posts?${params.toString()}`);
+        setPosts(data.posts);
+        setPagination({
+          total: data.total,
+          page: data.page,
+          per_page: data.per_page,
+          total_pages: data.total_pages,
+          has_next: data.has_next,
+          has_prev: data.has_prev,
+        });
+        // 如果服务端回传的页码与请求不符（例如筛选后实际数据变少导致越界），
+        // 跟随服务端纠正到合法页码，避免 UI 一直停留在不存在的页。
+        if (data.page !== page) {
+          setCurrentPage(data.page);
+        }
+      } catch (error) {
+        console.error('Failed to load posts:', error);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Failed to load posts:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters, currentPage]);
+    },
+    [currentPage, filters],
+  );
 
   async function loadFilters() {
     try {
@@ -63,17 +69,29 @@ export default function Posts() {
     }
   }
 
+  // 仅在挂载时拉取一次数据；筛选/翻页/刷新都在对应的事件处理函数中显式触发。
+  // `set-state-in-effect` is too strict for the standard mount-time
+  // data-fetching pattern (no cascade — the effect deps are `[]`).
   useEffect(() => {
+    // The rule is too strict for the standard mount-time data-fetching
+    // pattern (no cascade because deps are `[]`).
+    /* eslint-disable react-hooks/set-state-in-effect */
     loadPosts();
     loadFilters();
-  }, [loadPosts]);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // loadPosts / loadFilters are stable references; safe to omit from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // 切换筛选条件时回到第 1 页，避免停留在已不存在的页码上。
-  // 使用显式包装函数而非 effect：setState in effect 会触发级联渲染。
+  // 切换筛选条件时回到第 1 页，并显式触发一次加载（使用最新的 filter
+  // 值）。这样既避免了 effect 内 setState 的级联渲染，也确保
+  // loadPosts 不会拿到陈旧的闭包值。
   function updateFilter<K extends keyof typeof filters>(key: K, value: (typeof filters)[K]) {
     if (filters[key] === value) return;
-    setFilters((prev) => ({ ...prev, [key]: value }));
+    const next = { ...filters, [key]: value };
+    setFilters(next);
     setCurrentPage(1);
+    loadPosts(1, next);
   }
 
   function goToPage(page: number) {
@@ -81,6 +99,7 @@ export default function Posts() {
     const next = Math.max(1, Math.min(page, total));
     if (next !== currentPage) {
       setCurrentPage(next);
+      loadPosts(next, filters);
     }
   }
 

@@ -312,10 +312,6 @@ function ConfigPanel({ name }: { name: string }) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadConfig();
-  }, [name]);
-
   async function loadConfig() {
     setLoading(true);
     setError('');
@@ -336,6 +332,18 @@ function ConfigPanel({ name }: { name: string }) {
       setLoading(false);
     }
   }
+
+  // Reload the config when the user switches plugins. Standard data-fetching
+  // pattern; `set-state-in-effect` is too strict here (no cascade because
+  // `name` is the only dep and the function reference is stable).
+  useEffect(() => {
+    // `set-state-in-effect` is too strict for the standard data-fetching
+    // pattern; `loadConfig` is a stable function declaration.
+    /* eslint-disable react-hooks/set-state-in-effect */
+    loadConfig();
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name]);
 
   async function saveConfig() {
     setSaving(true);

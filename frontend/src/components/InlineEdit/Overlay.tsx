@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { Popup } from './Popup';
 import { Trigger } from './Trigger';
@@ -166,29 +166,41 @@ export function InlineEditOverlay({
     [textareaRef, anchor, onAccept, onDrift, closeAll],
   );
 
-  if (!anchor) return null;
-  const ta = textareaRef.current;
-  if (!ta) return null;
+  // Approximate the viewport position of the selection end. We don't have
+  // line-level pixel coords for a textarea, so we use a best-effort approach:
+  // number of newlines up to `end` × line-height, plus a small horizontal
+  // offset. This is rough but stable enough for a 36×36 button and matches
+  // what the user sees.
+  //
+  // DOM measurements (rect / getComputedStyle / value.substring) must not run
+  // during render — that violates React's ref rules. Compute lazily in
+  // useLayoutEffect whenever the anchor moves, then read from state here.
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  useLayoutEffect(() => {
+    // No anchor → render bails on `!anchor` first, so leaving position stale
+    // is harmless and avoids a redundant setState in the effect body.
+    if (!anchor) return;
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const rect = ta.getBoundingClientRect();
+    const cs = window.getComputedStyle(ta);
+    const lineHeight = parseFloat(cs.lineHeight) || 22;
+    const paddingTop = parseFloat(cs.paddingTop) || 0;
+    const paddingLeft = parseFloat(cs.paddingLeft) || 0;
+    const textBeforeEnd = ta.value.substring(0, anchor.end);
+    const linesBefore = textBeforeEnd.split('\n').length - 1;
+    const lastLine = textBeforeEnd.split('\n').pop() || '';
+    // Rough character width for monospace 14px ≈ 8.4px. We don't have
+    // canvas-measured char width, so this is a heuristic. The trigger clamps
+    // itself to the viewport, so being slightly off is fine.
+    const charWidth = 8.4;
+    const approxLeft = rect.left + paddingLeft + Math.min(lastLine.length, 80) * charWidth + 6;
+    const approxTop = rect.top + paddingTop + linesBefore * lineHeight + 2;
+    setPosition({ top: approxTop, left: approxLeft });
+  }, [anchor, textareaRef]);
 
-  // Approximate the viewport position of the selection end.
-  // We don't have line-level pixel coords for a textarea, so we use a
-  // best-effort approach: number of newlines up to `end` × line-height,
-  // plus a small horizontal offset. This is rough but stable enough for a
-  // 36×36 button and matches what the user sees.
-  const rect = ta.getBoundingClientRect();
-  const cs = window.getComputedStyle(ta);
-  const lineHeight = parseFloat(cs.lineHeight) || 22;
-  const paddingTop = parseFloat(cs.paddingTop) || 0;
-  const paddingLeft = parseFloat(cs.paddingLeft) || 0;
-  const textBeforeEnd = ta.value.substring(0, anchor.end);
-  const linesBefore = textBeforeEnd.split('\n').length - 1;
-  const lastLine = textBeforeEnd.split('\n').pop() || '';
-  // Rough character width for monospace 14px ≈ 8.4px. We don't have
-  // canvas-measured char width, so this is a heuristic. The trigger clamps
-  // itself to the viewport, so being slightly off is fine.
-  const charWidth = 8.4;
-  const approxLeft = rect.left + paddingLeft + Math.min(lastLine.length, 80) * charWidth + 6;
-  const approxTop = rect.top + paddingTop + linesBefore * lineHeight + 2;
+  if (!anchor || !position) return null;
+  const { top: approxTop, left: approxLeft } = position;
 
   if (open) {
     const popupWidth = 320;

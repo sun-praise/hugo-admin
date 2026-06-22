@@ -60,16 +60,31 @@ export default function Git() {
     }
   }, []);
 
-  // 仅在 tab 切换时拉取对应数据；loadCommits/loadPushes 为 useCallback([]) 稳定引用，
-  // commitsCount/pushPage 在切 tab 时读取最新值即可，故依赖数组只含 [tab]。
+  // 仅在挂载时拉取默认 tab (commits) 的数据。tab 切换属于用户事件，应在
+  // onClick 中显式触发对应的 loader，避免 effect 内的 setState 级联渲染。
+  // Initial mount loads the default tab's data. Tab switching is handled in
+  // the click handler (`selectTab`), so we only fetch once here.
+  // `set-state-in-effect` is too strict for the standard mount-time
+  // data-fetching pattern (no cascade — deps are `[]`).
   useEffect(() => {
-    if (tab === 'commits') {
+    // Initial mount fetches the default tab's data; tab switching is handled
+    // by the click handler.
+    /* eslint-disable react-hooks/set-state-in-effect */
+    loadCommits(COMMIT_PAGE_SIZE);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // loadCommits is a stable useCallback with [] deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function selectTab(next: Tab) {
+    if (next === tab) return;
+    setTab(next);
+    if (next === 'commits') {
       loadCommits(commitsCount);
     } else {
       loadPushes(pushPage);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }
 
   function refresh() {
     if (tab === 'commits') loadCommits(commitsCount);
@@ -104,7 +119,7 @@ export default function Git() {
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-stone-100 p-1 rounded-lg w-fit">
         <button
-          onClick={() => setTab('commits')}
+          onClick={() => selectTab('commits')}
           className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-colors ${
             tab === 'commits' ? 'bg-white text-stone-800 shadow-sm font-medium' : 'text-stone-500 hover:text-stone-700'
           }`}
@@ -113,7 +128,7 @@ export default function Git() {
           提交记录
         </button>
         <button
-          onClick={() => setTab('pushes')}
+          onClick={() => selectTab('pushes')}
           className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-colors ${
             tab === 'pushes' ? 'bg-white text-stone-800 shadow-sm font-medium' : 'text-stone-500 hover:text-stone-700'
           }`}

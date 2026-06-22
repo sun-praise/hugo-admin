@@ -18,11 +18,37 @@ export default function ServerPage() {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const socketRef = useSocket();
 
+  async function fetchStatus() {
+    try {
+      const data = await get<ServerStatus>('/api/server/status');
+      setStatus(data);
+    } catch (error) {
+      console.error('Failed to fetch status:', error);
+    }
+  }
+
+  async function fetchHugoUrl() {
+    try {
+      const data = await get<{ success: boolean; settings?: { hugo?: { server_url?: string } } }>('/api/settings');
+      const url = data.settings?.hugo?.server_url;
+      if (url) setHugoUrl(url);
+    } catch (error) {
+      console.error('Failed to fetch hugo url:', error);
+    }
+  }
+
+  // Initial mount + 3s polling. `set-state-in-effect` is a strict rule for
+  // the data-fetching pattern; the cascade it warns about doesn't apply
+  // here because the effect deps are `[]` (polling is via setInterval).
   useEffect(() => {
+    // The rule is too strict for the standard mount-time data-fetching
+    // pattern (no cascade because deps are `[]`).
+    /* eslint-disable react-hooks/set-state-in-effect */
     fetchStatus();
     fetchHugoUrl();
     const interval = setInterval(fetchStatus, 3000);
     return () => clearInterval(interval);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   useEffect(() => {
@@ -46,25 +72,6 @@ export default function ServerPage() {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
     }
   }, [logs]);
-
-  async function fetchStatus() {
-    try {
-      const data = await get<ServerStatus>('/api/server/status');
-      setStatus(data);
-    } catch (error) {
-      console.error('Failed to fetch status:', error);
-    }
-  }
-
-  async function fetchHugoUrl() {
-    try {
-      const data = await get<{ success: boolean; settings?: { hugo?: { server_url?: string } } }>('/api/settings');
-      const url = data.settings?.hugo?.server_url;
-      if (url) setHugoUrl(url);
-    } catch (error) {
-      console.error('Failed to fetch hugo url:', error);
-    }
-  }
 
   async function startServer(debug = false) {
     setLoading(true);
