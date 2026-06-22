@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { GitCommit, GitBranch, RefreshCw, ChevronLeft, ChevronRight, CheckCircle2, XCircle } from 'lucide-react';
 import { getCommits, getPushes } from '../utils/api';
 import type { Commit, PushRecord } from '../utils/api';
@@ -60,16 +60,23 @@ export default function Git() {
     }
   }, []);
 
-  // 仅在 tab 切换时拉取对应数据；loadCommits/loadPushes 为 useCallback([]) 稳定引用，
-  // commitsCount/pushPage 在切 tab 时读取最新值即可，故依赖数组只含 [tab]。
+  // 使用 ref 保存最新分页状态，避免把它们加入依赖数组导致手动翻页时重复请求。
+  const commitsCountRef = useRef(commitsCount);
+  const pushPageRef = useRef(pushPage);
   useEffect(() => {
-    if (tab === 'commits') {
-      loadCommits(commitsCount);
-    } else {
-      loadPushes(pushPage);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+    commitsCountRef.current = commitsCount;
+    pushPageRef.current = pushPage;
+  }, [commitsCount, pushPage]);
+
+  useEffect(() => {
+    (async () => {
+      if (tab === 'commits') {
+        await loadCommits(commitsCountRef.current);
+      } else {
+        await loadPushes(pushPageRef.current);
+      }
+    })();
+  }, [tab, loadCommits, loadPushes]);
 
   function refresh() {
     if (tab === 'commits') loadCommits(commitsCount);
