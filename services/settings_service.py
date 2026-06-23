@@ -41,6 +41,7 @@ class SettingsService:
         ai_settings = settings.get("ai", {})
         hugo_settings = settings.get("hugo", {})
         listmonk_settings = settings.get("listmonk", {})
+        theme_settings = settings.get("theme", {})
 
         return {
             "ai": {
@@ -56,6 +57,9 @@ class SettingsService:
                 "api_user": listmonk_settings.get("api_user", ""),
                 "api_key": self._mask_api_key(listmonk_settings.get("api_key", "")),
                 "blog_list_id": listmonk_settings.get("blog_list_id", 1),
+            },
+            "theme": {
+                "name": theme_settings.get("name", ""),
             },
         }
 
@@ -134,6 +138,15 @@ class SettingsService:
                 current["listmonk"]["blog_list_id"] = int(
                     listmonk_updates["blog_list_id"]
                 )
+
+            theme_updates = updates.get("theme", {})
+            if "theme" in updates and not isinstance(theme_updates, dict):
+                raise SettingsValidationError("主题设置格式无效")
+            if "name" in theme_updates:
+                name = theme_updates["name"]
+                if not isinstance(name, str):
+                    raise SettingsValidationError("主题名称必须是字符串")
+                current["theme"]["name"] = name.strip()
 
             normalized = self._normalize_and_validate(current)
             self._write_settings_file(normalized)
@@ -235,6 +248,10 @@ class SettingsService:
                     "blog_list_id"
                 ]
 
+        theme_from_file = file_settings.get("theme", {})
+        if isinstance(theme_from_file, dict) and "name" in theme_from_file:
+            settings["theme"]["name"] = theme_from_file["name"]
+
         # 如果 listmonk 未配置，尝试从 ~/.config/secret.yml 迁移
         migrated = False
         if not listmonk_from_file and not settings["listmonk"]["api_url"]:
@@ -262,6 +279,9 @@ class SettingsService:
                 "api_user": self.defaults.get("LISTMONK_API_USER") or "",
                 "api_key": "",
                 "blog_list_id": 1,
+            },
+            "theme": {
+                "name": "",
             },
         }
 
@@ -340,6 +360,14 @@ class SettingsService:
             except (ValueError, TypeError):
                 listmonk_blog_list_id = 1
 
+        theme_settings = settings.get("theme", {})
+        if not isinstance(theme_settings, dict):
+            theme_settings = {}
+
+        theme_name = theme_settings.get("name", "")
+        if not isinstance(theme_name, str):
+            theme_name = ""
+
         return {
             "ai": {
                 "base_url": base_url,
@@ -354,6 +382,9 @@ class SettingsService:
                 "api_user": listmonk_api_user.strip(),
                 "api_key": listmonk_api_key,
                 "blog_list_id": listmonk_blog_list_id,
+            },
+            "theme": {
+                "name": theme_name.strip(),
             },
         }
 
