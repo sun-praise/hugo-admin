@@ -14,6 +14,7 @@ from pathlib import Path
 import psutil
 
 from config import Config
+from services.settings_service import SettingsStorageError, SettingsValidationError
 
 
 class HugoServerManager:
@@ -42,13 +43,15 @@ class HugoServerManager:
         self.max_logs = 1000  # 最多保存 1000 条日志
         self.log_thread = None
         self.stop_log_thread = False
+        self._operation_lock = threading.Lock()
 
-    def start(self, debug=False):
+    def start(self, debug=False, theme_override=None):
         """
         启动 Hugo 服务器
 
         Args:
             debug: 是否启用 debug 模式(显示草稿)
+            theme_override: 临时覆盖的预览主题名称（仅本次启动有效）
 
         Returns:
             (success, message): 成功标志和消息
@@ -67,16 +70,18 @@ class HugoServerManager:
                 self.server_url,
                 "--disableFastRender",
             ]
-            # 管理后台预览服务器默认渲染草稿，方便查看新建文章
+            # 管理后台预览服务器默认渲染草稿, 方便查看新建文章
             cmd.append("-D")
-            # Docker 部署时禁用了 Hugo Modules，需要显式指定主题。
-            # 环境变量优先级高于持久化设置，避免破坏现有部署。
-            theme = os.environ.get("HUGO_THEME", "")
+            # Docker 部署时禁用了 Hugo Modules, 需要显式指定主题。
+            # 环境变量优先级高于持久化设置, 避免破坏现有 Docker 部署。
+            theme = (
+                theme_override if theme_override else os.environ.get("HUGO_THEME", "")
+            )
             if not theme and self.settings_service is not None:
                 try:
                     settings = self.settings_service.get_settings()
                     theme = settings.get("theme", {}).get("name", "")
-                except Exception:
+                except (SettingsStorageError, SettingsValidationError):
                     theme = ""
             if theme:
                 cmd.extend(["--theme", theme])
@@ -110,6 +115,24 @@ class HugoServerManager:
             return False, "未找到 hugo 命令，请确保 Hugo 已安装"
         except Exception as e:
             return False, f"启动失败: {str(e)}"
+
+    def preview_theme(self, theme_name):
+        """
+        使用指定主题重启 Hugo 服务器进行预览（不持久化主题设置）。
+
+        该方法在内部加锁，保证 stop/start 序列原子执行，避免并发请求导致
+        主题状态错乱或服务器停留在停止状态。
+
+        Args:
+            theme_name: 要预览的主题名称。
+
+        Returns:
+            (success, message): 成功标志和消息。
+        """
+        with self._operation_lock:
+            if self.is_running:
+                self.stop()
+            return self.start(debug=False, theme_override=theme_name)
 
     def stop(self):
         """

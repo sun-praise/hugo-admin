@@ -1,3 +1,5 @@
+import type { Theme } from '../types';
+
 const API_BASE = '';
 
 export async function request<T>(url: string, options?: RequestInit): Promise<T> {
@@ -193,7 +195,7 @@ export interface InitProjectRequest {
 export interface InitProjectResponse {
   success: boolean;
   path?: string;
-  config_format?: string;
+  config_format?: 'toml' | 'yaml';
   message?: string;
 }
 
@@ -206,7 +208,7 @@ export async function initProject(payload: InitProjectRequest): Promise<InitProj
 
 export interface ThemeListResponse {
   success: boolean;
-  themes: { name: string; is_submodule: boolean }[];
+  themes: Theme[];
   active_theme: string | null;
   message?: string;
 }
@@ -219,7 +221,7 @@ export interface ThemeInstallRequest {
 
 export interface ThemeInstallResponse {
   success: boolean;
-  theme?: { name: string; mode: string };
+  theme?: { name: string; mode: 'submodule' | 'copy' };
   message?: string;
 }
 

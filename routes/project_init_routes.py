@@ -4,6 +4,7 @@
 提供从管理界面创建新 Hugo 站点的 API。
 """
 
+import subprocess
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request
@@ -53,13 +54,24 @@ def register_project_init_routes(app, registry):
                 400,
             )
 
+        if config_format not in {"toml", "yaml"}:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "配置文件格式仅支持 toml 或 yaml",
+                    }
+                ),
+                400,
+            )
+
         service = ProjectInitService(admin_root)
         try:
             result = service.create_site(path, config_format=config_format)
             service.switch_active_project(app, registry, result["path"])
         except ProjectInitError as e:
             return jsonify({"success": False, "message": str(e)}), 400
-        except Exception as e:
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError) as e:
             return jsonify({"success": False, "message": f"初始化失败: {e}"}), 500
 
         return jsonify(
