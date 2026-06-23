@@ -524,7 +524,7 @@ class PostService:
 
             # 创建文章目录
             post_folder = self.post_dir / post_name
-            post_folder.mkdir(exist_ok=True)
+            post_folder.mkdir(parents=True, exist_ok=True)
 
             # 创建文章文件
             post_file = post_folder / "index.md"
