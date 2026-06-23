@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
-import { get, put, getThemes, installTheme, activateTheme, previewTheme } from '../utils/api';
+import { get, put, initProject, getThemes, installTheme, activateTheme, previewTheme } from '../utils/api';
 import type { Settings as SettingsType } from '../types';
 
+type TabKey = 'general' | 'project' | 'themes';
+
 export default function SettingsPage() {
+  const [activeTab, setActiveTab] = useState<TabKey>('general');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -16,6 +19,12 @@ export default function SettingsPage() {
     listmonk: { api_url: '', api_user: '', api_key: '', blog_list_id: 1 },
     theme: { name: '' },
   });
+
+  // Project init state
+  const [initPath, setInitPath] = useState('');
+  const [initFormat, setInitFormat] = useState<'toml' | 'yaml'>('toml');
+  const [initLoading, setInitLoading] = useState(false);
+  const [initResult, setInitResult] = useState<{ path: string; config_format: string } | null>(null);
 
   // Themes state
   const [themes, setThemes] = useState<{ name: string; is_submodule: boolean }[]>([]);
@@ -84,6 +93,29 @@ export default function SettingsPage() {
       setErrorMessage((error as Error).message);
     } finally {
       setThemesLoading(false);
+    }
+  }
+
+  async function handleInitProject(e: React.FormEvent) {
+    e.preventDefault();
+    if (initLoading || !initPath.trim()) return;
+    setInitLoading(true);
+    setErrorMessage('');
+    setInitResult(null);
+    try {
+      const data = await initProject({ path: initPath.trim(), config_format: initFormat });
+      if (!data.success) {
+        throw new Error(data.message || '初始化失败');
+      }
+      showNotification(`站点已创建: ${data.path}`, 'success');
+      setInitResult({ path: data.path || '', config_format: data.config_format || '' });
+      setInitPath('');
+      await fetchSettings();
+    } catch (error) {
+      setErrorMessage((error as Error).message);
+      showNotification((error as Error).message, 'error');
+    } finally {
+      setInitLoading(false);
     }
   }
 
@@ -195,6 +227,12 @@ export default function SettingsPage() {
     setTimeout(() => notification.remove(), 3000);
   }
 
+  const tabs: { key: TabKey; label: string }[] = [
+    { key: 'general', label: '常规设置' },
+    { key: 'themes', label: '主题管理' },
+    { key: 'project', label: '初始化项目' },
+  ];
+
   return (
     <div className="max-w-3xl space-y-6">
       {loading && (
@@ -206,239 +244,316 @@ export default function SettingsPage() {
 
       {!loading && (
         <>
-          <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
-            <h3 className="text-lg font-medium mb-4">Hugo Blog</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">博客根目录</label>
-                <input
-                  type="text"
-                  value={form.hugo.base_dir}
-                  onChange={(e) => setForm({ ...form, hugo: { ...form.hugo, base_dir: e.target.value } })}
-                  placeholder="/path/to/hugo-blog"
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
-                />
-                <p className="mt-2 text-xs text-stone-500">Hugo 项目的根目录，需包含 config.toml / config.yaml 等配置文件。</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">Hugo 服务器 URL</label>
-                <input
-                  type="text"
-                  value={form.hugo.server_url}
-                  onChange={(e) => setForm({ ...form, hugo: { ...form.hugo, server_url: e.target.value } })}
-                  placeholder="http://0.0.0.0:1313"
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
-                />
-                <p className="mt-2 text-xs text-stone-500">Hugo 预览服务器的基础 URL。留空则使用默认值。</p>
-              </div>
+          <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-1">
+            <div className="flex space-x-1">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    activeTab === tab.key
+                      ? 'bg-stone-100 text-stone-900'
+                      : 'text-stone-500 hover:text-stone-700 hover:bg-stone-50'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
-            <h3 className="text-lg font-medium mb-4">AI 助手</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">AI Base URL</label>
-                <input
-                  type="text"
-                  value={form.ai.base_url}
-                  onChange={(e) => setForm({ ...form, ai: { ...form.ai, base_url: e.target.value } })}
-                  placeholder="https://api.deepseek.com"
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">AI Model</label>
-                <input
-                  type="text"
-                  value={form.ai.model}
-                  onChange={(e) => setForm({ ...form, ai: { ...form.ai, model: e.target.value } })}
-                  placeholder="deepseek-chat"
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">AI API Key（可选）</label>
-                <input
-                  type="password"
-                  value={apiKeyInput}
-                  placeholder="留空则保持当前来源"
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
-                />
-                {apiKeySource === 'session' && (
-                  <p className="mt-2 text-xs text-stone-500">
-                    当前使用会话密钥（重启后失效）
-                    {apiKeyHint && `（${apiKeyHint}）`}
-                  </p>
-                )}
-                {apiKeySource === 'env' && <p className="mt-2 text-xs text-stone-500">当前使用环境变量中的密钥</p>}
-                {apiKeySource === 'none' && <p className="mt-2 text-xs text-stone-500">当前未配置 AI API Key</p>}
-              </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-                未保存密钥时会自动回退到环境变量（<code>DEEPSEEK_API_KEY</code> 或 <code>AI_API_KEY</code>）。
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
-            <h3 className="text-lg font-medium mb-4">邮件推送 (Listmonk)</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">Listmonk API URL</label>
-                <input
-                  type="text"
-                  value={form.listmonk.api_url}
-                  onChange={(e) => setForm({ ...form, listmonk: { ...form.listmonk, api_url: e.target.value } })}
-                  placeholder="http://localhost:9000/api"
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
-                />
-                <p className="mt-2 text-xs text-stone-500">Listmonk 服务的 API 地址。</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">API User</label>
-                <input
-                  type="text"
-                  value={form.listmonk.api_user}
-                  onChange={(e) => setForm({ ...form, listmonk: { ...form.listmonk, api_user: e.target.value } })}
-                  placeholder="admin"
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">API Key</label>
-                <input
-                  type="password"
-                  value={listmonkApiKeyInput}
-                  placeholder="留空则保持当前值"
-                  onChange={(e) => setListmonkApiKeyInput(e.target.value)}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
-                />
-                {form.listmonk.api_key && (
-                  <p className="mt-2 text-xs text-stone-500">当前密钥: {form.listmonk.api_key}</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">订阅列表 ID</label>
-                <input
-                  type="number"
-                  value={form.listmonk.blog_list_id}
-                  onChange={(e) => { const v = parseInt(e.target.value); setForm({ ...form, listmonk: { ...form.listmonk, blog_list_id: isNaN(v) ? 1 : v } }); }}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
-                />
-                <p className="mt-2 text-xs text-stone-500">博客订阅者的 Listmonk 列表 ID。</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
-            <h3 className="text-lg font-medium mb-4">主题管理</h3>
-            {themesLoading ? (
-              <p className="text-stone-500 text-sm">加载主题中...</p>
-            ) : (
-              <>
-                {themes.length === 0 ? (
-                  <p className="text-stone-500 text-sm mb-4">当前未安装任何主题。</p>
-                ) : (
-                  <ul className="divide-y divide-stone-200 mb-4">
-                    {themes.map((theme) => (
-                      <li key={theme.name} className="py-3 flex items-center justify-between">
-                        <div>
-                          <span className="font-medium text-stone-800">{theme.name}</span>
-                          {theme.is_submodule && (
-                            <span className="ml-2 text-xs px-2 py-0.5 bg-stone-100 text-stone-600 rounded">submodule</span>
-                          )}
-                          {activeTheme === theme.name && (
-                            <span className="ml-2 text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">已启用</span>
-                          )}
-                          {previewThemeName === theme.name && (
-                            <span className="ml-2 text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">预览中</span>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handlePreviewTheme(theme.name)}
-                            className="px-3 py-1.5 text-sm bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition-colors"
-                          >
-                            预览
-                          </button>
-                          <button
-                            onClick={() => handleActivateTheme(theme.name)}
-                            disabled={activeTheme === theme.name}
-                            className="px-3 py-1.5 text-sm bg-stone-100 text-stone-700 rounded hover:bg-stone-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            启用
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {previewThemeName && (
-                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                    当前预览主题: <strong>{previewThemeName}</strong>。停止并重新启动服务器后将恢复为已启用主题。
-                  </div>
-                )}
-
-                <form onSubmit={handleInstallTheme} className="space-y-4 border-t border-stone-200 pt-4">
-                  <h4 className="text-sm font-medium text-stone-700">安装主题</h4>
+          {activeTab === 'general' && (
+            <>
+              <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
+                <h3 className="text-lg font-medium mb-4">Hugo Blog</h3>
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm text-stone-600 mb-1">Git 仓库地址</label>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">博客根目录</label>
                     <input
                       type="text"
-                      value={installUrl}
-                      onChange={(e) => setInstallUrl(e.target.value)}
-                      placeholder="https://github.com/user/hugo-theme-example.git"
+                      value={form.hugo.base_dir}
+                      onChange={(e) => setForm({ ...form, hugo: { ...form.hugo, base_dir: e.target.value } })}
+                      placeholder="/path/to/hugo-blog"
+                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                    />
+                    <p className="mt-2 text-xs text-stone-500">Hugo 项目的根目录，需包含 config.toml / config.yaml 等配置文件。</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">Hugo 服务器 URL</label>
+                    <input
+                      type="text"
+                      value={form.hugo.server_url}
+                      onChange={(e) => setForm({ ...form, hugo: { ...form.hugo, server_url: e.target.value } })}
+                      placeholder="http://0.0.0.0:1313"
+                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                    />
+                    <p className="mt-2 text-xs text-stone-500">Hugo 预览服务器的基础 URL。留空则使用默认值。</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
+                <h3 className="text-lg font-medium mb-4">AI 助手</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">AI Base URL</label>
+                    <input
+                      type="text"
+                      value={form.ai.base_url}
+                      onChange={(e) => setForm({ ...form, ai: { ...form.ai, base_url: e.target.value } })}
+                      placeholder="https://api.deepseek.com"
                       className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-stone-600 mb-1">主题名称</label>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">AI Model</label>
                     <input
                       type="text"
-                      value={installName}
-                      onChange={(e) => setInstallName(e.target.value)}
-                      placeholder="hugo-theme-example"
-                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 text-sm"
+                      value={form.ai.model}
+                      onChange={(e) => setForm({ ...form, ai: { ...form.ai, model: e.target.value } })}
+                      placeholder="deepseek-chat"
+                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-stone-600 mb-1">安装模式</label>
-                    <select
-                      value={installMode}
-                      onChange={(e) => setInstallMode(e.target.value as 'submodule' | 'copy')}
-                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 text-sm"
-                    >
-                      <option value="submodule">Git 子模块（推荐）</option>
-                      <option value="copy">复制（不包含 .git）</option>
-                    </select>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">AI API Key（可选）</label>
+                    <input
+                      type="password"
+                      value={apiKeyInput}
+                      placeholder="留空则保持当前来源"
+                      onChange={(e) => setApiKeyInput(e.target.value)}
+                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                    />
+                    {apiKeySource === 'session' && (
+                      <p className="mt-2 text-xs text-stone-500">
+                        当前使用会话密钥（重启后失效）
+                        {apiKeyHint && `（${apiKeyHint}）`}
+                      </p>
+                    )}
+                    {apiKeySource === 'env' && <p className="mt-2 text-xs text-stone-500">当前使用环境变量中的密钥</p>}
+                    {apiKeySource === 'none' && <p className="mt-2 text-xs text-stone-500">当前未配置 AI API Key</p>}
                   </div>
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      disabled={installLoading || !installUrl.trim() || !installName.trim()}
-                      className="px-6 py-2 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {installLoading ? '安装中...' : '安装主题'}
-                    </button>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                    未保存密钥时会自动回退到环境变量（<code>DEEPSEEK_API_KEY</code> 或 <code>AI_API_KEY</code>）。
                   </div>
-                </form>
-              </>
-            )}
-          </div>
+                </div>
+              </div>
 
-          {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
+              <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
+                <h3 className="text-lg font-medium mb-4">邮件推送 (Listmonk)</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">Listmonk API URL</label>
+                    <input
+                      type="text"
+                      value={form.listmonk.api_url}
+                      onChange={(e) => setForm({ ...form, listmonk: { ...form.listmonk, api_url: e.target.value } })}
+                      placeholder="http://localhost:9000/api"
+                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                    />
+                    <p className="mt-2 text-xs text-stone-500">Listmonk 服务的 API 地址。</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">API User</label>
+                    <input
+                      type="text"
+                      value={form.listmonk.api_user}
+                      onChange={(e) => setForm({ ...form, listmonk: { ...form.listmonk, api_user: e.target.value } })}
+                      placeholder="admin"
+                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">API Key</label>
+                    <input
+                      type="password"
+                      value={listmonkApiKeyInput}
+                      placeholder="留空则保持当前值"
+                      onChange={(e) => setListmonkApiKeyInput(e.target.value)}
+                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                    />
+                    {form.listmonk.api_key && (
+                      <p className="mt-2 text-xs text-stone-500">当前密钥: {form.listmonk.api_key}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">订阅列表 ID</label>
+                    <input
+                      type="number"
+                      value={form.listmonk.blog_list_id}
+                      onChange={(e) => { const v = parseInt(e.target.value); setForm({ ...form, listmonk: { ...form.listmonk, blog_list_id: isNaN(v) ? 1 : v } }); }}
+                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                    />
+                    <p className="mt-2 text-xs text-stone-500">博客订阅者的 Listmonk 列表 ID。</p>
+                  </div>
+                </div>
+              </div>
 
-          <div className="flex justify-end">
-            <button
-              onClick={saveSettings}
-              disabled={saving || loading}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving ? '保存中...' : '保存设置'}
-            </button>
-          </div>
+              {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
+
+              <div className="flex justify-end">
+                <button
+                  onClick={saveSettings}
+                  disabled={saving || loading}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {saving ? '保存中...' : '保存设置'}
+                </button>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'project' && (
+            <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
+              <h3 className="text-lg font-medium mb-2">初始化 Hugo 项目</h3>
+              <p className="text-sm text-stone-500 mb-6">
+                在指定路径创建全新的 Hugo 站点，并将其设为当前活跃项目。该操作会写入文件系统，请谨慎使用。
+              </p>
+
+              <form onSubmit={handleInitProject} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-2">目标路径</label>
+                  <input
+                    type="text"
+                    value={initPath}
+                    onChange={(e) => setInitPath(e.target.value)}
+                    placeholder="/path/to/new-hugo-site"
+                    className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                  />
+                  <p className="mt-2 text-xs text-stone-500">新 Hugo 站点的绝对路径，父目录必须已存在。</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-2">配置文件格式</label>
+                  <select
+                    value={initFormat}
+                    onChange={(e) => setInitFormat(e.target.value as 'toml' | 'yaml')}
+                    className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 text-sm"
+                  >
+                    <option value="toml">TOML</option>
+                    <option value="yaml">YAML</option>
+                  </select>
+                </div>
+
+                {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
+
+                {initResult && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                    <p>站点已创建：<code className="font-mono">{initResult.path}</code></p>
+                    <p>配置文件格式：{initResult.config_format}</p>
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={initLoading || !initPath.trim()}
+                    className="px-6 py-2 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {initLoading ? '初始化中...' : '创建站点'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {activeTab === 'themes' && (
+            <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
+              <h3 className="text-lg font-medium mb-4">主题管理</h3>
+              {themesLoading ? (
+                <p className="text-stone-500 text-sm">加载主题中...</p>
+              ) : (
+                <>
+                  {themes.length === 0 ? (
+                    <p className="text-stone-500 text-sm mb-4">当前未安装任何主题。</p>
+                  ) : (
+                    <ul className="divide-y divide-stone-200 mb-4">
+                      {themes.map((theme) => (
+                        <li key={theme.name} className="py-3 flex items-center justify-between">
+                          <div>
+                            <span className="font-medium text-stone-800">{theme.name}</span>
+                            {theme.is_submodule && (
+                              <span className="ml-2 text-xs px-2 py-0.5 bg-stone-100 text-stone-600 rounded">submodule</span>
+                            )}
+                            {activeTheme === theme.name && (
+                              <span className="ml-2 text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">已启用</span>
+                            )}
+                            {previewThemeName === theme.name && (
+                              <span className="ml-2 text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">预览中</span>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handlePreviewTheme(theme.name)}
+                              className="px-3 py-1.5 text-sm bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition-colors"
+                            >
+                              预览
+                            </button>
+                            <button
+                              onClick={() => handleActivateTheme(theme.name)}
+                              disabled={activeTheme === theme.name}
+                              className="px-3 py-1.5 text-sm bg-stone-100 text-stone-700 rounded hover:bg-stone-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              启用
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {previewThemeName && (
+                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                      当前预览主题: <strong>{previewThemeName}</strong>。停止并重新启动服务器后将恢复为已启用主题。
+                    </div>
+                  )}
+
+                  <form onSubmit={handleInstallTheme} className="space-y-4 border-t border-stone-200 pt-4">
+                    <h4 className="text-sm font-medium text-stone-700">安装主题</h4>
+                    <div>
+                      <label className="block text-sm text-stone-600 mb-1">Git 仓库地址</label>
+                      <input
+                        type="text"
+                        value={installUrl}
+                        onChange={(e) => setInstallUrl(e.target.value)}
+                        placeholder="https://github.com/user/hugo-theme-example.git"
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-stone-600 mb-1">主题名称</label>
+                      <input
+                        type="text"
+                        value={installName}
+                        onChange={(e) => setInstallName(e.target.value)}
+                        placeholder="hugo-theme-example"
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-stone-600 mb-1">安装模式</label>
+                      <select
+                        value={installMode}
+                        onChange={(e) => setInstallMode(e.target.value as 'submodule' | 'copy')}
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 text-sm"
+                      >
+                        <option value="submodule">Git 子模块（推荐）</option>
+                        <option value="copy">复制（不包含 .git）</option>
+                      </select>
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={installLoading || !installUrl.trim() || !installName.trim()}
+                        className="px-6 py-2 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {installLoading ? '安装中...' : '安装主题'}
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>
