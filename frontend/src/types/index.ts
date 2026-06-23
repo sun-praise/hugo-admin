@@ -66,6 +66,14 @@ export interface Settings {
     api_key?: string;
     blog_list_id: number;
   };
+  theme: {
+    name: string;
+  };
+}
+
+export interface Theme {
+  name: string;
+  is_submodule: boolean;
 }
 
 export interface Frontmatter {

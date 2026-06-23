@@ -172,11 +172,6 @@ def register_settings_routes(app, registry):
             new_db_path = Path(app.config["CONTENT_DIR"]) / ".admin" / "cache.db"
             new_db = Database(str(new_db_path))
             new_git_service = GitService(new_root, database=new_db)
-            new_hugo_manager = HugoServerManager(
-                new_root,
-                registry.socketio,
-                server_url=new_server_url or None,
-            )
             new_settings_service = SettingsService(
                 new_root / ".admin" / "settings.json",
                 legacy_settings_file=Path(app.config["CONTENT_DIR"])
@@ -191,6 +186,12 @@ def register_settings_routes(app, registry):
                     "HUGO_SERVER_URL": new_server_url
                     or app.config.get("HUGO_SERVER_BASE_URL", "http://0.0.0.0:1313"),
                 },
+            )
+            new_hugo_manager = HugoServerManager(
+                new_root,
+                registry.socketio,
+                server_url=new_server_url or None,
+                settings_service=new_settings_service,
             )
 
             registry.post_service = new_post_service
