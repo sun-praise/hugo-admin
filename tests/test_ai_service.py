@@ -15,6 +15,7 @@ AI Service 独立测试脚本
 """
 
 import argparse
+import asyncio
 import logging
 import os
 import sys
@@ -320,9 +321,6 @@ class AIServiceTester:
             logger.error(f"❌ 完整 AIService 测试失败: {e}")
             logger.exception("详细错误信息:")
             return False
-
-
-import asyncio
 
 
 async def run_test_async(tester, test_name):

@@ -12,7 +12,11 @@ from services.git_service import GitService
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
 from services.reference_service import ReferenceService
-from services.settings_service import SettingsService
+from services.settings_service import (
+    SettingsService,
+    SettingsStorageError,
+    SettingsValidationError,
+)
 
 
 class ProjectInitError(ValueError):
@@ -227,6 +231,11 @@ class ProjectInitService:
             new_root: 新的 Hugo 站点根目录。
         """
         new_root = Path(new_root).resolve()
+
+        # 停止当前运行的 Hugo 服务器，避免旧进程成为孤儿进程
+        if registry.hugo_manager and registry.hugo_manager.is_running:
+            registry.hugo_manager.stop()
+
         app.config["HUGO_ROOT"] = new_root
         app.config["CONTENT_DIR"] = new_root / "content"
 
@@ -277,8 +286,11 @@ class ProjectInitService:
         # 初始化新站点的设置文件（创建 .admin/settings.json）
         try:
             new_settings_service.get_settings()
-        except Exception:
+        except (SettingsStorageError, SettingsValidationError, OSError, ValueError):
             pass
 
         # 扫描新内容目录中的引用关系
-        new_ref_service.scan_all()
+        try:
+            new_ref_service.scan_all()
+        except (OSError, ValueError):
+            pass

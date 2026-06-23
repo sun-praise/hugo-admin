@@ -4,6 +4,8 @@
 提供 Hugo 主题的发现、安装、激活与预览 API。
 """
 
+import subprocess
+
 from flask import Blueprint, jsonify, request
 from werkzeug.exceptions import BadRequest
 
@@ -34,7 +36,7 @@ def register_theme_routes(registry):
             active = _theme_service().get_active_theme()
         except ThemeError as e:
             return jsonify({"success": False, "message": str(e)}), 400
-        except Exception as e:
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError) as e:
             return jsonify({"success": False, "message": f"获取主题失败: {e}"}), 500
 
         return jsonify(
@@ -73,7 +75,7 @@ def register_theme_routes(registry):
             result = _theme_service().install_theme(repo_url, name, mode=mode)
         except ThemeError as e:
             return jsonify({"success": False, "message": str(e)}), 400
-        except Exception as e:
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError) as e:
             return jsonify({"success": False, "message": f"安装主题失败: {e}"}), 500
 
         return jsonify(
@@ -109,7 +111,7 @@ def register_theme_routes(registry):
             result = _theme_service().activate_theme(name)
         except ThemeError as e:
             return jsonify({"success": False, "message": str(e)}), 400
-        except Exception as e:
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError) as e:
             return jsonify({"success": False, "message": f"激活主题失败: {e}"}), 500
 
         return jsonify(
@@ -156,23 +158,7 @@ def register_theme_routes(registry):
 
         manager = registry.hugo_manager
 
-        # 停止当前运行的服务器
-        if manager.is_running:
-            manager.stop()
-
-        # 临时使用环境变量覆盖持久化主题，启动服务器
-        import os
-
-        original_env = os.environ.get("HUGO_THEME")
-        try:
-            os.environ["HUGO_THEME"] = name
-            success, message = manager.start(debug=False)
-        finally:
-            if original_env is None:
-                os.environ.pop("HUGO_THEME", None)
-            else:
-                os.environ["HUGO_THEME"] = original_env
-
+        success, message = manager.preview_theme(name)
         if not success:
             return jsonify({"success": False, "message": message}), 500
 

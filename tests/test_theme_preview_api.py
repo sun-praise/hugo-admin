@@ -56,7 +56,7 @@ def test_preview_does_not_persist_active_theme(admin_client, tmp_path, monkeypat
         m.setattr(
             app_module.registry.hugo_manager,
             "start",
-            lambda debug=False: (True, "started"),
+            lambda debug=False, theme_override=None: (True, "started"),
         )
         resp = admin_client.post("/api/themes/preview", json={"name": "previewtheme"})
 
@@ -87,7 +87,7 @@ def test_preview_stops_running_server(admin_client, tmp_path, monkeypatch):
         stopped["called"] = True
         return True, "stopped"
 
-    def fake_start(debug=False):
+    def fake_start(debug=False, theme_override=None):
         started["called"] = True
         return True, "started"
 

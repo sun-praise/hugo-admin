@@ -23,4 +23,6 @@ The system SHALL update the active Hugo project to point to the newly initialize
 #### Scenario: Active project updates after init
 - **WHEN** a new Hugo site is successfully initialized
 - **THEN** the system sets `HUGO_ROOT`, `CONTENT_DIR`, and persisted `hugo.base_dir` to the new site path
-- **AND** the system reinitializes `PostService`, `GitService`, and `HugoServerManager` for the new path
+- **AND** the system stops any running Hugo dev server bound to the previous project
+- **AND** the system reinitializes `PostService`, `ReferenceService`, `Database`, `GitService`, `SettingsService`, `HugoServerManager`, and `AIService` for the new path
+- **AND** the system scans the new content directory to rebuild reference metadata
