@@ -182,3 +182,76 @@ export async function changePassword(
     new_password: newPassword,
   });
 }
+
+// ============ 项目初始化 ============
+
+export interface InitProjectRequest {
+  path: string;
+  config_format: 'toml' | 'yaml';
+}
+
+export interface InitProjectResponse {
+  success: boolean;
+  path?: string;
+  config_format?: string;
+  message?: string;
+}
+
+/** 创建新的 Hugo 站点并设为活跃项目。 */
+export async function initProject(payload: InitProjectRequest): Promise<InitProjectResponse> {
+  return post<InitProjectResponse>('/api/project/init', payload);
+}
+
+// ============ 主题管理 ============
+
+export interface ThemeListResponse {
+  success: boolean;
+  themes: { name: string; is_submodule: boolean }[];
+  active_theme: string | null;
+  message?: string;
+}
+
+export interface ThemeInstallRequest {
+  repo_url: string;
+  name: string;
+  mode: 'submodule' | 'copy';
+}
+
+export interface ThemeInstallResponse {
+  success: boolean;
+  theme?: { name: string; mode: string };
+  message?: string;
+}
+
+export interface ThemeActivateResponse {
+  success: boolean;
+  theme?: { name: string; active: boolean };
+  message?: string;
+}
+
+export interface ThemePreviewResponse {
+  success: boolean;
+  preview_theme?: string;
+  server_url?: string;
+  message?: string;
+}
+
+/** 获取已安装主题列表。 */
+export async function getThemes(): Promise<ThemeListResponse> {
+  return get<ThemeListResponse>('/api/themes');
+}
+
+/** 安装主题。 */
+export async function installTheme(payload: ThemeInstallRequest): Promise<ThemeInstallResponse> {
+  return post<ThemeInstallResponse>('/api/themes/install', payload);
+}
+
+/** 激活主题。 */
+export async function activateTheme(name: string): Promise<ThemeActivateResponse> {
+  return post<ThemeActivateResponse>('/api/themes/activate', { name });
+}
+
+/** 预览主题（不持久化）。 */
+export async function previewTheme(name: string): Promise<ThemePreviewResponse> {
+  return post<ThemePreviewResponse>('/api/themes/preview', { name });
+}

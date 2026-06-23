@@ -19,7 +19,9 @@ from config import Config
 class HugoServerManager:
     """Hugo 服务器管理器"""
 
-    def __init__(self, hugo_root, socketio=None, server_url=None):
+    def __init__(
+        self, hugo_root, socketio=None, server_url=None, settings_service=None
+    ):
         """
         初始化 Hugo 服务器管理器
 
@@ -27,10 +29,12 @@ class HugoServerManager:
             hugo_root: Hugo 项目根目录
             socketio: SocketIO 实例，用于推送日志
             server_url: Hugo 服务器基础 URL (如 http://0.0.0.0:1313)
+            settings_service: 设置服务实例，用于读取持久化的活跃主题。
         """
         self.hugo_root = Path(hugo_root)
         self.socketio = socketio
         self.server_url = server_url or Config.HUGO_SERVER_BASE_URL
+        self.settings_service = settings_service
         self.process = None
         self.pid = None
         self.is_running = False
@@ -65,8 +69,15 @@ class HugoServerManager:
             ]
             if debug:
                 cmd.append("-D")
-            # Docker 部署时禁用了 Hugo Modules，需要显式指定主题
+            # Docker 部署时禁用了 Hugo Modules，需要显式指定主题。
+            # 环境变量优先级高于持久化设置，避免破坏现有部署。
             theme = os.environ.get("HUGO_THEME", "")
+            if not theme and self.settings_service is not None:
+                try:
+                    settings = self.settings_service.get_settings()
+                    theme = settings.get("theme", {}).get("name", "")
+                except Exception:
+                    theme = ""
             if theme:
                 cmd.extend(["--theme", theme])
 
