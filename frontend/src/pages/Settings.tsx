@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { get, put, initProject, getThemes, installTheme, activateTheme, previewTheme } from '../utils/api';
+import { get, put, getThemes, installTheme, activateTheme, previewTheme } from '../utils/api';
 import type { Settings as SettingsType } from '../types';
 
 export default function SettingsPage() {
@@ -16,11 +16,6 @@ export default function SettingsPage() {
     listmonk: { api_url: '', api_user: '', api_key: '', blog_list_id: 1 },
     theme: { name: '' },
   });
-
-  // Project init state
-  const [initPath, setInitPath] = useState('');
-  const [initFormat, setInitFormat] = useState<'toml' | 'yaml'>('toml');
-  const [initLoading, setInitLoading] = useState(false);
 
   // Themes state
   const [themes, setThemes] = useState<{ name: string; is_submodule: boolean }[]>([]);
@@ -89,26 +84,6 @@ export default function SettingsPage() {
       setErrorMessage((error as Error).message);
     } finally {
       setThemesLoading(false);
-    }
-  }
-
-  async function handleInitProject(e: React.FormEvent) {
-    e.preventDefault();
-    if (initLoading || !initPath.trim()) return;
-    setInitLoading(true);
-    setErrorMessage('');
-    try {
-      const data = await initProject({ path: initPath.trim(), config_format: initFormat });
-      if (!data.success) {
-        throw new Error(data.message || '初始化失败');
-      }
-      showNotification(`站点已创建: ${data.path}`, 'success');
-      setInitPath('');
-      await fetchSettings();
-    } catch (error) {
-      setErrorMessage((error as Error).message);
-    } finally {
-      setInitLoading(false);
     }
   }
 
@@ -354,43 +329,6 @@ export default function SettingsPage() {
                 <p className="mt-2 text-xs text-stone-500">博客订阅者的 Listmonk 列表 ID。</p>
               </div>
             </div>
-          </div>
-
-          <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
-            <h3 className="text-lg font-medium mb-4">初始化项目</h3>
-            <form onSubmit={handleInitProject} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">目标路径</label>
-                <input
-                  type="text"
-                  value={initPath}
-                  onChange={(e) => setInitPath(e.target.value)}
-                  placeholder="/path/to/new-hugo-site"
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
-                />
-                <p className="mt-2 text-xs text-stone-500">新 Hugo 站点的绝对路径，父目录必须已存在。</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">配置文件格式</label>
-                <select
-                  value={initFormat}
-                  onChange={(e) => setInitFormat(e.target.value as 'toml' | 'yaml')}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 text-sm"
-                >
-                  <option value="toml">TOML</option>
-                  <option value="yaml">YAML</option>
-                </select>
-              </div>
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={initLoading || !initPath.trim()}
-                  className="px-6 py-2 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {initLoading ? '初始化中...' : '创建站点'}
-                </button>
-              </div>
-            </form>
           </div>
 
           <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">

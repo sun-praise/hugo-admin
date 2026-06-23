@@ -7,6 +7,7 @@ import {
   Settings,
   Puzzle,
   GitBranch,
+  FolderPlus,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -21,6 +22,7 @@ const navItems = [
   { to: '/git', icon: GitBranch, label: 'Git' },
   { to: '/plugins', icon: Puzzle, label: '插件' },
   { to: '/settings', icon: Settings, label: '设置' },
+  { to: '/project-init', icon: FolderPlus, label: '初始化项目' },
 ];
 
 interface SidebarProps {
