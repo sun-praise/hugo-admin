@@ -40,9 +40,10 @@ class PostService:
         self.post_dir = self.content_dir / "post"
         self.use_cache = use_cache
 
-        # 初始化缓存服务
+        # 初始化缓存服务，每个内容目录使用独立的缓存数据库
         if use_cache:
-            self.cache_service = CacheService(content_dir)
+            db_path = str(self.content_dir / ".admin" / "cache.db")
+            self.cache_service = CacheService(content_dir, db_path=db_path)
         else:
             self.cache_service = None
 
