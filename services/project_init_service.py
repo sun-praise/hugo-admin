@@ -212,5 +212,11 @@ class ProjectInitService:
         registry.settings_service = new_settings_service
         registry.ai_service = None
 
+        # 初始化新站点的设置文件（创建 .admin/settings.json）
+        try:
+            new_settings_service.get_settings()
+        except Exception:
+            pass
+
         # 扫描新内容目录中的引用关系
         new_ref_service.scan_all()
