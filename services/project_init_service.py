@@ -122,6 +122,7 @@ class ProjectInitService:
             )
 
         self._write_default_config(path, config_format)
+        self._write_default_layouts(path)
 
         return {"path": str(path), "config_format": config_format}
 
@@ -153,6 +154,67 @@ class ProjectInitService:
             if default_toml.exists() and config_format == "yaml":
                 default_toml.unlink()
             config_file.write_text(config_content, encoding="utf-8")
+
+    @staticmethod
+    def _write_default_layouts(site_root: Path) -> None:
+        """在新站点目录写入基础 Hugo layouts，保证无主题时也能渲染内容。"""
+        layouts_dir = site_root / "layouts"
+        default_dir = layouts_dir / "_default"
+        default_dir.mkdir(parents=True, exist_ok=True)
+
+        baseof_html = (
+            "<!DOCTYPE html>\n"
+            '<html lang="zh-CN">\n'
+            "<head>\n"
+            '  <meta charset="UTF-8">\n'
+            '  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+            '  <title>{{ block "title" . }}{{ .Site.Title }}{{ end }}</title>\n'
+            "</head>\n"
+            "<body>\n"
+            '  <main>{{ block "main" . }}{{ end }}</main>\n'
+            "</body>\n"
+            "</html>\n"
+        )
+        (layouts_dir / "_default" / "baseof.html").write_text(
+            baseof_html, encoding="utf-8"
+        )
+
+        list_html = (
+            '{{ define "title" }}{{ .Title }} - {{ .Site.Title }}{{ end }}\n'
+            '{{ define "main" }}\n'
+            "  <h1>{{ .Title }}</h1>\n"
+            "  <ul>\n"
+            "  {{ range .Pages }}\n"
+            '    <li><a href="{{ .Permalink }}">{{ .Title }}</a></li>\n'
+            "  {{ end }}\n"
+            "  </ul>\n"
+            "{{ end }}\n"
+        )
+        (default_dir / "list.html").write_text(list_html, encoding="utf-8")
+
+        single_html = (
+            '{{ define "title" }}{{ .Title }} - {{ .Site.Title }}{{ end }}\n'
+            '{{ define "main" }}\n'
+            "  <article>\n"
+            "    <h1>{{ .Title }}</h1>\n"
+            "    {{ .Content }}\n"
+            "  </article>\n"
+            "{{ end }}\n"
+        )
+        (default_dir / "single.html").write_text(single_html, encoding="utf-8")
+
+        index_html = (
+            '{{ define "title" }}{{ .Site.Title }}{{ end }}\n'
+            '{{ define "main" }}\n'
+            "  <h1>{{ .Site.Title }}</h1>\n"
+            "  <ul>\n"
+            "  {{ range .Site.RegularPages }}\n"
+            '    <li><a href="{{ .Permalink }}">{{ .Title }}</a></li>\n'
+            "  {{ end }}\n"
+            "  </ul>\n"
+            "{{ end }}\n"
+        )
+        (layouts_dir / "index.html").write_text(index_html, encoding="utf-8")
 
     @staticmethod
     def switch_active_project(app, registry, new_root: Path | str) -> None:
