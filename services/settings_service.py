@@ -146,7 +146,12 @@ class SettingsService:
                 name = theme_updates["name"]
                 if not isinstance(name, str):
                     raise SettingsValidationError("主题名称必须是字符串")
-                current["theme"]["name"] = name.strip()
+                name = name.strip()
+                if name and (name.startswith(".") or "/" in name or "\\" in name):
+                    raise SettingsValidationError(
+                        "主题名称不能包含路径分隔符或特殊字符"
+                    )
+                current["theme"]["name"] = name
 
             normalized = self._normalize_and_validate(current)
             self._write_settings_file(normalized)

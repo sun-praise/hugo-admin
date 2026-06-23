@@ -110,7 +110,9 @@ export default function SettingsPage() {
       showNotification(`站点已创建: ${data.path}`, 'success');
       setInitResult({ path: data.path || '', config_format: data.config_format || '' });
       setInitPath('');
+      setPreviewThemeName(null);
       await fetchSettings();
+      await fetchThemes();
     } catch (error) {
       setErrorMessage((error as Error).message);
       showNotification((error as Error).message, 'error');

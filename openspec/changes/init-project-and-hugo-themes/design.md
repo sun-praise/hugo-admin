@@ -26,9 +26,9 @@ hugo-admin is a Flask + React application that manages an existing Hugo site. Th
 Rationale: The existing `HugoServerManager` is already focused on process management; adding init/theme logic there would violate single responsibility. A dedicated service per capability keeps the code modular and testable.
 
 ### 2. Theme activation stored in `.admin/settings.json`
-The active theme is stored under `theme.name` in the existing settings file. `HugoServerManager.start()` reads this value from the registry/settings service and appends `--theme <name>` to the `hugo server` command, removing the current reliance on the `HUGO_THEME` environment variable.
+The active theme is stored under `theme.name` in the existing settings file. `HugoServerManager.start()` reads this value from the registry/settings service and appends `--theme <name>` to the `hugo server` command. To remain backward-compatible with existing Docker deployments, the `HUGO_THEME` environment variable still takes precedence over the persisted setting when set.
 
-Rationale: Reuses the existing persistence layer and keeps the active theme visible in the settings UI. It also allows runtime theme changes without restarting the admin process.
+Rationale: Reuses the existing persistence layer and keeps the active theme visible in the settings UI. It also allows runtime theme changes without restarting the admin process, while preserving the existing env-var override contract.
 
 ### 3. Git submodule as the default install strategy
 Theme installation supports two modes:

@@ -9,6 +9,10 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from services.settings_service import SettingsStorageError, SettingsValidationError
+
+GIT_TIMEOUT_SECONDS = 120
+
 
 class ThemeError(ValueError):
     """主题管理相关错误"""
@@ -91,11 +95,11 @@ class ThemeService:
         """
         if not repo_url or not isinstance(repo_url, str):
             raise ThemeError("主题仓库地址不能为空")
-        if not name or not isinstance(name, str):
-            raise ThemeError("主题名称不能为空")
-        if name.startswith(".") or "/" in name or "\\" in name:
-            raise ThemeError("主题名称不能包含路径分隔符或特殊字符")
-        if mode not in {"submodule", "copy"}:
+        repo_url = repo_url.strip()
+        if repo_url.startswith("-"):
+            raise ThemeError("主题仓库地址格式无效")
+        name = self._normalize_theme_name(name)
+        if not isinstance(mode, str) or mode not in {"submodule", "copy"}:
             raise ThemeError("安装模式仅支持 submodule 或 copy")
 
         target_dir = self.themes_dir / name
@@ -115,15 +119,18 @@ class ThemeService:
         """使用 git submodule add 安装主题。"""
         try:
             result = subprocess.run(
-                ["git", "submodule", "add", repo_url, f"themes/{name}"],
+                ["git", "submodule", "add", "--", repo_url, f"themes/{name}"],
                 cwd=self.hugo_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
                 check=False,
+                timeout=GIT_TIMEOUT_SECONDS,
             )
         except FileNotFoundError as exc:
             raise ThemeError("未找到 git 命令，请确保 Git 已安装") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise ThemeError("子模块安装超时") from exc
 
         if result.returncode != 0:
             raise ThemeError(
@@ -137,14 +144,17 @@ class ThemeService:
             tmp_path = Path(tmp)
             try:
                 result = subprocess.run(
-                    ["git", "clone", "--depth", "1", repo_url, str(tmp_path)],
+                    ["git", "clone", "--depth", "1", "--", repo_url, str(tmp_path)],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
                     check=False,
+                    timeout=GIT_TIMEOUT_SECONDS,
                 )
             except FileNotFoundError as exc:
                 raise ThemeError("未找到 git 命令，请确保 Git 已安装") from exc
+            except subprocess.TimeoutExpired as exc:
+                raise ThemeError("主题克隆超时") from exc
 
             if result.returncode != 0:
                 raise ThemeError(
@@ -154,10 +164,12 @@ class ThemeService:
             if not any(tmp_path.iterdir()):
                 raise ThemeError("克隆的仓库为空")
 
+            items = [item for item in tmp_path.iterdir() if item.name != ".git"]
+            if any(item.is_symlink() for item in items):
+                raise ThemeError("copy 模式不支持包含符号链接的主题仓库")
+
             target_dir.mkdir(parents=True, exist_ok=True)
-            for item in tmp_path.iterdir():
-                if item.name == ".git":
-                    continue
+            for item in items:
                 dest = target_dir / item.name
                 if item.is_dir():
                     shutil.copytree(item, dest, dirs_exist_ok=True)
@@ -177,6 +189,7 @@ class ThemeService:
         Raises:
             ThemeError: 主题不存在或持久化失败。
         """
+        name = self._normalize_theme_name(name)
         if not self.theme_exists(name):
             raise ThemeError(f"主题不存在: {name}")
 
@@ -185,7 +198,7 @@ class ThemeService:
 
         try:
             self.settings_service.update_settings({"theme": {"name": name}})
-        except Exception as exc:
+        except (SettingsStorageError, SettingsValidationError) as exc:
             raise ThemeError(f"持久化活跃主题失败: {exc}") from exc
 
         return {"name": name, "active": True}
@@ -196,7 +209,7 @@ class ThemeService:
             return None
         try:
             settings = self.settings_service.get_settings()
-        except Exception:
+        except (SettingsStorageError, SettingsValidationError):
             return None
         theme_settings = settings.get("theme", {})
         name = theme_settings.get("name", "")
@@ -204,4 +217,20 @@ class ThemeService:
 
     def theme_exists(self, name: str) -> bool:
         """检查主题目录是否存在。"""
+        try:
+            name = self._normalize_theme_name(name)
+        except ThemeError:
+            return False
         return (self.themes_dir / name).is_dir()
+
+    @staticmethod
+    def _normalize_theme_name(name: str) -> str:
+        """校验并规范化主题名称，防止路径穿越或非法字符。"""
+        if not isinstance(name, str):
+            raise ThemeError("主题名称必须是字符串")
+        name = name.strip()
+        if not name:
+            raise ThemeError("主题名称不能为空")
+        if name.startswith(".") or "/" in name or "\\" in name:
+            raise ThemeError("主题名称不能包含路径分隔符或特殊字符")
+        return name
