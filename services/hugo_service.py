@@ -67,8 +67,8 @@ class HugoServerManager:
                 self.server_url,
                 "--disableFastRender",
             ]
-            if debug:
-                cmd.append("-D")
+            # 管理后台预览服务器默认渲染草稿，方便查看新建文章
+            cmd.append("-D")
             # Docker 部署时禁用了 Hugo Modules，需要显式指定主题。
             # 环境变量优先级高于持久化设置，避免破坏现有部署。
             theme = os.environ.get("HUGO_THEME", "")
