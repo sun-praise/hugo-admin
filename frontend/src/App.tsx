@@ -6,6 +6,7 @@ import Posts from './pages/Posts';
 import Editor from './pages/Editor';
 import Server from './pages/Server';
 import Settings from './pages/Settings';
+import ProjectInit from './pages/ProjectInit';
 import Plugins from './pages/Plugins';
 import Git from './pages/Git';
 import Login from './pages/Login';
@@ -27,6 +28,7 @@ function App() {
             <Route path="git" element={<Git />} />
             <Route path="plugins" element={<Plugins />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="project-init" element={<ProjectInit />} />
           </Route>
         </Route>
       </Routes>
