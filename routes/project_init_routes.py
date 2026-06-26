@@ -103,4 +103,37 @@ def register_project_init_routes(app, registry):
         ).clear()
         return jsonify({"success": True, "message": "已清除持久化记录"})
 
+    @project_init_bp.route("/clean-layouts", methods=["POST"])
+    def clean_placeholder_layouts():
+        """
+        删除当前活跃项目根目录下的占位 ``layouts/``，让已安装的主题接管渲染。
+
+        用于修复 init 早期版本（未自动清理 layouts）创建出来的"毛坯"站点。
+        """
+        from services.project_init_service import ProjectInitService
+
+        hugo_root = Path(app.config.get("HUGO_ROOT", ""))
+        if not hugo_root.is_dir():
+            return jsonify({"success": False, "message": "活跃项目路径无效"}), 400
+
+        themes_dir = hugo_root / "themes"
+        if not themes_dir.is_dir() or not any(themes_dir.iterdir()):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "未检测到任何已安装主题，保留占位 layouts",
+                    }
+                ),
+                400,
+            )
+
+        ProjectInitService._remove_default_layouts(hugo_root)
+        return jsonify(
+            {
+                "success": True,
+                "message": f"已清理占位 layouts，主题接管渲染: {hugo_root}",
+            }
+        )
+
     return project_init_bp

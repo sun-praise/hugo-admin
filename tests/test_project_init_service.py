@@ -196,3 +196,58 @@ def test_create_site_sets_default_theme_in_config(service, tmp_path, monkeypatch
     config = (site / "hugo.toml").read_text()
     assert 'theme = "Fried-Rice"' in config
     assert result["default_theme"]["name"] == "Fried-Rice"
+
+
+def test_create_site_removes_placeholder_layouts_when_theme_active(
+    service, tmp_path, monkeypatch
+):
+    """主题安装成功后，站点根的占位 layouts/ 应被删除，让 themes/ 接管。"""
+    site = tmp_path / "new-blog"
+    # 模拟"主题已装好且已激活"返回
+    monkeypatch.setattr(
+        ProjectInitService,
+        "_install_default_theme",
+        lambda self, root: {
+            "name": "Fried-Rice",
+            "repo": ProjectInitService.DEFAULT_THEME_REPO,
+            "installed": True,
+            "activated": True,
+            "error": None,
+        },
+    )
+
+    if not subprocess.run(["which", "hugo"], capture_output=True).returncode == 0:
+        pytest.skip("hugo CLI not available")
+
+    service.create_site(site, config_format="toml")
+
+    assert not (
+        site / "layouts"
+    ).exists(), "主题接管后占位 layouts/ 应当被删除；保留会导致 hugo 优先用它"
+
+
+def test_create_site_keeps_placeholder_layouts_when_theme_failed(
+    service, tmp_path, monkeypatch
+):
+    """主题安装失败时保留占位 layouts，避免站点完全无法渲染。"""
+    site = tmp_path / "new-blog"
+    monkeypatch.setattr(
+        ProjectInitService,
+        "_install_default_theme",
+        lambda self, root: {
+            "name": "Fried-Rice",
+            "repo": ProjectInitService.DEFAULT_THEME_REPO,
+            "installed": False,
+            "activated": False,
+            "error": "install_failed: timeout",
+        },
+    )
+
+    if not subprocess.run(["which", "hugo"], capture_output=True).returncode == 0:
+        pytest.skip("hugo CLI not available")
+
+    service.create_site(site, config_format="toml")
+
+    assert (
+        site / "layouts"
+    ).exists(), "主题未装上时占位 layouts/ 应保留，否则站点会渲染失败"
