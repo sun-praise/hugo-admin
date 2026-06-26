@@ -8,6 +8,8 @@ import {
   installTheme,
   activateTheme,
   previewTheme,
+  getActiveProject,
+  resetActiveProject,
 } from '../utils/api';
 import type { AvailableTheme } from '../utils/api';
 import type { Settings as SettingsType, Theme } from '../types';
@@ -31,6 +33,7 @@ export default function SettingsPage() {
   });
 
   // Project init state
+  const [activeProjectPath, setActiveProjectPath] = useState('');
   const [initPath, setInitPath] = useState('');
   const [initFormat, setInitFormat] = useState<'toml' | 'yaml'>('toml');
   const [initLoading, setInitLoading] = useState(false);
@@ -59,7 +62,39 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchSettings();
     fetchThemes();
+    fetchActiveProject();
   }, []);
+
+  async function fetchActiveProject() {
+    try {
+      const data = await getActiveProject();
+      if (data.success) {
+        setActiveProjectPath(data.path || '');
+      }
+    } catch {
+      // 静默失败：active project 端点非关键
+    }
+  }
+
+  async function handleResetActiveProject() {
+    if (
+      !confirm(
+        '确认清除持久化的活跃项目？清除后下次启动会回退到默认 HUGO_ROOT。',
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await resetActiveProject();
+      if (!res.success) {
+        throw new Error(res.message || '清除失败');
+      }
+      showNotification('已清除持久化的活跃项目', 'success');
+      await fetchActiveProject();
+    } catch (error) {
+      showNotification((error as Error).message, 'error');
+    }
+  }
 
   async function fetchSettings() {
     setLoading(true);
@@ -163,6 +198,7 @@ export default function SettingsPage() {
       setPreviewThemeName(null);
       await fetchSettings();
       await fetchThemes();
+      await fetchActiveProject();
     } catch (error) {
       setErrorMessage((error as Error).message);
       showNotification((error as Error).message, 'error');
@@ -461,6 +497,28 @@ export default function SettingsPage() {
               <p className="text-sm text-stone-500 mb-6">
                 在指定路径创建全新的 Hugo 站点，并将其设为当前活跃项目。该操作会写入文件系统，请谨慎使用。
               </p>
+
+              {activeProjectPath && (
+                <div className="mb-6 p-3 bg-stone-50 border border-stone-200 rounded-lg flex items-start justify-between gap-3 text-sm">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-stone-600">当前活跃项目：</p>
+                    <p className="font-mono text-stone-800 break-all">
+                      {activeProjectPath}
+                    </p>
+                    <p className="mt-1 text-xs text-stone-500">
+                      新建站点会自动覆盖此路径，且会被持久化到
+                      <code className="mx-1">data/active_project.txt</code>
+                      ，重启后仍生效。
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleResetActiveProject}
+                    className="px-3 py-1.5 text-xs bg-stone-100 text-stone-700 rounded hover:bg-stone-200 transition-colors shrink-0"
+                  >
+                    清除持久化
+                  </button>
+                </div>
+              )}
 
               <form onSubmit={handleInitProject} className="space-y-4">
                 <div>

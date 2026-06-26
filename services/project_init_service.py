@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 
 from models.database import Database
+from services.active_project import ActiveProjectRegistry
 from services.git_service import GitService
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
@@ -316,6 +317,10 @@ class ProjectInitService:
 
         app.config["HUGO_ROOT"] = new_root
         app.config["CONTENT_DIR"] = new_root / "content"
+
+        # 把活跃项目路径写入 data/active_project.txt，进程重启后仍能恢复
+        active_project_file = Path(app.root_path) / "data" / "active_project.txt"
+        ActiveProjectRegistry(active_project_file).record_path(new_root)
 
         new_post_service = PostService(app.config["CONTENT_DIR"], use_cache=True)
         new_ref_service = ReferenceService(
