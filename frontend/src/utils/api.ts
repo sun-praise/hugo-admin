@@ -142,6 +142,45 @@ export async function getPushes(page = 1, perPage = 20): Promise<PushesResponse>
   );
 }
 
+// ============ Git 工作区状态与独立 push ============
+
+export interface GitStatus {
+  success: boolean;
+  has_changes: boolean;
+  staged: string[];
+  unstaged: string[];
+  untracked: string[];
+  message?: string;
+}
+
+export interface PushResponse {
+  success: boolean;
+  message: string;
+  remote: string;
+  branch: string;
+}
+
+/** 获取仓库工作区状态（staged / unstaged / untracked）。 */
+export async function getGitStatus(): Promise<GitStatus> {
+  return get<GitStatus>('/api/git/status');
+}
+
+/** 独立 push：仅执行 ``git push``，不触发 add / commit。
+ *  - ``remote``：默认 ``origin``
+ *  - ``branch``：默认当前分支（由后端解析）
+ *  - ``setUpstream``：是否 ``-u``，首次推送到新分支时为 true
+ */
+export async function pushGit(
+  remote?: string,
+  branch?: string,
+  setUpstream = false,
+): Promise<PushResponse> {
+  const body: Record<string, unknown> = { set_upstream: setUpstream };
+  if (remote) body.remote = remote;
+  if (branch) body.branch = branch;
+  return post<PushResponse>('/api/git/push', body);
+}
+
 // ============ 认证 ============
 
 export interface AuthUser {
