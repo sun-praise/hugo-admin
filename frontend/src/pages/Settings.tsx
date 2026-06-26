@@ -69,6 +69,14 @@ export default function SettingsPage() {
   const [configContent, setConfigContent] = useState('');
   const [configLoading, setConfigLoading] = useState(false);
   const [configSaving, setConfigSaving] = useState(false);
+  const [configFontSize, setConfigFontSize] = useState<number>(() => {
+    const saved = localStorage.getItem('configFontSize');
+    return saved ? parseInt(saved, 10) : 13;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('configFontSize', String(configFontSize));
+  }, [configFontSize]);
 
   useEffect(() => {
     fetchSettings();
@@ -882,13 +890,31 @@ export default function SettingsPage() {
                             {activeConfigFile.format}
                           </span>
                         </div>
-                        <button
-                          onClick={handleSaveConfig}
-                          disabled={configSaving || !configContent.trim()}
-                          className="px-4 py-1.5 text-sm bg-stone-800 text-white rounded-md hover:bg-stone-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-                        >
-                          {configSaving ? '保存中...' : '保存'}
-                        </button>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <label className="flex items-center gap-1.5 text-xs text-stone-500">
+                            <span>字号</span>
+                            <select
+                              value={configFontSize}
+                              onChange={(e) => setConfigFontSize(Number(e.target.value))}
+                              className="px-2 py-1 border border-stone-300 rounded text-xs bg-white hover:border-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                            >
+                              <option value={11}>11</option>
+                              <option value={12}>12</option>
+                              <option value={13}>13</option>
+                              <option value={14}>14</option>
+                              <option value={16}>16</option>
+                              <option value={18}>18</option>
+                              <option value={20}>20</option>
+                            </select>
+                          </label>
+                          <button
+                            onClick={handleSaveConfig}
+                            disabled={configSaving || !configContent.trim()}
+                            className="px-4 py-1.5 text-sm bg-stone-800 text-white rounded-md hover:bg-stone-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {configSaving ? '保存中...' : '保存'}
+                          </button>
+                        </div>
                       </div>
 
                       {/* 编辑区：textarea + 高亮 overlay */}
@@ -900,6 +926,7 @@ export default function SettingsPage() {
                             value={configContent}
                             onChange={setConfigContent}
                             format={activeConfigFile.format}
+                            fontSize={configFontSize}
                           />
                         )}
                       </div>
