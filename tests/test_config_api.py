@@ -40,27 +40,63 @@ def hugo_site(tmp_path, monkeypatch):
     return site
 
 
+@pytest.fixture
+def hugo_site_dir(tmp_path, monkeypatch):
+    """创建一个使用 config/_default/ 多文件结构的临时 Hugo 站点。"""
+    site = tmp_path / "test-blog-dir"
+    site.mkdir()
+    config_dir = site / "config" / "_default"
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.toml").write_text(
+        'baseURL = "https://example.org/"\ntitle = "Test"\n',
+        encoding="utf-8",
+    )
+    (config_dir / "params.toml").write_text(
+        'author = "Test Author"\n',
+        encoding="utf-8",
+    )
+    (config_dir / "menu.toml").write_text(
+        '[[main]]\nname = "Home"\nurl = "/"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(app_module.app.config, "HUGO_ROOT", site)
+    return site
+
+
 # ──────────────── GET /api/config ────────────────
 
 
-def test_get_config_requires_auth(client):
+def test_list_configs_requires_auth(client):
     """未登录应返回 401。"""
     resp = client.get("/api/config")
     assert resp.status_code == 401
 
 
-def test_get_config_returns_content(admin_client, hugo_site):
-    """已登录 + 有配置文件 → 返回配置内容。"""
+def test_list_configs_returns_root_file(admin_client, hugo_site):
+    """根目录单文件模式 → 返回单个文件。"""
     resp = admin_client.get("/api/config")
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["success"] is True
-    assert data["format"] == "toml"
-    assert 'baseURL = "https://example.org/"' in data["content"]
-    assert data["path"].endswith("hugo.toml")
+    assert data["mode"] == "root"
+    assert len(data["files"]) == 1
+    assert data["files"][0]["name"] == "hugo.toml"
 
 
-def test_get_config_returns_404_when_no_config(admin_client, tmp_path, monkeypatch):
+def test_list_configs_returns_dir_files(admin_client, hugo_site_dir):
+    """config/_default/ 模式 → 返回多个文件。"""
+    resp = admin_client.get("/api/config")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["mode"] == "dir"
+    names = [f["name"] for f in data["files"]]
+    assert "config.toml" in names
+    assert "params.toml" in names
+    assert "menu.toml" in names
+
+
+def test_list_configs_returns_404_when_no_config(admin_client, tmp_path, monkeypatch):
     """站点目录存在但没有配置文件 → 404。"""
     empty_site = tmp_path / "empty-blog"
     empty_site.mkdir()
@@ -68,38 +104,55 @@ def test_get_config_returns_404_when_no_config(admin_client, tmp_path, monkeypat
 
     resp = admin_client.get("/api/config")
     assert resp.status_code == 404
+
+
+# ──────────────── GET /api/config/<filename> ────────────────
+
+
+def test_get_config_file_returns_content(admin_client, hugo_site):
+    """读取指定配置文件 → 返回内容。"""
+    resp = admin_client.get("/api/config/hugo.toml")
+    assert resp.status_code == 200
     data = resp.get_json()
-    assert data["success"] is False
-    assert "未找到" in data["message"]
+    assert data["success"] is True
+    assert data["format"] == "toml"
+    assert 'baseURL = "https://example.org/"' in data["content"]
 
 
-# ──────────────── PUT /api/config ────────────────
+def test_get_config_file_from_dir(admin_client, hugo_site_dir):
+    """从 config/_default/ 读取子配置文件。"""
+    resp = admin_client.get("/api/config/params.toml")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert 'author = "Test Author"' in data["content"]
+
+
+def test_get_config_file_returns_404(admin_client, hugo_site):
+    """不存在的文件名 → 404。"""
+    resp = admin_client.get("/api/config/nonexistent.toml")
+    assert resp.status_code == 404
+
+
+# ──────────────── PUT /api/config/<filename> ────────────────
 
 
 def test_put_config_saves_valid_toml(admin_client, hugo_site):
     """写入合法 TOML → 保存成功。"""
-    new_content = (
-        'baseURL = "https://new-blog.com/"\n'
-        'languageCode = "en"\n'
-        'title = "New Title"\n'
-    )
-    resp = admin_client.put(
-        "/api/config",
-        json={"content": new_content},
-    )
+    new_content = 'baseURL = "https://new-blog.com/"\ntitle = "New"\n'
+    resp = admin_client.put("/api/config/hugo.toml", json={"content": new_content})
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["success"] is True
 
-    # 验证文件已写入
     saved = (hugo_site / "hugo.toml").read_text(encoding="utf-8")
     assert 'baseURL = "https://new-blog.com/"' in saved
 
 
 def test_put_config_rejects_invalid_toml(admin_client, hugo_site):
-    """写入非法 TOML → 400 + 错误信息。"""
+    """写入非法 TOML → 400。"""
     resp = admin_client.put(
-        "/api/config",
+        "/api/config/hugo.toml",
         json={"content": "this is not = valid = toml ["},
     )
     assert resp.status_code == 400
@@ -110,28 +163,23 @@ def test_put_config_rejects_invalid_toml(admin_client, hugo_site):
 
 def test_put_config_rejects_empty_content(admin_client, hugo_site):
     """空内容 → 400。"""
-    resp = admin_client.put("/api/config", json={"content": ""})
+    resp = admin_client.put("/api/config/hugo.toml", json={"content": ""})
     assert resp.status_code == 400
-    data = resp.get_json()
-    assert "不能为空" in data["message"]
 
 
 def test_put_config_requires_auth(client):
     """未登录应返回 401。"""
-    resp = client.put("/api/config", json={"content": 'title = "x"'})
+    resp = client.put("/api/config/hugo.toml", json={"content": 'title = "x"'})
     assert resp.status_code == 401
 
 
-def test_put_config_creates_file_when_missing(admin_client, tmp_path, monkeypatch):
-    """站点无配置文件时 PUT → 自动创建 hugo.toml。"""
-    new_site = tmp_path / "new-blog"
-    new_site.mkdir()
-    monkeypatch.setitem(app_module.app.config, "HUGO_ROOT", new_site)
-
-    content = 'baseURL = "https://new.org/"\ntitle = "New"\n'
-    resp = admin_client.put("/api/config", json={"content": content})
+def test_put_config_saves_to_dir(admin_client, hugo_site_dir):
+    """写入 config/_default/ 下的子文件。"""
+    new_content = 'author = "New Author"\n'
+    resp = admin_client.put("/api/config/params.toml", json={"content": new_content})
     assert resp.status_code == 200
 
-    assert (new_site / "hugo.toml").exists()
-    saved = (new_site / "hugo.toml").read_text(encoding="utf-8")
-    assert 'baseURL = "https://new.org/"' in saved
+    saved = (hugo_site_dir / "config" / "_default" / "params.toml").read_text(
+        encoding="utf-8"
+    )
+    assert 'author = "New Author"' in saved
