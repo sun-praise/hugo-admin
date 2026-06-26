@@ -1,3 +1,5 @@
+import type { Theme } from '../types';
+
 const API_BASE = '';
 
 export async function request<T>(url: string, options?: RequestInit): Promise<T> {
@@ -220,4 +222,128 @@ export async function changePassword(
     current_password: currentPassword,
     new_password: newPassword,
   });
+}
+
+// ============ 项目初始化 ============
+
+export interface InitProjectRequest {
+  path: string;
+  config_format: 'toml' | 'yaml';
+}
+
+export interface DefaultThemeResult {
+  name: string;
+  repo: string;
+  installed: boolean;
+  activated: boolean;
+  skipped_reason: string | null;
+  error: string | null;
+}
+
+export interface InitProjectResponse {
+  success: boolean;
+  path?: string;
+  config_format?: 'toml' | 'yaml';
+  default_theme?: DefaultThemeResult;
+  message?: string;
+}
+
+/** 创建新的 Hugo 站点并设为活跃项目。 */
+export async function initProject(payload: InitProjectRequest): Promise<InitProjectResponse> {
+  return post<InitProjectResponse>('/api/project/init', payload);
+}
+
+export interface ActiveProjectResponse {
+  success: boolean;
+  path: string;
+  message?: string;
+}
+
+/** 获取当前活跃项目路径。 */
+export async function getActiveProject(): Promise<ActiveProjectResponse> {
+  return get<ActiveProjectResponse>('/api/project/active');
+}
+
+/** 清除持久化的活跃项目（回退到 env / 默认 HUGO_ROOT）。 */
+export async function resetActiveProject(): Promise<{ success: boolean; message?: string }> {
+  return post('/api/project/active/reset', {});
+}
+
+/** 清理活跃项目根目录下的占位 layouts/，让已安装主题接管渲染。 */
+export async function cleanPlaceholderLayouts(): Promise<{
+  success: boolean;
+  message?: string;
+}> {
+  return post('/api/project/clean-layouts', {});
+}
+
+// ============ 主题管理 ============
+
+export interface ThemeListResponse {
+  success: boolean;
+  themes: Theme[];
+  active_theme: string | null;
+  message?: string;
+}
+
+export interface AvailableTheme {
+  name: string;
+  repo: string;
+  description: string;
+}
+
+export interface AvailableThemesResponse {
+  success: boolean;
+  available_themes: AvailableTheme[];
+  message?: string;
+}
+
+export interface ThemeInstallRequest {
+  repo_url: string;
+  name: string;
+  mode: 'submodule' | 'copy';
+}
+
+export interface ThemeInstallResponse {
+  success: boolean;
+  theme?: { name: string; mode: 'submodule' | 'copy' };
+  message?: string;
+}
+
+export interface ThemeActivateResponse {
+  success: boolean;
+  theme?: { name: string; active: boolean };
+  message?: string;
+}
+
+export interface ThemePreviewResponse {
+  success: boolean;
+  preview_theme?: string;
+  server_url?: string;
+  message?: string;
+}
+
+/** 获取已安装主题列表。 */
+export async function getThemes(): Promise<ThemeListResponse> {
+  return get<ThemeListResponse>('/api/themes');
+}
+
+/** 获取 hugo-admin 维护的默认主题（可一键安装的推荐主题）。 */
+export async function getAvailableThemes(): Promise<AvailableThemesResponse> {
+  return get<AvailableThemesResponse>('/api/themes/available');
+}
+
+/** 安装主题。 */
+export async function installTheme(payload: ThemeInstallRequest): Promise<ThemeInstallResponse> {
+  return post<ThemeInstallResponse>('/api/themes/install', payload);
+}
+
+/** 激活主题。 */
+export async function activateTheme(name: string): Promise<ThemeActivateResponse> {
+  return post<ThemeActivateResponse>('/api/themes/activate', { name });
+}
+
+/** 预览主题（不持久化）。 */
+export async function previewTheme(name: string): Promise<ThemePreviewResponse> {
+  return post<ThemePreviewResponse>('/api/themes/preview', { name });
 }

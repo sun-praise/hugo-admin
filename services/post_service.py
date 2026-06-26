@@ -7,6 +7,7 @@
 
 import fcntl
 import os
+import re
 import tempfile
 import time
 import uuid
@@ -40,9 +41,10 @@ class PostService:
         self.post_dir = self.content_dir / "post"
         self.use_cache = use_cache
 
-        # 初始化缓存服务
+        # 初始化缓存服务, 每个内容目录使用独立的缓存数据库
         if use_cache:
-            self.cache_service = CacheService(content_dir)
+            db_path = str(self.content_dir / ".admin" / "cache.db")
+            self.cache_service = CacheService(content_dir, db_path=db_path)
         else:
             self.cache_service = None
 
@@ -518,13 +520,18 @@ class PostService:
             (success, result): 成功标志和文件路径或错误消息
         """
         try:
-            # 生成文件名
-            post_name = str(datetime.now().date()) + f"-{title}"
-            post_name = post_name.replace(" ", "-")
+            # 生成文件名（对标题进行安全 slugify）
+            safe_title = self._slugify_title(title)
+            post_name = f"{datetime.now().date()}-{safe_title}"
 
             # 创建文章目录
             post_folder = self.post_dir / post_name
-            post_folder.mkdir(exist_ok=True)
+            post_folder.mkdir(parents=True, exist_ok=True)
+
+            # 校验生成的路径确实位于 content 目录下
+            if not self._is_safe_path(post_folder):
+                post_folder.rmdir()
+                return False, "创建文章失败: 生成的路径超出内容目录"
 
             # 创建文章文件
             post_file = post_folder / "index.md"
@@ -567,6 +574,26 @@ class PostService:
 
         except Exception as e:
             return False, f"创建文章失败: {str(e)}"
+
+    @staticmethod
+    def _slugify_title(title):
+        """
+        将标题转换为安全的目录名 slug。
+
+        保留中英文、数字、下划线和连字符，其余字符替换为连字符，
+        并移除可能导致路径穿越或 shell 问题的特殊符号。
+        """
+        if not isinstance(title, str):
+            title = str(title)
+        # 保留安全字符，其余替换为连字符
+        slug = re.sub(r"[^\w\u4e00-\u9fa5-]", "-", title)
+        # 合并连续连字符
+        slug = re.sub(r"-+", "-", slug)
+        # 去除首尾连字符和空白
+        slug = slug.strip("-").strip()
+        if not slug:
+            slug = "untitled"
+        return slug
 
     def _is_safe_path(self, file_path):
         """
