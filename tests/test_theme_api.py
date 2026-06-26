@@ -6,6 +6,36 @@
 import pytest
 
 import app as app_module
+from services.active_project import ActiveProjectRegistry
+
+
+@pytest.fixture(autouse=True)
+def _isolate_active_project(tmp_path):
+    """
+    把持久化的活跃项目指向临时空目录，避免上一个测试或手动操作
+    留下的 themes/ 污染 ``/api/themes`` 的结果。
+    """
+    from pathlib import Path
+
+    empty_site = tmp_path / "empty-blog"
+    empty_site.mkdir()
+    file_path = Path(app_module.app.root_path) / "data" / "active_project.txt"
+    ActiveProjectRegistry(file_path).record_path(empty_site)
+    yield
+    ActiveProjectRegistry(file_path).clear()
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _ensure_clean_active_project_at_start():
+    """
+    测试会话开始时清空持久化文件，避免上一次手动操作残留的活跃项目
+    影响 test_theme_api 之外的测试。
+    """
+    from pathlib import Path
+
+    file_path = Path(app_module.app.root_path) / "data" / "active_project.txt"
+    if file_path.exists():
+        ActiveProjectRegistry(file_path).clear()
 
 
 @pytest.fixture

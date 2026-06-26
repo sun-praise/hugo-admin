@@ -269,6 +269,14 @@ export async function resetActiveProject(): Promise<{ success: boolean; message?
   return post('/api/project/active/reset', {});
 }
 
+/** 清理活跃项目根目录下的占位 layouts/，让已安装主题接管渲染。 */
+export async function cleanPlaceholderLayouts(): Promise<{
+  success: boolean;
+  message?: string;
+}> {
+  return post('/api/project/clean-layouts', {});
+}
+
 // ============ 主题管理 ============
 
 export interface ThemeListResponse {
