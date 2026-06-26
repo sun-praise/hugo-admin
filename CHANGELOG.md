@@ -7,13 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-06-26
+
 ### Added
+- Hugo 站点配置编辑器：Settings 新增「站点配置」tab，左侧文件树列出 `config/_default/` 下所有配置文件，右侧 PrismJS TOML/YAML/JSON 语法高亮编辑器，字号可选（11–20px，localStorage 持久化），按文件单独保存。后端 `GET/PUT /api/config`（列表）与 `GET/PUT /api/config/<filename>`（按文件读写），自动检测根目录单文件 vs `config/_default/` 多文件结构，TOML/YAML/JSON 语法校验。
+- Hugo 项目初始化：`/api/project/init` 一键创建 Hugo 站点，自动安装默认主题（svtter/Fried-Rice）并设为活跃项目；支持 TOML/YAML 配置格式选择。
+- 持久化活跃项目路径：`ActiveProjectRegistry` 把活跃 Hugo 项目写入 `data/active_project.txt`，进程重启后仍恢复；`POST /api/project/active/reset` 清除持久化回到默认 HUGO_ROOT。
+- 主题管理：`themes/` 目录扫描、子模块/复制两种安装模式、激活/预览主题；`GET/POST /api/themes*` 系列接口；主题装上后自动清理占位 `layouts/` 让主题接管渲染（含 `POST /api/project/clean-layouts` 修复旧站点）。
 - Git 管理页面（`/git`）：查看最近的提交记录（含 refs 与 diffstat）与本 admin 触发的推送历史（remote/branch、commit range、成功/失败与时间）。
 - 推送历史持久化到 per-repo `content/.admin/cache.db`（新增 `git_push_history` 表）；`GitService.push()` 在成功/失败时各记录一条（best-effort 捕获 from/to SHA 与 commit_count，HEAD 摘要作为 commit_message）；hugo-root 切换时为新 content 目录重建 `Database`。
 - `GET /api/git/commits` 增强：单次 `git log --numstat` 调用即返回 `refs` 与 `stats`（files/insertions/deletions），`count` 钳制到 `[1, 50]`；旧字段与响应结构不变。
 - 新增 `GET /api/git/pushes`（分页、倒序，参数钳制）。
-- 测试：推送历史 DB、`GitService.push()` 记录（成功/失败/`database=None` no-op）、commits 富化、`/api/git/pushes` 与 `/api/git/commits` 路由。
+- 密码登录与 API 会话守卫：`AuthService`（`data/auth.json` 持久化，werkzeug 哈希）+ `/api/auth/login|logout|me` + 全局 `install_auth_guard` 拦截未登录 `/api/*`（白名单 login/me/version）。
+- 设置页改用 tab 组织（常规设置 / 主题管理 / 初始化项目 / 站点配置）。
 
+### Fixed
+- `[outputs]` 等 TOML table header 在配置编辑器里被拆成三行：Prism 的 `token table` class 与 Tailwind `.table` 工具类撞名，用 scoped `.config-editor .token { display: inline !important }` 覆盖。
+- 主题装上后删除占位 `layouts/`，避免覆盖主题模板（旧版本 init 创建的「毛坯」站点可用 `/clean-layouts` 接口修复）。
+- 新站点预览与文章缓存隔离，避免切换活跃项目后串数据。
+- 初始化项目后立即生成 `.admin/settings.json`，新初始化站点缺少 `content/post` 时不再创建文章失败。
+- 前端 eslint errors/warnings（PR #119）。
+- Image paste 不再因文件名碰撞覆盖旧上传（#70）；图片上传增加 20MB 体积限制与扩展名白名单。
+
+### Changed
+- `routes/` 模块化：新增 `config_routes`、`auth_routes`、`theme_routes`、`project_init_routes`、`publish_routes` 注册函数，统一通过 `routes/__init__.py` 导出。
+- `services/registry.py` 间接访问 post_service/git_service 等实例，settings 更新重建后 Blueprint 自动用新实例。
 ## [2.3.0] - 2026-06-16
 
 ### Added
