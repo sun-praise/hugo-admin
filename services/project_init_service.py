@@ -4,6 +4,7 @@
 负责验证目标路径、执行 `hugo new site` 并切换活跃项目。
 """
 
+import logging
 import subprocess
 from pathlib import Path
 
@@ -17,6 +18,9 @@ from services.settings_service import (
     SettingsStorageError,
     SettingsValidationError,
 )
+from services.theme_service import ThemeError, ThemeService
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectInitError(ValueError):
@@ -33,6 +37,10 @@ class ProjectInitService:
         "hugo.toml",
         "hugo.yaml",
     )
+
+    # 新站点默认安装的主题。新站点还没有 git 仓库，只能用 copy 模式。
+    DEFAULT_THEME_REPO = "https://github.com/svtter/Fried-Rice.git"
+    DEFAULT_THEME_NAME = "Fried-Rice"
 
     def __init__(self, admin_root: Path | str):
         """
@@ -128,7 +136,13 @@ class ProjectInitService:
         self._write_default_config(path, config_format)
         self._write_default_layouts(path)
 
-        return {"path": str(path), "config_format": config_format}
+        theme_result = self._install_default_theme(path)
+
+        return {
+            "path": str(path),
+            "config_format": config_format,
+            "default_theme": theme_result,
+        }
 
     def _write_default_config(self, site_root: Path, config_format: str) -> None:
         """在新站点目录写入默认 Hugo 配置文件。"""
@@ -138,7 +152,7 @@ class ProjectInitService:
                 'baseURL = "https://example.org/"\n'
                 'languageCode = "zh-CN"\n'
                 'title = "My New Hugo Site"\n'
-                'theme = ""\n'
+                f'theme = "{self.DEFAULT_THEME_NAME}"\n'
             )
         else:
             config_file = site_root / "hugo.yaml"
@@ -146,7 +160,7 @@ class ProjectInitService:
                 "baseURL: https://example.org/\n"
                 "languageCode: zh-CN\n"
                 "title: My New Hugo Site\n"
-                'theme: ""\n'
+                f"theme: {self.DEFAULT_THEME_NAME}\n"
             )
 
         # hugo new site 默认会生成 hugo.toml；仅当格式不一致时才覆盖
@@ -158,6 +172,70 @@ class ProjectInitService:
             if default_toml.exists() and config_format == "yaml":
                 default_toml.unlink()
             config_file.write_text(config_content, encoding="utf-8")
+
+    def _install_default_theme(self, site_root: Path) -> dict:
+        """
+        在新站点中安装并激活默认主题。
+
+        失败不会抛出异常（网络/克隆问题不阻塞初始化），仅返回状态字典：
+          ``{ name, repo, installed, activated, skipped_reason, error }``
+        """
+        result = {
+            "name": self.DEFAULT_THEME_NAME,
+            "repo": self.DEFAULT_THEME_REPO,
+            "installed": False,
+            "activated": False,
+            "skipped_reason": None,
+            "error": None,
+        }
+        try:
+            settings_path = site_root / ".admin" / "settings.json"
+            settings = SettingsService(settings_path, defaults={})
+            try:
+                settings.get_settings()
+            except (
+                SettingsStorageError,
+                SettingsValidationError,
+                OSError,
+                ValueError,
+            ) as exc:
+                logger.warning("初始化默认主题设置失败: %s", exc)
+                result["skipped_reason"] = "settings_init_failed"
+                return result
+
+            theme_service = ThemeService(site_root, settings_service=settings)
+
+            if not theme_service.theme_exists(self.DEFAULT_THEME_NAME):
+                try:
+                    theme_service.install_theme(
+                        self.DEFAULT_THEME_REPO,
+                        self.DEFAULT_THEME_NAME,
+                        mode="copy",
+                    )
+                    result["installed"] = True
+                except ThemeError as exc:
+                    logger.warning(
+                        "安装默认主题失败 (%s): %s",
+                        self.DEFAULT_THEME_NAME,
+                        exc,
+                    )
+                    result["error"] = f"install_failed: {exc}"
+                    return result
+
+            try:
+                theme_service.activate_theme(self.DEFAULT_THEME_NAME)
+                result["activated"] = True
+            except ThemeError as exc:
+                logger.warning(
+                    "激活默认主题失败 (%s): %s",
+                    self.DEFAULT_THEME_NAME,
+                    exc,
+                )
+                result["error"] = f"activate_failed: {exc}"
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError) as exc:
+            logger.warning("默认主题处理异常: %s", exc)
+            result["error"] = f"unexpected: {exc}"
+        return result
 
     @staticmethod
     def _write_default_layouts(site_root: Path) -> None:
