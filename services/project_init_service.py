@@ -138,6 +138,10 @@ class ProjectInitService:
         self._write_default_layouts(path)
 
         theme_result = self._install_default_theme(path)
+        # 主题装上后，themes/<name>/layouts/ 比站点根 layouts/ 优先级低；
+        # 但根目录 layouts/ 是显式写出的，Hugo 仍会优先用它。删除让主题接管。
+        if theme_result.get("installed") or theme_result.get("activated"):
+            self._remove_default_layouts(path)
 
         return {
             "path": str(path),
@@ -298,6 +302,25 @@ class ProjectInitService:
             "{{ end }}\n"
         )
         (layouts_dir / "index.html").write_text(index_html, encoding="utf-8")
+
+    @staticmethod
+    def _remove_default_layouts(site_root: Path) -> None:
+        """
+        移除 ``_write_default_layouts`` 写入的占位布局，让主题接管渲染。
+
+        Hugo 查找模板时优先使用站点根 ``layouts/``，其次才是 ``themes/<name>/layouts/``。
+        如果留下占位布局，即使 ``hugo.toml`` 配了 theme，页面仍会显示简陋骨架。
+        """
+        import shutil
+
+        layouts_dir = site_root / "layouts"
+        if not layouts_dir.exists():
+            return
+        try:
+            shutil.rmtree(layouts_dir)
+            logger.info("已移除占位 layouts，主题接管渲染: %s", site_root)
+        except OSError as exc:
+            logger.warning("移除占位 layouts 失败 (%s): %s", layouts_dir, exc)
 
     @staticmethod
     def switch_active_project(app, registry, new_root: Path | str) -> None:

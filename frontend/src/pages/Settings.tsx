@@ -10,6 +10,7 @@ import {
   previewTheme,
   getActiveProject,
   resetActiveProject,
+  cleanPlaceholderLayouts,
 } from '../utils/api';
 import type { AvailableTheme } from '../utils/api';
 import type { Settings as SettingsType, Theme } from '../types';
@@ -91,6 +92,25 @@ export default function SettingsPage() {
       }
       showNotification('已清除持久化的活跃项目', 'success');
       await fetchActiveProject();
+    } catch (error) {
+      showNotification((error as Error).message, 'error');
+    }
+  }
+
+  async function handleCleanLayouts() {
+    if (
+      !confirm(
+        '确认清理活跃项目下的占位 layouts/？如果之前是旧版本 init 创建的"毛坯"站点，这一步会让已安装的主题接管渲染。',
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await cleanPlaceholderLayouts();
+      if (!res.success) {
+        throw new Error(res.message || '清理失败');
+      }
+      showNotification(res.message || '已清理占位 layouts', 'success');
     } catch (error) {
       showNotification((error as Error).message, 'error');
     }
@@ -499,24 +519,35 @@ export default function SettingsPage() {
               </p>
 
               {activeProjectPath && (
-                <div className="mb-6 p-3 bg-stone-50 border border-stone-200 rounded-lg flex items-start justify-between gap-3 text-sm">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-stone-600">当前活跃项目：</p>
-                    <p className="font-mono text-stone-800 break-all">
-                      {activeProjectPath}
-                    </p>
-                    <p className="mt-1 text-xs text-stone-500">
-                      新建站点会自动覆盖此路径，且会被持久化到
-                      <code className="mx-1">data/active_project.txt</code>
-                      ，重启后仍生效。
-                    </p>
+                <div className="mb-6 p-3 bg-stone-50 border border-stone-200 rounded-lg text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-stone-600">当前活跃项目：</p>
+                      <p className="font-mono text-stone-800 break-all">
+                        {activeProjectPath}
+                      </p>
+                      <p className="mt-1 text-xs text-stone-500">
+                        新建站点会自动覆盖此路径，且会被持久化到
+                        <code className="mx-1">data/active_project.txt</code>
+                        ，重启后仍生效。
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <button
+                        onClick={handleResetActiveProject}
+                        className="px-3 py-1.5 text-xs bg-stone-100 text-stone-700 rounded hover:bg-stone-200 transition-colors"
+                      >
+                        清除持久化
+                      </button>
+                      <button
+                        onClick={handleCleanLayouts}
+                        className="px-3 py-1.5 text-xs bg-amber-50 text-amber-800 border border-amber-200 rounded hover:bg-amber-100 transition-colors"
+                        title="删除站点根 layouts/，让 themes/ 接管（修复旧 init 留下的毛坯）"
+                      >
+                        清理占位 layouts
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    onClick={handleResetActiveProject}
-                    className="px-3 py-1.5 text-xs bg-stone-100 text-stone-700 rounded hover:bg-stone-200 transition-colors shrink-0"
-                  >
-                    清除持久化
-                  </button>
                 </div>
               )}
 
