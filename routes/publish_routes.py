@@ -238,6 +238,68 @@ def register_publish_routes(registry):
                 500,
             )
 
+    @bp.route("/api/git/push", methods=["POST"])
+    def git_push():
+        """独立推送 - 仅执行 git push，不触发 add / commit。
+
+        Body（全部可选）：
+          - remote: 远程名，默认 "origin"
+          - branch: 分支名，默认当前分支
+          - set_upstream: bool，是否设置上游
+
+        响应：``{ success, message, remote, branch }``。
+        非 git 仓库或 push 失败时返回 400，成功返回 200。
+        """
+        try:
+            data = request.get_json(silent=True) or {}
+            remote = data.get("remote") or "origin"
+            branch = data.get("branch")
+            set_upstream = bool(data.get("set_upstream", False))
+
+            if not registry.git_service.is_git_repo():
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": "当前目录不是有效的 git 仓库",
+                            "remote": remote,
+                            "branch": branch or "",
+                        }
+                    ),
+                    400,
+                )
+
+            success, message = registry.git_service.push(
+                remote=remote,
+                branch=branch,
+                set_upstream=set_upstream,
+            )
+            payload = {
+                "success": success,
+                "message": message,
+                "remote": remote,
+                "branch": branch or "",
+            }
+            return jsonify(payload), 200 if success else 400
+        except Exception as e:
+            fallback_remote = (
+                data.get("remote") if isinstance(data, dict) else None
+            ) or "origin"
+            fallback_branch = (
+                data.get("branch") if isinstance(data, dict) else None
+            ) or ""
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"推送失败: {str(e)}",
+                        "remote": fallback_remote,
+                        "branch": fallback_branch,
+                    }
+                ),
+                500,
+            )
+
     @bp.route("/api/publish/system", methods=["POST"])
     def publish_system():
         """系统发布 - 执行 git add, commit, push 完整流程"""
