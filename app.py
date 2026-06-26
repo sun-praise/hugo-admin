@@ -33,6 +33,7 @@ from routes import (
 )
 from routes.plugin_routes import register_plugin_routes
 from routes.settings_routes import _ensure_server_url_has_port
+from services.active_project import ActiveProjectRegistry
 from services.auth_service import AuthService
 from services.chat_history_service import ChatHistoryService
 from services.git_service import GitService
@@ -84,10 +85,22 @@ except ImportError:
 
 
 # 向后兼容的配置
-app.config["HUGO_ROOT"] = app.config.get("HUGO_ROOT", Path(__file__).parent.parent)
+default_hugo_root = app.config.get("HUGO_ROOT", Path(__file__).parent.parent)
+app.config["HUGO_ROOT"] = default_hugo_root
 app.config["CONTENT_DIR"] = app.config.get(
     "CONTENT_DIR", app.config["HUGO_ROOT"] / "content"
 )
+
+# 优先使用持久化的活跃项目（"创建站点"时写入），回退到默认 HUGO_ROOT。
+_active_registry = ActiveProjectRegistry(
+    Path(__file__).parent / "data" / "active_project.txt"
+)
+_persisted_root = _active_registry.load_path()
+if _persisted_root is not None:
+    app.config["HUGO_ROOT"] = _persisted_root
+    app.config["CONTENT_DIR"] = _persisted_root / "content"
+    print(f"✓ 恢复持久化的活跃项目: {_persisted_root}")
+
 ENV_AI_API_KEY = app.config.get("AI_API_KEY", "")
 
 # 初始化可持久化设置
