@@ -347,3 +347,23 @@ export async function activateTheme(name: string): Promise<ThemeActivateResponse
 export async function previewTheme(name: string): Promise<ThemePreviewResponse> {
   return post<ThemePreviewResponse>('/api/themes/preview', { name });
 }
+
+// ──────────────── Hugo 站点配置 ────────────────
+
+export interface HugoConfigResponse {
+  success: boolean;
+  format?: string;
+  content?: string;
+  path?: string;
+  message?: string;
+}
+
+/** 读取当前 Hugo 站点配置文件内容。 */
+export async function getConfig(): Promise<HugoConfigResponse> {
+  return get<HugoConfigResponse>('/api/config');
+}
+
+/** 保存 Hugo 站点配置文件。 */
+export async function saveConfig(content: string): Promise<HugoConfigResponse> {
+  return put<HugoConfigResponse>('/api/config', { content });
+}
