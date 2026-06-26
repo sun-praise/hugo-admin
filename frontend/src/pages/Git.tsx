@@ -1,15 +1,38 @@
-import { useState, useEffect, useCallback } from 'react';
-import { GitCommit, GitBranch, RefreshCw, ChevronLeft, ChevronRight, CheckCircle2, XCircle } from 'lucide-react';
-import { getCommits, getPushes } from '../utils/api';
-import type { Commit, PushRecord } from '../utils/api';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  GitCommit,
+  GitBranch,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  XCircle,
+  Upload,
+  ListTree,
+  AlertCircle,
+} from 'lucide-react';
+import {
+  getCommits,
+  getPushes,
+  getGitStatus,
+  pushGit,
+} from '../utils/api';
+import type { Commit, PushRecord, GitStatus } from '../utils/api';
 
-type Tab = 'commits' | 'pushes';
+type Tab = 'status' | 'commits' | 'pushes';
 
 const COMMIT_PAGE_SIZE = 20;
 const PUSH_PAGE_SIZE = 20;
 
 export default function Git() {
-  const [tab, setTab] = useState<Tab>('commits');
+  const [tab, setTab] = useState<Tab>('status');
+
+  // status state
+  const [status, setStatus] = useState<GitStatus | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [pushing, setPushing] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+  const [setUpstream, setSetUpstream] = useState(false);
 
   // commits state
   const [commits, setCommits] = useState<Commit[]>([]);
@@ -20,8 +43,26 @@ export default function Git() {
   // pushes state
   const [pushes, setPushes] = useState<PushRecord[]>([]);
   const [pushPage, setPushPage] = useState(1);
-  const [pushPagination, setPushPagination] = useState({ total: 0, total_pages: 0, has_next: false, has_prev: false });
+  const [pushPagination, setPushPagination] = useState({
+    total: 0,
+    total_pages: 0,
+    has_next: false,
+    has_prev: false,
+  });
   const [pushesLoading, setPushesLoading] = useState(false);
+
+  const loadStatus = useCallback(async () => {
+    setStatusLoading(true);
+    try {
+      const data = await getGitStatus();
+      setStatus(data);
+    } catch (e) {
+      console.error('Failed to load git status:', e);
+      setStatus({ success: false, has_changes: false, staged: [], unstaged: [], untracked: [], message: '加载失败' });
+    } finally {
+      setStatusLoading(false);
+    }
+  }, []);
 
   const loadCommits = useCallback(async (count: number) => {
     setCommitsLoading(true);
@@ -29,7 +70,6 @@ export default function Git() {
       const data = await getCommits(count);
       if (data.success) {
         setCommits(data.commits);
-        // 后端钳制到 [1, 50]，若返回少于请求数量则没有更多
         setCommitsHasMore(data.commits.length >= count && count < 50);
       }
     } catch (e) {
@@ -60,21 +100,49 @@ export default function Git() {
     }
   }, []);
 
-  // 仅在 tab 切换时拉取对应数据；loadCommits/loadPushes 为 useCallback([]) 稳定引用，
-  // commitsCount/pushPage 在切 tab 时读取最新值即可，故依赖数组只含 [tab]。
+  // 使用 ref 保存最新分页状态，避免把它们加入依赖数组导致手动翻页时重复请求。
+  const commitsCountRef = useRef(commitsCount);
+  const pushPageRef = useRef(pushPage);
   useEffect(() => {
-    if (tab === 'commits') {
-      loadCommits(commitsCount);
-    } else {
-      loadPushes(pushPage);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+    commitsCountRef.current = commitsCount;
+    pushPageRef.current = pushPage;
+  }, [commitsCount, pushPage]);
+
+  useEffect(() => {
+    (async () => {
+      if (tab === 'status') {
+        await loadStatus();
+      } else if (tab === 'commits') {
+        await loadCommits(commitsCountRef.current);
+      } else {
+        await loadPushes(pushPageRef.current);
+      }
+    })();
+  }, [tab, loadStatus, loadCommits, loadPushes]);
 
   function refresh() {
-    if (tab === 'commits') loadCommits(commitsCount);
+    if (tab === 'status') loadStatus();
+    else if (tab === 'commits') loadCommits(commitsCount);
     else loadPushes(pushPage);
   }
+
+  const handlePush = useCallback(async () => {
+    setPushing(true);
+    setPushError(null);
+    try {
+      const res = await pushGit(undefined, undefined, setUpstream);
+      if (res.success) {
+        // 成功：刷新 status + pushes(回到第一页)
+        await Promise.all([loadStatus(), loadPushes(1)]);
+      } else {
+        setPushError(res.message || '推送失败');
+      }
+    } catch (e) {
+      setPushError(e instanceof Error ? e.message : '推送失败');
+    } finally {
+      setPushing(false);
+    }
+  }, [setUpstream, loadStatus, loadPushes]);
 
   function loadMoreCommits() {
     const next = Math.min(commitsCount + COMMIT_PAGE_SIZE, 50);
@@ -87,22 +155,34 @@ export default function Git() {
     if (target !== pushPage) loadPushes(target);
   }
 
+  const activeLoading =
+    tab === 'status' ? statusLoading : tab === 'commits' ? commitsLoading : pushesLoading;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-stone-800">Git</h2>
         <button
           onClick={refresh}
-          disabled={tab === 'commits' ? commitsLoading : pushesLoading}
+          disabled={activeLoading}
           className="flex items-center gap-2 px-3 py-2 text-sm bg-white ring-1 ring-stone-900/5 rounded-lg hover:bg-stone-50 transition-colors disabled:opacity-50"
         >
-          <RefreshCw className={`w-4 h-4 ${(tab === 'commits' ? commitsLoading : pushesLoading) ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 ${activeLoading ? 'animate-spin' : ''}`} />
           刷新
         </button>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-stone-100 p-1 rounded-lg w-fit">
+        <button
+          onClick={() => setTab('status')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-colors ${
+            tab === 'status' ? 'bg-white text-stone-800 shadow-sm font-medium' : 'text-stone-500 hover:text-stone-700'
+          }`}
+        >
+          <ListTree className="w-4 h-4" />
+          状态
+        </button>
         <button
           onClick={() => setTab('commits')}
           className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-colors ${
@@ -123,7 +203,17 @@ export default function Git() {
         </button>
       </div>
 
-      {tab === 'commits' ? (
+      {tab === 'status' ? (
+        <StatusView
+          status={status}
+          loading={statusLoading}
+          pushing={pushing}
+          pushError={pushError}
+          setUpstream={setUpstream}
+          onSetUpstreamChange={setSetUpstream}
+          onPush={handlePush}
+        />
+      ) : tab === 'commits' ? (
         <CommitsView
           commits={commits}
           loading={commitsLoading}
@@ -139,6 +229,142 @@ export default function Git() {
           onPage={goPushPage}
         />
       )}
+    </div>
+  );
+}
+
+function StatusView({
+  status,
+  loading,
+  pushing,
+  pushError,
+  setUpstream,
+  onSetUpstreamChange,
+  onPush,
+}: {
+  status: GitStatus | null;
+  loading: boolean;
+  pushing: boolean;
+  pushError: string | null;
+  setUpstream: boolean;
+  onSetUpstreamChange: (v: boolean) => void;
+  onPush: () => void;
+}) {
+  if (loading && status === null) {
+    return <EmptyState text="加载仓库状态..." />;
+  }
+  if (status === null) {
+    return <EmptyState text="暂无状态" />;
+  }
+  if (!status.success) {
+    return (
+      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6 flex items-start gap-3 text-red-700">
+        <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
+        <div className="text-sm">{status.message || '当前目录不是有效的 git 仓库'}</div>
+      </div>
+    );
+  }
+
+  const clean =
+    !status.has_changes &&
+    status.staged.length === 0 &&
+    status.unstaged.length === 0 &&
+    status.untracked.length === 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-stone-600">
+            {clean ? (
+              <span className="inline-flex items-center gap-2 text-green-700">
+                <CheckCircle2 className="w-4 h-4" />
+                工作区干净
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-2 text-amber-700">
+                <AlertCircle className="w-4 h-4" />
+                工作区有改动
+              </span>
+            )}
+            {status.message && status.message !== '获取状态成功' && (
+              <span className="ml-3 text-stone-400">{status.message}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-stone-600 select-none">
+              <input
+                type="checkbox"
+                checked={setUpstream}
+                onChange={(e) => onSetUpstreamChange(e.target.checked)}
+                className="rounded border-stone-300"
+              />
+              set-upstream (-u)
+            </label>
+            <button
+              onClick={onPush}
+              disabled={pushing}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition-colors disabled:opacity-50"
+            >
+              <Upload className={`w-4 h-4 ${pushing ? 'animate-pulse' : ''}`} />
+              {pushing ? '推送中...' : '推送'}
+            </button>
+          </div>
+        </div>
+        {pushError && (
+          <div className="mt-3 text-sm text-red-700 flex items-start gap-2">
+            <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
+            <span className="break-all">{pushError}</span>
+          </div>
+        )}
+      </div>
+
+      {clean ? (
+        <EmptyState text="没有 staged / unstaged / untracked 改动" />
+      ) : (
+        <div className="bg-white rounded-md ring-1 ring-stone-900/5 overflow-hidden">
+          {status.staged.length > 0 && (
+            <FileGroup title="已暂存 (staged)" tone="green" files={status.staged} />
+          )}
+          {status.unstaged.length > 0 && (
+            <FileGroup title="已修改 (unstaged)" tone="amber" files={status.unstaged} />
+          )}
+          {status.untracked.length > 0 && (
+            <FileGroup title="未跟踪 (untracked)" tone="gray" files={status.untracked} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FileGroup({
+  title,
+  tone,
+  files,
+}: {
+  title: string;
+  tone: 'green' | 'amber' | 'gray';
+  files: string[];
+}) {
+  const toneClass =
+    tone === 'green'
+      ? 'bg-green-50 text-green-700'
+      : tone === 'amber'
+      ? 'bg-amber-50 text-amber-700'
+      : 'bg-stone-50 text-stone-700';
+  return (
+    <div>
+      <div className={`px-4 py-2 text-xs font-medium border-b border-stone-100 ${toneClass}`}>
+        {title} · {files.length}
+      </div>
+      <ul className="divide-y divide-stone-100">
+        {files.map((f) => (
+          <li key={f} className="px-4 py-2 font-mono text-sm text-stone-700 break-all">
+            {f}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
