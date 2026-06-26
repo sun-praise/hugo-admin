@@ -11,11 +11,12 @@ import {
   getActiveProject,
   resetActiveProject,
   cleanPlaceholderLayouts,
+  getConfig,
+  saveConfig,
 } from '../utils/api';
 import type { AvailableTheme } from '../utils/api';
 import type { Settings as SettingsType, Theme } from '../types';
-
-type TabKey = 'general' | 'project' | 'themes';
+type TabKey = 'general' | 'project' | 'themes' | 'config';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('general');
@@ -60,11 +61,25 @@ export default function SettingsPage() {
   const [installMode, setInstallMode] = useState<'submodule' | 'copy'>('submodule');
   const [installLoading, setInstallLoading] = useState(false);
 
+  // Config editor state
+  const [configContent, setConfigContent] = useState('');
+  const [configFormat, setConfigFormat] = useState('');
+  const [configPath, setConfigPath] = useState('');
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
+
   useEffect(() => {
     fetchSettings();
     fetchThemes();
     fetchActiveProject();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'config' && !configContent && !configLoading) {
+      fetchConfig();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   async function fetchActiveProject() {
     try {
@@ -113,6 +128,42 @@ export default function SettingsPage() {
       showNotification(res.message || '已清理占位 layouts', 'success');
     } catch (error) {
       showNotification((error as Error).message, 'error');
+    }
+  }
+
+  async function fetchConfig() {
+    setConfigLoading(true);
+    try {
+      const data = await getConfig();
+      if (data.success && data.content) {
+        setConfigContent(data.content);
+        setConfigFormat(data.format || '');
+        setConfigPath(data.path || '');
+      }
+    } catch (error) {
+      // 404 时静默忽略（站点尚未创建配置文件）
+      if ((error as Error).message !== '未找到 Hugo 配置文件') {
+        showNotification((error as Error).message, 'error');
+      }
+    } finally {
+      setConfigLoading(false);
+    }
+  }
+
+  async function handleSaveConfig() {
+    setConfigSaving(true);
+    try {
+      const data = await saveConfig(configContent);
+      if (!data.success) {
+        throw new Error(data.message || '保存失败');
+      }
+      showNotification(data.message || '配置已保存', 'success');
+      // 重新加载确保同步
+      await fetchConfig();
+    } catch (error) {
+      showNotification((error as Error).message, 'error');
+    } finally {
+      setConfigSaving(false);
     }
   }
 
@@ -339,6 +390,7 @@ export default function SettingsPage() {
     { key: 'general', label: '常规设置' },
     { key: 'themes', label: '主题管理' },
     { key: 'project', label: '初始化项目' },
+    { key: 'config', label: '站点配置' },
   ];
 
   return (
@@ -763,6 +815,112 @@ export default function SettingsPage() {
                       </button>
                     </div>
                   </form>
+                </>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'config' && (
+            <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
+              <h3 className="text-lg font-medium mb-4">站点配置</h3>
+
+              {configLoading ? (
+                <div className="py-8 text-center text-stone-500">加载配置中...</div>
+              ) : (
+                <>
+                  {/* 快捷编辑表单 */}
+                  <div className="grid grid-cols-2 gap-4 mb-6 pb-6 border-b border-stone-200">
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">baseURL</label>
+                      <input
+                        type="text"
+                        value={configContent.match(/baseURL\s*=\s*"([^"]*)"/)?.[1] || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setConfigContent((prev) =>
+                            prev.replace(/(baseURL\s*=\s*)"[^"]*"/, `$1"${val}"`)
+                          );
+                        }}
+                        placeholder="https://example.org/"
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">title</label>
+                      <input
+                        type="text"
+                        value={configContent.match(/title\s*=\s*"([^"]*)"/)?.[1] || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setConfigContent((prev) =>
+                            prev.replace(/(title\s*=\s*)"[^"]*"/, `$1"${val}"`)
+                          );
+                        }}
+                        placeholder="My Blog"
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">languageCode</label>
+                      <input
+                        type="text"
+                        value={configContent.match(/languageCode\s*=\s*"([^"]*)"/)?.[1] || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setConfigContent((prev) =>
+                            prev.replace(/(languageCode\s*=\s*)"[^"]*"/, `$1"${val}"`)
+                          );
+                        }}
+                        placeholder="zh-CN"
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">theme</label>
+                      <input
+                        type="text"
+                        value={configContent.match(/theme\s*=\s*"([^"]*)"/)?.[1] || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setConfigContent((prev) =>
+                            prev.replace(/(theme\s*=\s*)"[^"]*"/, `$1"${val}"`)
+                          );
+                        }}
+                        placeholder="Fried-Rice"
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 原始编辑器 */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-stone-700">
+                        配置文件
+                        {configPath && (
+                          <span className="ml-2 text-xs font-mono text-stone-400">{configPath}</span>
+                        )}
+                      </label>
+                      <span className="text-xs text-stone-400 uppercase">{configFormat}</span>
+                    </div>
+                    <textarea
+                      value={configContent}
+                      onChange={(e) => setConfigContent(e.target.value)}
+                      rows={20}
+                      spellCheck={false}
+                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm resize-y"
+                    />
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleSaveConfig}
+                      disabled={configSaving || !configContent.trim()}
+                      className="px-6 py-2 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {configSaving ? '保存中...' : '保存配置'}
+                    </button>
+                  </div>
                 </>
               )}
             </div>
