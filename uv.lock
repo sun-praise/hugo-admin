@@ -745,7 +745,7 @@ wheels = [
 
 [[package]]
 name = "hugo-admin"
-version = "2.3.0"
+version = "2.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
@@ -763,6 +763,7 @@ dependencies = [
     { name = "python-socketio" },
     { name = "pyyaml" },
     { name = "requests" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "werkzeug" },
 ]
 
@@ -803,6 +804,7 @@ requires-dist = [
     { name = "python-socketio", specifier = "==5.10.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "requests", specifier = ">=2.32.0" },
+    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.1" },
     { name = "werkzeug", specifier = "==3.0.1" },
 ]
 provides-extras = ["dev"]
