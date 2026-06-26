@@ -5,6 +5,15 @@ import 'prismjs/components/prism-yaml';
 import 'prismjs/components/prism-json';
 import 'prismjs/themes/prism-solarizedlight.css';
 
+// Prism 的 TOML 分词会给 table header 加 class "token table"，
+// 与 Tailwind 的 .table (display: table) 工具类冲突，导致 [outputs] 被渲染成
+// 三个堆叠的块。强制所有 token inline。
+const TOKEN_OVERRIDE = `
+.config-editor .token {
+  display: inline !important;
+}
+`;
+
 interface ConfigEditorProps {
   value: string;
   onChange: (value: string) => void;
@@ -64,7 +73,8 @@ export default function ConfigEditor({
   };
 
   return (
-    <div className="relative w-full h-full" style={{ minHeight: 400 }}>
+    <div className="config-editor relative w-full h-full" style={{ minHeight: 400 }}>
+      <style>{TOKEN_OVERRIDE}</style>
       {/* 高亮层（底层） */}
       <pre
         ref={preRef}
