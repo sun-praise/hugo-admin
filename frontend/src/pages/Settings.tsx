@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import ConfigEditor from '../components/ConfigEditor';
 import {
   get,
   put,
@@ -11,10 +12,11 @@ import {
   getActiveProject,
   resetActiveProject,
   cleanPlaceholderLayouts,
-  getConfig,
-  saveConfig,
+  listConfigs,
+  getConfigFile,
+  saveConfigFile,
 } from '../utils/api';
-import type { AvailableTheme } from '../utils/api';
+import type { AvailableTheme, ConfigFileInfo } from '../utils/api';
 import type { Settings as SettingsType, Theme } from '../types';
 type TabKey = 'general' | 'project' | 'themes' | 'config';
 
@@ -62,9 +64,9 @@ export default function SettingsPage() {
   const [installLoading, setInstallLoading] = useState(false);
 
   // Config editor state
+  const [configFiles, setConfigFiles] = useState<ConfigFileInfo[]>([]);
+  const [activeConfigFile, setActiveConfigFile] = useState<ConfigFileInfo | null>(null);
   const [configContent, setConfigContent] = useState('');
-  const [configFormat, setConfigFormat] = useState('');
-  const [configPath, setConfigPath] = useState('');
   const [configLoading, setConfigLoading] = useState(false);
   const [configSaving, setConfigSaving] = useState(false);
 
@@ -134,14 +136,14 @@ export default function SettingsPage() {
   async function fetchConfig() {
     setConfigLoading(true);
     try {
-      const data = await getConfig();
-      if (data.success && data.content) {
-        setConfigContent(data.content);
-        setConfigFormat(data.format || '');
-        setConfigPath(data.path || '');
+      const data = await listConfigs();
+      if (data.success && data.files && data.files.length > 0) {
+        setConfigFiles(data.files);
+        if (!activeConfigFile) {
+          await loadConfigFile(data.files[0]);
+        }
       }
     } catch (error) {
-      // 404 时静默忽略（站点尚未创建配置文件）
       if ((error as Error).message !== '未找到 Hugo 配置文件') {
         showNotification((error as Error).message, 'error');
       }
@@ -150,16 +152,30 @@ export default function SettingsPage() {
     }
   }
 
+  async function loadConfigFile(file: ConfigFileInfo) {
+    setActiveConfigFile(file);
+    setConfigLoading(true);
+    try {
+      const data = await getConfigFile(file.name);
+      if (data.success && data.content !== undefined) {
+        setConfigContent(data.content);
+      }
+    } catch (error) {
+      showNotification((error as Error).message, 'error');
+    } finally {
+      setConfigLoading(false);
+    }
+  }
+
   async function handleSaveConfig() {
+    if (!activeConfigFile) return;
     setConfigSaving(true);
     try {
-      const data = await saveConfig(configContent);
+      const data = await saveConfigFile(activeConfigFile.name, configContent);
       if (!data.success) {
         throw new Error(data.message || '保存失败');
       }
       showNotification(data.message || '配置已保存', 'success');
-      // 重新加载确保同步
-      await fetchConfig();
     } catch (error) {
       showNotification((error as Error).message, 'error');
     } finally {
@@ -821,108 +837,80 @@ export default function SettingsPage() {
           )}
 
           {activeTab === 'config' && (
-            <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
-              <h3 className="text-lg font-medium mb-4">站点配置</h3>
+            <div className="bg-white rounded-md ring-1 ring-stone-900/5 overflow-hidden">
+              <div className="flex" style={{ minHeight: 480 }}>
+                {/* 左侧文件树 */}
+                <div className="w-48 border-r border-stone-200 bg-stone-50 p-3 flex flex-col">
+                  <p className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">
+                    配置文件
+                  </p>
+                  {configLoading && configFiles.length === 0 ? (
+                    <p className="text-xs text-stone-400">加载中...</p>
+                  ) : configFiles.length === 0 ? (
+                    <p className="text-xs text-stone-400">未找到配置文件</p>
+                  ) : (
+                    <ul className="space-y-0.5">
+                      {configFiles.map((f) => (
+                        <li key={f.name}>
+                          <button
+                            onClick={() => loadConfigFile(f)}
+                            className={`w-full text-left px-2 py-1.5 rounded text-sm font-mono transition-colors ${
+                              activeConfigFile?.name === f.name
+                                ? 'bg-stone-200 text-stone-900'
+                                : 'text-stone-600 hover:bg-stone-100 hover:text-stone-800'
+                            }`}
+                          >
+                            {f.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
 
-              {configLoading ? (
-                <div className="py-8 text-center text-stone-500">加载配置中...</div>
-              ) : (
-                <>
-                  {/* 快捷编辑表单 */}
-                  <div className="grid grid-cols-2 gap-4 mb-6 pb-6 border-b border-stone-200">
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">baseURL</label>
-                      <input
-                        type="text"
-                        value={configContent.match(/baseURL\s*=\s*"([^"]*)"/)?.[1] || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setConfigContent((prev) =>
-                            prev.replace(/(baseURL\s*=\s*)"[^"]*"/, `$1"${val}"`)
-                          );
-                        }}
-                        placeholder="https://example.org/"
-                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">title</label>
-                      <input
-                        type="text"
-                        value={configContent.match(/title\s*=\s*"([^"]*)"/)?.[1] || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setConfigContent((prev) =>
-                            prev.replace(/(title\s*=\s*)"[^"]*"/, `$1"${val}"`)
-                          );
-                        }}
-                        placeholder="My Blog"
-                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">languageCode</label>
-                      <input
-                        type="text"
-                        value={configContent.match(/languageCode\s*=\s*"([^"]*)"/)?.[1] || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setConfigContent((prev) =>
-                            prev.replace(/(languageCode\s*=\s*)"[^"]*"/, `$1"${val}"`)
-                          );
-                        }}
-                        placeholder="zh-CN"
-                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">theme</label>
-                      <input
-                        type="text"
-                        value={configContent.match(/theme\s*=\s*"([^"]*)"/)?.[1] || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setConfigContent((prev) =>
-                            prev.replace(/(theme\s*=\s*)"[^"]*"/, `$1"${val}"`)
-                          );
-                        }}
-                        placeholder="Fried-Rice"
-                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm"
-                      />
-                    </div>
-                  </div>
+                {/* 右侧编辑器 */}
+                <div className="flex-1 flex flex-col min-w-0">
+                  {activeConfigFile ? (
+                    <>
+                      {/* 顶栏 */}
+                      <div className="flex items-center justify-between px-4 py-2 border-b border-stone-200 bg-stone-50">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm font-medium text-stone-700 truncate">
+                            {activeConfigFile.name}
+                          </span>
+                          <span className="text-xs text-stone-400 uppercase shrink-0">
+                            {activeConfigFile.format}
+                          </span>
+                        </div>
+                        <button
+                          onClick={handleSaveConfig}
+                          disabled={configSaving || !configContent.trim()}
+                          className="px-4 py-1.5 text-sm bg-stone-800 text-white rounded-md hover:bg-stone-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                        >
+                          {configSaving ? '保存中...' : '保存'}
+                        </button>
+                      </div>
 
-                  {/* 原始编辑器 */}
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-sm font-medium text-stone-700">
-                        配置文件
-                        {configPath && (
-                          <span className="ml-2 text-xs font-mono text-stone-400">{configPath}</span>
+                      {/* 编辑区：textarea + 高亮 overlay */}
+                      <div className="relative flex-1 overflow-auto">
+                        {configLoading ? (
+                          <div className="p-4 text-stone-400 text-sm">加载中...</div>
+                        ) : (
+                          <ConfigEditor
+                            value={configContent}
+                            onChange={setConfigContent}
+                            format={activeConfigFile.format}
+                          />
                         )}
-                      </label>
-                      <span className="text-xs text-stone-400 uppercase">{configFormat}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-stone-400 text-sm">
+                      选择左侧文件开始编辑
                     </div>
-                    <textarea
-                      value={configContent}
-                      onChange={(e) => setConfigContent(e.target.value)}
-                      rows={20}
-                      spellCheck={false}
-                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 font-mono text-sm resize-y"
-                    />
-                  </div>
-
-                  <div className="flex justify-end">
-                    <button
-                      onClick={handleSaveConfig}
-                      disabled={configSaving || !configContent.trim()}
-                      className="px-6 py-2 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {configSaving ? '保存中...' : '保存配置'}
-                    </button>
-                  </div>
-                </>
-              )}
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </>
