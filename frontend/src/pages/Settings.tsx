@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import ConfigEditor from '../components/ConfigEditor';
 import {
   get,
   put,
@@ -11,11 +12,13 @@ import {
   getActiveProject,
   resetActiveProject,
   cleanPlaceholderLayouts,
+  listConfigs,
+  getConfigFile,
+  saveConfigFile,
 } from '../utils/api';
-import type { AvailableTheme } from '../utils/api';
+import type { AvailableTheme, ConfigFileInfo } from '../utils/api';
 import type { Settings as SettingsType, Theme } from '../types';
-
-type TabKey = 'general' | 'project' | 'themes';
+type TabKey = 'general' | 'project' | 'themes' | 'config';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('general');
@@ -60,11 +63,33 @@ export default function SettingsPage() {
   const [installMode, setInstallMode] = useState<'submodule' | 'copy'>('submodule');
   const [installLoading, setInstallLoading] = useState(false);
 
+  // Config editor state
+  const [configFiles, setConfigFiles] = useState<ConfigFileInfo[]>([]);
+  const [activeConfigFile, setActiveConfigFile] = useState<ConfigFileInfo | null>(null);
+  const [configContent, setConfigContent] = useState('');
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
+  const [configFontSize, setConfigFontSize] = useState<number>(() => {
+    const saved = localStorage.getItem('configFontSize');
+    return saved ? parseInt(saved, 10) : 13;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('configFontSize', String(configFontSize));
+  }, [configFontSize]);
+
   useEffect(() => {
     fetchSettings();
     fetchThemes();
     fetchActiveProject();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'config' && !configContent && !configLoading) {
+      fetchConfig();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   async function fetchActiveProject() {
     try {
@@ -113,6 +138,56 @@ export default function SettingsPage() {
       showNotification(res.message || '已清理占位 layouts', 'success');
     } catch (error) {
       showNotification((error as Error).message, 'error');
+    }
+  }
+
+  async function fetchConfig() {
+    setConfigLoading(true);
+    try {
+      const data = await listConfigs();
+      if (data.success && data.files && data.files.length > 0) {
+        setConfigFiles(data.files);
+        if (!activeConfigFile) {
+          await loadConfigFile(data.files[0]);
+        }
+      }
+    } catch (error) {
+      if ((error as Error).message !== '未找到 Hugo 配置文件') {
+        showNotification((error as Error).message, 'error');
+      }
+    } finally {
+      setConfigLoading(false);
+    }
+  }
+
+  async function loadConfigFile(file: ConfigFileInfo) {
+    setActiveConfigFile(file);
+    setConfigLoading(true);
+    try {
+      const data = await getConfigFile(file.name);
+      if (data.success && data.content !== undefined) {
+        setConfigContent(data.content);
+      }
+    } catch (error) {
+      showNotification((error as Error).message, 'error');
+    } finally {
+      setConfigLoading(false);
+    }
+  }
+
+  async function handleSaveConfig() {
+    if (!activeConfigFile) return;
+    setConfigSaving(true);
+    try {
+      const data = await saveConfigFile(activeConfigFile.name, configContent);
+      if (!data.success) {
+        throw new Error(data.message || '保存失败');
+      }
+      showNotification(data.message || '配置已保存', 'success');
+    } catch (error) {
+      showNotification((error as Error).message, 'error');
+    } finally {
+      setConfigSaving(false);
     }
   }
 
@@ -339,6 +414,7 @@ export default function SettingsPage() {
     { key: 'general', label: '常规设置' },
     { key: 'themes', label: '主题管理' },
     { key: 'project', label: '初始化项目' },
+    { key: 'config', label: '站点配置' },
   ];
 
   return (
@@ -765,6 +841,103 @@ export default function SettingsPage() {
                   </form>
                 </>
               )}
+            </div>
+          )}
+
+          {activeTab === 'config' && (
+            <div className="bg-white rounded-md ring-1 ring-stone-900/5 overflow-hidden">
+              <div className="flex" style={{ minHeight: 480 }}>
+                {/* 左侧文件树 */}
+                <div className="w-48 border-r border-stone-200 bg-stone-50 p-3 flex flex-col">
+                  <p className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">
+                    配置文件
+                  </p>
+                  {configLoading && configFiles.length === 0 ? (
+                    <p className="text-xs text-stone-400">加载中...</p>
+                  ) : configFiles.length === 0 ? (
+                    <p className="text-xs text-stone-400">未找到配置文件</p>
+                  ) : (
+                    <ul className="space-y-0.5">
+                      {configFiles.map((f) => (
+                        <li key={f.name}>
+                          <button
+                            onClick={() => loadConfigFile(f)}
+                            className={`w-full text-left px-2 py-1.5 rounded text-sm font-mono transition-colors ${
+                              activeConfigFile?.name === f.name
+                                ? 'bg-stone-200 text-stone-900'
+                                : 'text-stone-600 hover:bg-stone-100 hover:text-stone-800'
+                            }`}
+                          >
+                            {f.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {/* 右侧编辑器 */}
+                <div className="flex-1 flex flex-col min-w-0">
+                  {activeConfigFile ? (
+                    <>
+                      {/* 顶栏 */}
+                      <div className="flex items-center justify-between px-4 py-2 border-b border-stone-200 bg-stone-50">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm font-medium text-stone-700 truncate">
+                            {activeConfigFile.name}
+                          </span>
+                          <span className="text-xs text-stone-400 uppercase shrink-0">
+                            {activeConfigFile.format}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <label className="flex items-center gap-1.5 text-xs text-stone-500">
+                            <span>字号</span>
+                            <select
+                              value={configFontSize}
+                              onChange={(e) => setConfigFontSize(Number(e.target.value))}
+                              className="px-2 py-1 border border-stone-300 rounded text-xs bg-white hover:border-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                            >
+                              <option value={11}>11</option>
+                              <option value={12}>12</option>
+                              <option value={13}>13</option>
+                              <option value={14}>14</option>
+                              <option value={16}>16</option>
+                              <option value={18}>18</option>
+                              <option value={20}>20</option>
+                            </select>
+                          </label>
+                          <button
+                            onClick={handleSaveConfig}
+                            disabled={configSaving || !configContent.trim()}
+                            className="px-4 py-1.5 text-sm bg-stone-800 text-white rounded-md hover:bg-stone-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {configSaving ? '保存中...' : '保存'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 编辑区：textarea + 高亮 overlay */}
+                      <div className="relative flex-1 overflow-auto">
+                        {configLoading ? (
+                          <div className="p-4 text-stone-400 text-sm">加载中...</div>
+                        ) : (
+                          <ConfigEditor
+                            value={configContent}
+                            onChange={setConfigContent}
+                            format={activeConfigFile.format}
+                            fontSize={configFontSize}
+                          />
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-stone-400 text-sm">
+                      选择左侧文件开始编辑
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </>
