@@ -347,3 +347,47 @@ export async function activateTheme(name: string): Promise<ThemeActivateResponse
 export async function previewTheme(name: string): Promise<ThemePreviewResponse> {
   return post<ThemePreviewResponse>('/api/themes/preview', { name });
 }
+
+// ──────────────── Hugo 站点配置 ────────────────
+
+export interface ConfigFileInfo {
+  name: string;
+  path: string;
+  format: string;
+}
+
+export interface ConfigListResponse {
+  success: boolean;
+  mode?: string;
+  files?: ConfigFileInfo[];
+  message?: string;
+}
+
+export interface ConfigFileResponse {
+  success: boolean;
+  filename?: string;
+  format?: string;
+  content?: string;
+  path?: string;
+  message?: string;
+}
+
+/** 列出所有可编辑的配置文件。 */
+export async function listConfigs(): Promise<ConfigListResponse> {
+  return get<ConfigListResponse>('/api/config');
+}
+
+/** 读取指定配置文件内容。 */
+export async function getConfigFile(filename: string): Promise<ConfigFileResponse> {
+  return get<ConfigFileResponse>(`/api/config/${encodeURIComponent(filename)}`);
+}
+
+/** 保存指定配置文件。 */
+export async function saveConfigFile(
+  filename: string,
+  content: string,
+): Promise<ConfigFileResponse> {
+  return put<ConfigFileResponse>(`/api/config/${encodeURIComponent(filename)}`, {
+    content,
+  });
+}

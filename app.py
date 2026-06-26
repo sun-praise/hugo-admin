@@ -17,6 +17,7 @@ from routes import (
     install_auth_guard,
     register_ai_routes,
     register_auth_routes,
+    register_config_routes,
     register_email_routes,
     register_file_routes,
     register_image_routes,
@@ -247,6 +248,7 @@ app.register_blueprint(register_plugin_routes(plugin_manager))
 app.register_blueprint(register_auth_routes(registry))
 app.register_blueprint(register_project_init_routes(app, registry))
 app.register_blueprint(register_theme_routes(registry))
+app.register_blueprint(register_config_routes(app))
 
 # 全局会话守卫：在所有 Blueprint 注册后挂载，未登录访问 /api/* 一律 401
 # （白名单 /api/auth/login、/api/auth/me、/api/version 除外）。
