@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Bug, Square, ExternalLink, Trash2 } from 'lucide-react';
 import { get, post } from '../utils/api';
 import { useSocket } from '../hooks/useSocket';
@@ -18,12 +18,33 @@ export default function ServerPage() {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const socketRef = useSocket();
 
+  const fetchStatus = useCallback(async () => {
+    try {
+      const data = await get<ServerStatus>('/api/server/status');
+      setStatus(data);
+    } catch (error) {
+      console.error('Failed to fetch status:', error);
+    }
+  }, []);
+
+  const fetchHugoUrl = useCallback(async () => {
+    try {
+      const data = await get<{ success: boolean; settings?: { hugo?: { server_url?: string } } }>('/api/settings');
+      const url = data.settings?.hugo?.server_url;
+      if (url) setHugoUrl(url);
+    } catch (error) {
+      console.error('Failed to fetch hugo url:', error);
+    }
+  }, []);
+
   useEffect(() => {
-    fetchStatus();
-    fetchHugoUrl();
+    (async () => {
+      await fetchStatus();
+      await fetchHugoUrl();
+    })();
     const interval = setInterval(fetchStatus, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchStatus, fetchHugoUrl]);
 
   useEffect(() => {
     const socket = socketRef.current;
@@ -46,25 +67,6 @@ export default function ServerPage() {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
     }
   }, [logs]);
-
-  async function fetchStatus() {
-    try {
-      const data = await get<ServerStatus>('/api/server/status');
-      setStatus(data);
-    } catch (error) {
-      console.error('Failed to fetch status:', error);
-    }
-  }
-
-  async function fetchHugoUrl() {
-    try {
-      const data = await get<{ success: boolean; settings?: { hugo?: { server_url?: string } } }>('/api/settings');
-      const url = data.settings?.hugo?.server_url;
-      if (url) setHugoUrl(url);
-    } catch (error) {
-      console.error('Failed to fetch hugo url:', error);
-    }
-  }
 
   async function startServer(debug = false) {
     setLoading(true);
