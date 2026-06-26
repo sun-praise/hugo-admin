@@ -231,10 +231,20 @@ export interface InitProjectRequest {
   config_format: 'toml' | 'yaml';
 }
 
+export interface DefaultThemeResult {
+  name: string;
+  repo: string;
+  installed: boolean;
+  activated: boolean;
+  skipped_reason: string | null;
+  error: string | null;
+}
+
 export interface InitProjectResponse {
   success: boolean;
   path?: string;
   config_format?: 'toml' | 'yaml';
+  default_theme?: DefaultThemeResult;
   message?: string;
 }
 
@@ -249,6 +259,18 @@ export interface ThemeListResponse {
   success: boolean;
   themes: Theme[];
   active_theme: string | null;
+  message?: string;
+}
+
+export interface AvailableTheme {
+  name: string;
+  repo: string;
+  description: string;
+}
+
+export interface AvailableThemesResponse {
+  success: boolean;
+  available_themes: AvailableTheme[];
   message?: string;
 }
 
@@ -280,6 +302,11 @@ export interface ThemePreviewResponse {
 /** 获取已安装主题列表。 */
 export async function getThemes(): Promise<ThemeListResponse> {
   return get<ThemeListResponse>('/api/themes');
+}
+
+/** 获取 hugo-admin 维护的默认主题（可一键安装的推荐主题）。 */
+export async function getAvailableThemes(): Promise<AvailableThemesResponse> {
+  return get<AvailableThemesResponse>('/api/themes/available');
 }
 
 /** 安装主题。 */

@@ -47,6 +47,16 @@ def register_theme_routes(registry):
             }
         )
 
+    @theme_bp.route("/available", methods=["GET"])
+    def list_available_themes():
+        """列出 hugo-admin 维护的默认主题（无需登录即可读，可由主题页直接展示）。"""
+        return jsonify(
+            {
+                "success": True,
+                "available_themes": ThemeService.list_default_themes(),
+            }
+        )
+
     @theme_bp.route("/install", methods=["POST"])
     def install_theme():
         """安装主题。"""

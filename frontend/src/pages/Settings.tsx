@@ -1,6 +1,16 @@
 import { useState, useEffect } from 'react';
-import { get, put, initProject, getThemes, installTheme, activateTheme, previewTheme } from '../utils/api';
-import type { Settings as SettingsType } from '../types';
+import {
+  get,
+  put,
+  initProject,
+  getThemes,
+  getAvailableThemes,
+  installTheme,
+  activateTheme,
+  previewTheme,
+} from '../utils/api';
+import type { AvailableTheme } from '../utils/api';
+import type { Settings as SettingsType, Theme } from '../types';
 
 type TabKey = 'general' | 'project' | 'themes';
 
@@ -24,13 +34,23 @@ export default function SettingsPage() {
   const [initPath, setInitPath] = useState('');
   const [initFormat, setInitFormat] = useState<'toml' | 'yaml'>('toml');
   const [initLoading, setInitLoading] = useState(false);
-  const [initResult, setInitResult] = useState<{ path: string; config_format: string } | null>(null);
+  const [initResult, setInitResult] = useState<{
+    path: string;
+    config_format: string;
+    default_theme?: {
+      name: string;
+      installed: boolean;
+      activated: boolean;
+      error: string | null;
+    };
+  } | null>(null);
 
   // Themes state
-  const [themes, setThemes] = useState<{ name: string; is_submodule: boolean }[]>([]);
+  const [themes, setThemes] = useState<Theme[]>([]);
   const [activeTheme, setActiveTheme] = useState<string | null>(null);
   const [previewThemeName, setPreviewThemeName] = useState<string | null>(null);
   const [themesLoading, setThemesLoading] = useState(false);
+  const [availableThemes, setAvailableThemes] = useState<AvailableTheme[]>([]);
   const [installUrl, setInstallUrl] = useState('');
   const [installName, setInstallName] = useState('');
   const [installMode, setInstallMode] = useState<'submodule' | 'copy'>('submodule');
@@ -83,16 +103,42 @@ export default function SettingsPage() {
   async function fetchThemes() {
     setThemesLoading(true);
     try {
-      const data = await getThemes();
-      if (!data.success) {
-        throw new Error(data.message || '加载主题失败');
+      const [installed, available] = await Promise.all([getThemes(), getAvailableThemes()]);
+      if (!installed.success) {
+        throw new Error(installed.message || '加载主题失败');
       }
-      setThemes(data.themes || []);
-      setActiveTheme(data.active_theme || null);
+      setThemes(installed.themes || []);
+      setActiveTheme(installed.active_theme || null);
+      if (available.success) {
+        setAvailableThemes(available.available_themes || []);
+      }
     } catch (error) {
       setErrorMessage((error as Error).message);
     } finally {
       setThemesLoading(false);
+    }
+  }
+
+  async function handleInstallDefaultTheme(theme: AvailableTheme) {
+    if (installLoading) return;
+    setInstallLoading(true);
+    setErrorMessage('');
+    try {
+      const result = await installTheme({
+        repo_url: theme.repo,
+        name: theme.name,
+        mode: 'copy',
+      });
+      if (!result.success) {
+        throw new Error(result.message || '安装失败');
+      }
+      showNotification(`已安装默认主题: ${theme.name}`, 'success');
+      await fetchThemes();
+    } catch (error) {
+      setErrorMessage((error as Error).message);
+      showNotification((error as Error).message, 'error');
+    } finally {
+      setInstallLoading(false);
     }
   }
 
@@ -108,7 +154,11 @@ export default function SettingsPage() {
         throw new Error(data.message || '初始化失败');
       }
       showNotification(`站点已创建: ${data.path}`, 'success');
-      setInitResult({ path: data.path || '', config_format: data.config_format || '' });
+      setInitResult({
+        path: data.path || '',
+        config_format: data.config_format || '',
+        default_theme: data.default_theme,
+      });
       setInitPath('');
       setPreviewThemeName(null);
       await fetchSettings();
@@ -439,9 +489,21 @@ export default function SettingsPage() {
                 {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
 
                 {initResult && (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800 space-y-1">
                     <p>站点已创建：<code className="font-mono">{initResult.path}</code></p>
                     <p>配置文件格式：{initResult.config_format}</p>
+                    {initResult.default_theme && (
+                      <p>
+                        默认主题 <span className="font-mono">{initResult.default_theme.name}</span>：
+                        {initResult.default_theme.activated
+                          ? '已安装并激活'
+                          : initResult.default_theme.installed
+                          ? '已安装但未激活'
+                          : initResult.default_theme.error
+                          ? `处理失败（${initResult.default_theme.error}），可稍后在主题页手动安装`
+                          : '未安装（无网络/离线环境），可稍后在主题页手动安装'}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -461,6 +523,66 @@ export default function SettingsPage() {
           {activeTab === 'themes' && (
             <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
               <h3 className="text-lg font-medium mb-4">主题管理</h3>
+
+              {availableThemes.length > 0 && (
+                <section className="mb-6">
+                  <h4 className="text-sm font-medium text-stone-700 mb-2">默认主题</h4>
+                  <p className="text-xs text-stone-500 mb-3">
+                    hugo-admin 维护的推荐主题，点击一键安装到 <code>themes/</code>。
+                  </p>
+                  <ul className="divide-y divide-stone-200 border border-stone-200 rounded-lg">
+                    {availableThemes.map((t) => {
+                      const installed = themes.some((x) => x.name === t.name);
+                      const isActive = activeTheme === t.name;
+                      return (
+                        <li key={t.name} className="p-3 flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium text-stone-800">{t.name}</span>
+                              {installed && (
+                                <span className="text-xs px-2 py-0.5 bg-green-50 text-green-700 rounded">
+                                  已安装
+                                </span>
+                              )}
+                              {isActive && (
+                                <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded">
+                                  已启用
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-stone-500 mt-1 break-all">
+                              {t.description}
+                            </p>
+                            <p className="text-xs text-stone-400 mt-0.5 font-mono break-all">
+                              {t.repo}
+                            </p>
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            {installed ? (
+                              <button
+                                onClick={() => handleActivateTheme(t.name)}
+                                disabled={isActive || installLoading}
+                                className="px-3 py-1.5 text-sm bg-stone-100 text-stone-700 rounded hover:bg-stone-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isActive ? '已启用' : '启用'}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleInstallDefaultTheme(t)}
+                                disabled={installLoading}
+                                className="px-3 py-1.5 text-sm bg-stone-800 text-white rounded hover:bg-stone-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {installLoading ? '安装中...' : '一键安装'}
+                              </button>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              )}
+
               {themesLoading ? (
                 <p className="text-stone-500 text-sm">加载主题中...</p>
               ) : (

@@ -80,6 +80,7 @@ def register_project_init_routes(app, registry):
                 "message": "Hugo 站点已创建并设为活跃项目",
                 "path": result["path"],
                 "config_format": result["config_format"],
+                "default_theme": result.get("default_theme"),
             }
         )
 

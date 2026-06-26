@@ -37,6 +37,21 @@ class ThemeService:
         """主题目录路径"""
         return self.hugo_root / "themes"
 
+    @staticmethod
+    def list_default_themes() -> list[dict]:
+        """
+        列出 hugo-admin 维护的默认主题（供主题管理页展示和安装）。
+
+        返回的每个条目是只读元数据，UI 应当允许用户一键安装到 themes/ 下。
+        """
+        return [
+            {
+                "name": "Fried-Rice",
+                "repo": "https://github.com/svtter/Fried-Rice.git",
+                "description": "Svtter 的默认 Hugo 主题。",
+            }
+        ]
+
     def list_themes(self) -> list[dict]:
         """
         列出已安装的主题。
