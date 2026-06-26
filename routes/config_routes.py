@@ -9,11 +9,17 @@ Hugo 站点配置文件读写路由
 
 import json
 import logging
+import sys
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 
 logger = logging.getLogger(__name__)
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # Python 3.10
+    import tomli as tomllib
 
 # Hugo 根目录配置文件候选（优先级从高到低）
 _ROOT_CANDIDATES = (
@@ -104,8 +110,6 @@ def _validate_content(content: str, fmt: str) -> str | None:
     """校验配置文本的语法，返回错误信息或 None（合法）。"""
     if fmt == "toml":
         try:
-            import tomllib
-
             tomllib.loads(content)
         except Exception as exc:
             return f"TOML 语法错误: {exc}"
