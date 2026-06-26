@@ -10,6 +10,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 from werkzeug.exceptions import BadRequest
 
+from services.active_project import ActiveProjectRegistry
 from services.project_init_service import ProjectInitError, ProjectInitService
 
 project_init_bp = Blueprint("project_init", __name__, url_prefix="/api/project")
@@ -83,5 +84,23 @@ def register_project_init_routes(app, registry):
                 "default_theme": result.get("default_theme"),
             }
         )
+
+    @project_init_bp.route("/active", methods=["GET"])
+    def get_active_project():
+        """返回当前活跃项目路径（用于 UI 展示）。"""
+        return jsonify(
+            {
+                "success": True,
+                "path": str(app.config.get("HUGO_ROOT", "")),
+            }
+        )
+
+    @project_init_bp.route("/active/reset", methods=["POST"])
+    def reset_active_project():
+        """清除持久化的活跃项目，使下一次启动回退到 env/default HUGO_ROOT。"""
+        ActiveProjectRegistry(
+            Path(app.root_path) / "data" / "active_project.txt"
+        ).clear()
+        return jsonify({"success": True, "message": "已清除持久化记录"})
 
     return project_init_bp

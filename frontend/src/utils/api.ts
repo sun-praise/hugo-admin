@@ -253,6 +253,22 @@ export async function initProject(payload: InitProjectRequest): Promise<InitProj
   return post<InitProjectResponse>('/api/project/init', payload);
 }
 
+export interface ActiveProjectResponse {
+  success: boolean;
+  path: string;
+  message?: string;
+}
+
+/** 获取当前活跃项目路径。 */
+export async function getActiveProject(): Promise<ActiveProjectResponse> {
+  return get<ActiveProjectResponse>('/api/project/active');
+}
+
+/** 清除持久化的活跃项目（回退到 env / 默认 HUGO_ROOT）。 */
+export async function resetActiveProject(): Promise<{ success: boolean; message?: string }> {
+  return post('/api/project/active/reset', {});
+}
+
 // ============ 主题管理 ============
 
 export interface ThemeListResponse {
