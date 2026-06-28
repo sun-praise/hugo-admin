@@ -5,13 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
 ## [2.5.0] - 2026-06-28
 
 ### Fixed
 - Python 3.10 下 `PUT /api/config` 返回 400：`tomllib` 在 3.11 才进标准库，回退到 `tomli`/`tomllib` 可选导入以兼容 3.10。
 - 对齐版本号：此前 `__version__.py` 停留在 2.3.0，本次追平到 2.5.0，`/api/version` 不再误报。
-
-## [Unreleased]
 
 ## [2.4.0] - 2026-06-26
 
