@@ -12,7 +12,26 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # tag push 时校验 __version__.py 与 tag 一致，防止版本号漏改
+  verify-version:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check __version__.py matches tag
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          file_ver=$(grep -oE '__version__ = "[0-9.]+"' __version__.py | grep -oE '[0-9.]+')
+          echo "tag version: $tag"
+          echo "__version__.py: $file_ver"
+          if [ "$tag" != "$file_ver" ]; then
+            echo "::error::__version__.py ($file_ver) 与 tag ($tag) 不一致，请同步版本号"
+            exit 1
+          fi
+
   build-and-push:
+    needs: verify-version
+    if: always() && (needs.verify-version.result == 'skipped' || needs.verify-version.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: read
