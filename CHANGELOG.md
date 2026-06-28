@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.3] - 2026-06-28
+
+### Fixed
+- 版本号追平：v2.5.2 tag 发版时 `__version__.py` 仍是 2.5.1（PR #126 才补改到 2.5.2），本次追平到 2.5.3，`/api/version` 不再误报。
+
+
 ## [2.5.2] - 2026-06-28
 
 ### Fixed
