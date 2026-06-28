@@ -110,8 +110,8 @@ class TestSPARoutes:
     # -- Static dist 404 returns JSON, not SPA --
 
     def test_static_dist_404_returns_json(self, client):
-        """Missing static/dist files should return JSON, not SPA."""
-        resp = client.get("/static/dist/missing.js")
+        """Missing /admin-ui/* files should return JSON, not SPA."""
+        resp = client.get("/admin-ui/missing.js")
         assert resp.status_code == 404
         data = json.loads(resp.data)
         assert data["success"] is False

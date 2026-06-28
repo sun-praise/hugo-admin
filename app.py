@@ -55,7 +55,7 @@ app = Flask(__name__)
 
 
 # React SPA 的 index.html 路径
-REACT_INDEX = Path(__file__).parent / "static" / "dist" / "index.html"
+REACT_INDEX = Path(__file__).parent / "admin-ui" / "index.html"
 
 # 配置日志 - 写入 app.log，带轮转
 logger = logging.getLogger(__name__)
@@ -266,7 +266,7 @@ def not_found(e):
     """404 错误处理 - SPA fallback"""
     if request.path.startswith("/api/"):
         return jsonify({"success": False, "message": "接口不存在"}), 404
-    if request.path.startswith("/static/dist/"):
+    if request.path.startswith("/admin-ui/"):
         return jsonify({"success": False, "message": "静态文件不存在"}), 404
     return send_file(current_app.config["REACT_INDEX"])
 
