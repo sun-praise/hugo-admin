@@ -7,8 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.4] - 2026-06-28
+
 ### Fixed
-- 管理界面白屏：PR #125 把前端产物从 `static/dist/` 搬到 `admin-ui/`（解决 Docker 下与博客 `static` 挂载冲突）后，漏了给 Flask 注册 `/admin-ui/` 静态路由，`index.html` 引用的 `/admin-ui/assets/*` 全部 404、React 不渲染。改为 `Flask(__name__, static_folder="admin-ui", static_url_path="/admin-ui")`，由原生 static 路由统一 serve；缺失文件仍 404 经 `not_found()` 返回 JSON。
+- 管理界面白屏（`run.sh` 启动后访问 :5050 空白）：PR #125 把前端产物从 `static/dist/` 搬到 `admin-ui/`（解决 Docker 下与博客 `static` 挂载冲突）后，漏了给 Flask 注册 `/admin-ui/` 静态路由，`index.html` 引用的 `/admin-ui/assets/*` 全部 404、React 不渲染。改为 `Flask(__name__, static_folder="admin-ui", static_url_path="/admin-ui")`，由原生 static 路由统一 serve；缺失文件仍 404 经 `not_found()` 返回 JSON。见 #129。
 
 ## [2.5.3] - 2026-06-28
 
