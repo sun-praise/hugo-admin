@@ -88,3 +88,5 @@ static/dist/
 
 # Plugin marketplace (separate repo)
 HA-marketplace/
+
+admin-ui/
