@@ -142,6 +142,29 @@ body {
   background-color: #f5f5f4;
 }
 .markdown-body img { max-width: 100%; height: auto; }
+.markdown-body .mermaid {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 16px 0;
+  padding: 12px;
+  background-color: #fafaf9;
+  border: 1px solid #e7e5e4;
+  border-radius: 6px;
+  overflow: auto;
+  text-align: center;
+}
+.markdown-body .mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+.markdown-body .mermaid:not([data-processed]) {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+  font-size: 0.85em;
+  color: #78716c;
+  white-space: pre-wrap;
+  text-align: left;
+  display: block;
+}
 
 /* ===== AI Chat Markdown ===== */
 .ai-prose {
