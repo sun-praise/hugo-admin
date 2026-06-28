@@ -116,6 +116,23 @@ class TestSPARoutes:
         data = json.loads(resp.data)
         assert data["success"] is False
 
+    def test_admin_ui_static_file_served(self, client, monkeypatch):
+        """Existing /admin-ui/* assets are served with the right MIME.
+
+        Regression for PR #125: the frontend moved to ./admin-ui but no
+        route served /admin-ui/*, so every JS/CSS asset 404 and the SPA
+        rendered blank. Flask static_folder now points at admin-ui.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            asset = Path(tmp) / "assets" / "app.js"
+            asset.parent.mkdir(parents=True)
+            asset.write_text("console.log(0);", encoding="utf-8")
+            monkeypatch.setattr(app_module.app, "static_folder", tmp)
+            resp = client.get("/admin-ui/assets/app.js")
+            assert resp.status_code == 200
+            assert resp.mimetype == "text/javascript"
+            assert b"console.log" in resp.data
+
     # -- Version API --
 
     def test_version_api(self, client):
