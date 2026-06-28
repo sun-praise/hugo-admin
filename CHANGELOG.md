@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-06-28
+
+### Fixed
+- Dockerfile 漏掉前端构建：镜像内 `static/dist/` 是仓库历史残留的旧前端，导致 RequireAuth 路由守卫未生效，未登录也能看到管理界面空壳（后端 API 鉴权始终正常，未登录无法读写任何数据）。改为 multi-stage：Stage 1 `node:22-slim` 跑 `pnpm build`，Stage 2 把产物覆盖到 `/app/static/dist`。
+- HEALTHCHECK 端点从 `/api/server/status`（需登录，未认证 401 导致容器永远 starting）改为 `/api/version`（免认证）。
+
 ## [2.5.0] - 2026-06-28
 
 ### Fixed
