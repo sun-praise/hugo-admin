@@ -158,7 +158,7 @@ body {
   height: auto;
 }
 .markdown-body .mermaid:not([data-processed]) {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+  font-family: Monaco, Menlo, 'Ubuntu Mono', Consolas, monospace;
   font-size: 0.85em;
   color: #78716c;
   white-space: pre-wrap;

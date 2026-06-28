@@ -41,6 +41,11 @@ export function renderMarkdown(content: string, options: RenderMarkdownOptions =
   // Extract ```mermaid fenced code blocks before parsing so highlight.js
   // doesn't treat them as plain code. They are restored as
   // <div class="mermaid"> containers for the client-side mermaid runtime.
+  //
+  // v1 limit: the fence must be exactly `mermaid` with only optional trailing
+  // spaces/tabs. Pandoc/Hugo info strings (e.g. ```mermaid {theme: forest}```
+  // or ```mermaid theme=forest```) are intentionally NOT matched and fall
+  // through to hljs; add handling here only if those variants are needed.
   const mermaidBlocks: string[] = [];
   if (enableMermaid) {
     stripped = stripped.replace(/```mermaid[ \t]*\r?\n([\s\S]*?)```/g, (_m, code: string) => {

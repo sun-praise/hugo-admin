@@ -31,16 +31,27 @@ import { InlineEditOverlay } from '../components/InlineEdit/Overlay';
 let mermaidPromise: Promise<Mermaid> | null = null;
 function loadMermaid(): Promise<Mermaid> {
   if (!mermaidPromise) {
-    mermaidPromise = import('mermaid').then((mod) => {
-      const api = mod.default;
-      api.initialize({
-        startOnLoad: false,
-        theme: 'default',
-        securityLevel: 'loose',
-        fontFamily: 'inherit',
+    mermaidPromise = import('mermaid')
+      .then((mod) => {
+        const api = mod.default;
+        api.initialize({
+          startOnLoad: false,
+          theme: 'default',
+          // strict: mermaid runs after DOMPurify on the markdown body, so we
+          // must not let diagram source inject arbitrary HTML/links. Mermaid
+          // escapes/encodes under strict mode; 'loose' would bypass sanitiser.
+          securityLevel: 'strict',
+          fontFamily: 'inherit',
+        });
+        return api;
+      })
+      .catch((error) => {
+        // Clear the cache so a transient chunk-load failure (offline, deploy
+        // in progress) can be retried on the next preview update instead of
+        // sticking the session on a rejected promise.
+        mermaidPromise = null;
+        throw error;
       });
-      return api;
-    });
   }
   return mermaidPromise;
 }
@@ -586,27 +597,30 @@ export default function Editor() {
     })();
   }, [content, currentFile, updatePreview]);
 
-  // Render ```mermaid blocks inside the preview pane. Runs after preview HTML
-  // is committed and whenever it changes. React resets each .mermaid node's
-  // innerHTML from the fresh `preview` string, so we only need to clear
-  // mermaid's data-processed flag to allow re-rendering on content edits.
+  // Render ```mermaid blocks inside the preview pane. Debounced because the
+  // effect fires on every keystroke (the whole `preview` HTML string changes)
+  // and mermaid.run() is not cancellable mid-flight; without debouncing, rapid
+  // typing would queue redundant renders that land on detached DOM nodes.
   useEffect(() => {
     const root = previewRef.current;
     if (!root) return;
     const nodes = Array.from(root.querySelectorAll<HTMLDivElement>('.mermaid'));
     if (nodes.length === 0) return;
     let cancelled = false;
-    loadMermaid()
-      .then((api) => {
-        if (cancelled) return;
-        nodes.forEach((node) => node.removeAttribute('data-processed'));
-        void api.run({ nodes, suppressErrors: true });
-      })
-      .catch(() => {
-        // Mermaid failed to load (e.g. offline); leave the raw diagram text.
-      });
+    const timer = window.setTimeout(() => {
+      loadMermaid()
+        .then((api) => {
+          if (cancelled) return;
+          nodes.forEach((node) => node.removeAttribute('data-processed'));
+          void api.run({ nodes, suppressErrors: true });
+        })
+        .catch(() => {
+          // Mermaid failed to load (e.g. offline); leave the raw diagram text.
+        });
+    }, 200);
     return () => {
       cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [preview]);
 

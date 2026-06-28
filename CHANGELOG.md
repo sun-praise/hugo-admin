@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- 编辑器预览支持渲染 mermaid 图表：`renderMarkdown` 新增 opt-in `{ mermaid }` 选项，开启时在 marked 解析前抽出 ` ```mermaid ` 围栏块还原为 `.mermaid` 容器；Editor 预览懒加载 mermaid（dynamic import，按需加载，失败可重试）并 `api.run()` 渲染，输入变更 200ms debounce 后重渲。`securityLevel: strict`，不绕过 DOMPurify。AIChat 等未开启的调用方行为不变。
+
 ## [2.5.1] - 2026-06-28
 
 ### Fixed
