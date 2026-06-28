@@ -51,7 +51,11 @@ from services.settings_service import (
 
 # 初始化 Flask 应用
 load_dotenv()
-app = Flask(__name__)
+# 前端构建产物落在 ./admin-ui（见 frontend/vite.config.ts 的 outDir），
+# 对外 URL 前缀 /admin-ui/。用 Flask 原生 static 路由统一 serve：
+#   /admin-ui/assets/*、/admin-ui/favicon.svg … 命中真实文件 → 200 + 正确 MIME，
+#   缺失文件抛 404 → 走下方 not_found() 返回 JSON（不回退成 SPA）。
+app = Flask(__name__, static_folder="admin-ui", static_url_path="/admin-ui")
 
 
 # React SPA 的 index.html 路径
