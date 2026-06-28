@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.2] - 2026-06-28
+
+### Fixed
+- 版本号追平：`__version__.py` 此前停在 2.5.1（v2.5.2 tag 发版时漏改），追平到 2.5.2，`/api/version` 不再误报。
+- admin 前端从 `/app/static/dist` 搬到 `/app/admin-ui`，根治与博客 `static` 挂载的 bind mount 冲突（见 #125）。
+
+
 ### Added
 - 编辑器预览支持渲染 mermaid 图表：`renderMarkdown` 新增 opt-in `{ mermaid }` 选项，开启时在 marked 解析前抽出 ` ```mermaid ` 围栏块还原为 `.mermaid` 容器；Editor 预览懒加载 mermaid（dynamic import，按需加载，失败可重试）并 `api.run()` 渲染，输入变更 200ms debounce 后重渲。`securityLevel: strict`，不绕过 DOMPurify。AIChat 等未开启的调用方行为不变。
 
