@@ -40,7 +40,8 @@ RUN curl -L "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}
 # 复制应用代码
 COPY . .
 
-# 用 Stage 1 构建的前端产物覆盖仓库里的陈旧 static/dist
+# 清空仓库残留的 static/dist，避免 vite 改名后的旧 hash 产物滞留镜像
+RUN rm -rf /app/static/dist
 COPY --from=frontend-build /static/dist /app/static/dist
 
 # 安装 Python 依赖（兼容移除 requirements.txt 后的依赖管理方式）
