@@ -21,9 +21,40 @@ import {
 } from 'lucide-react';
 import { get, post } from '../utils/api';
 import { renderMarkdown } from '../utils/markdown';
+import type { Mermaid } from 'mermaid';
 import type { FileData, ImageItem, Backlink, Frontmatter } from '../types';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { InlineEditOverlay } from '../components/InlineEdit/Overlay';
+
+// Mermaid is heavy (~800KB); load it lazily and only when the preview
+// actually contains a ```mermaid block. Initialised once per session.
+let mermaidPromise: Promise<Mermaid> | null = null;
+function loadMermaid(): Promise<Mermaid> {
+  if (!mermaidPromise) {
+    mermaidPromise = import('mermaid')
+      .then((mod) => {
+        const api = mod.default;
+        api.initialize({
+          startOnLoad: false,
+          theme: 'default',
+          // strict: mermaid runs after DOMPurify on the markdown body, so we
+          // must not let diagram source inject arbitrary HTML/links. Mermaid
+          // escapes/encodes under strict mode; 'loose' would bypass sanitiser.
+          securityLevel: 'strict',
+          fontFamily: 'inherit',
+        });
+        return api;
+      })
+      .catch((error) => {
+        // Clear the cache so a transient chunk-load failure (offline, deploy
+        // in progress) can be retried on the next preview update instead of
+        // sticking the session on a rejected promise.
+        mermaidPromise = null;
+        throw error;
+      });
+  }
+  return mermaidPromise;
+}
 
 export default function Editor() {
   const { filePath, '*': restPath } = useParams();
@@ -58,6 +89,7 @@ export default function Editor() {
   const [refSearchQuery, setRefSearchQuery] = useState('');
   const [refSearchResults, setRefSearchResults] = useState<Array<{ path: string; title: string }>>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
   const saveFileRef = useRef<() => Promise<void>>(async () => {});
   const insertMarkdownRef = useRef<(type: string) => void>(() => {});
   const [generatingCover, setGeneratingCover] = useState(false);
@@ -74,7 +106,7 @@ export default function Editor() {
   const currentFile = fullPath;
 
   const updatePreview = useCallback(() => {
-    let html = renderMarkdown(content || '');
+    let html = renderMarkdown(content || '', { mermaid: true });
     if (currentFile) {
       const articleDir = currentFile.replace(/[^/]+$/, '');
       html = html.replace(/<img\s+src="([^"]+)"/g, (_, src) => {
@@ -565,6 +597,33 @@ export default function Editor() {
     })();
   }, [content, currentFile, updatePreview]);
 
+  // Render ```mermaid blocks inside the preview pane. Debounced because the
+  // effect fires on every keystroke (the whole `preview` HTML string changes)
+  // and mermaid.run() is not cancellable mid-flight; without debouncing, rapid
+  // typing would queue redundant renders that land on detached DOM nodes.
+  useEffect(() => {
+    const root = previewRef.current;
+    if (!root) return;
+    const nodes = Array.from(root.querySelectorAll<HTMLDivElement>('.mermaid'));
+    if (nodes.length === 0) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      loadMermaid()
+        .then((api) => {
+          if (cancelled) return;
+          nodes.forEach((node) => node.removeAttribute('data-processed'));
+          void api.run({ nodes, suppressErrors: true });
+        })
+        .catch(() => {
+          // Mermaid failed to load (e.g. offline); leave the raw diagram text.
+        });
+    }, 200);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [preview]);
+
   if (!currentFile) {
     return (
       <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-12 text-center">
@@ -724,7 +783,7 @@ export default function Editor() {
           <div className="flex flex-col">
             <div className="text-sm font-medium text-stone-700 mb-2">预览</div>
             <div className="flex-1 overflow-y-auto p-4 border border-stone-200 rounded-lg bg-white">
-              <div className="markdown-body" dangerouslySetInnerHTML={{ __html: preview }} />
+              <div ref={previewRef} className="markdown-body" dangerouslySetInnerHTML={{ __html: preview }} />
             </div>
           </div>
         </div>
