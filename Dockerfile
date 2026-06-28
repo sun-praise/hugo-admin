@@ -7,8 +7,8 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
-# vite outDir 为 ../static/dist（相对 frontend/），构建产物落到 /static/dist
-RUN pnpm run build && ls -la /static/dist
+# vite outDir 为 ../admin-ui（相对 frontend/），构建产物落到 /admin-ui
+RUN pnpm run build && ls -la /admin-ui
 
 # ============ Stage 2: 运行时 ============
 FROM python:3.11-slim
@@ -40,8 +40,8 @@ RUN curl -L "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}
 # 复制应用代码
 COPY . .
 
-# 用 Stage 1 构建的前端产物覆盖仓库里的陈旧 static/dist
-COPY --from=frontend-build /static/dist /app/static/dist
+# 用 Stage 1 构建的前端产物覆盖到 /app/admin-ui（避开博客 static 挂载点）
+COPY --from=frontend-build /admin-ui /app/admin-ui
 
 # 安装 Python 依赖（兼容移除 requirements.txt 后的依赖管理方式）
 RUN pip install --no-cache-dir .

@@ -5,9 +5,9 @@ import tailwindcss from '@tailwindcss/vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: '/static/dist/',
+  base: '/admin-ui/',
   build: {
-    outDir: '../static/dist',
+    outDir: '../admin-ui',
     emptyOutDir: true,
   },
 })
