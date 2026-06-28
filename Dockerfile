@@ -1,5 +1,16 @@
 # Hugo Admin Dockerfile
 
+# ============ Stage 1: 前端构建 ============
+FROM node:22-slim AS frontend-build
+WORKDIR /build
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY frontend/ ./
+# vite outDir 为 ../static/dist（相对 frontend/），构建产物落到 /static/dist
+RUN pnpm run build && ls -la /static/dist
+
+# ============ Stage 2: 运行时 ============
 FROM python:3.11-slim
 
 # 设置工作目录
@@ -29,6 +40,9 @@ RUN curl -L "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}
 # 复制应用代码
 COPY . .
 
+# 用 Stage 1 构建的前端产物覆盖仓库里的陈旧 static/dist
+COPY --from=frontend-build /static/dist /app/static/dist
+
 # 安装 Python 依赖（兼容移除 requirements.txt 后的依赖管理方式）
 RUN pip install --no-cache-dir .
 
@@ -38,9 +52,9 @@ RUN mkdir -p /app/content /app/public /app/static /app/templates
 # 暴露端口
 EXPOSE 5050 1313
 
-# 健康检查
+# 健康检查：/api/version 免认证，确保 healthcheck 不会因 401 永远 starting
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5050/api/server/status || exit 1
+    CMD curl -f http://localhost:5050/api/version || exit 1
 
 # 清理 Docker 挂载可能自动创建的 config.toml 目录（Hugo 会误读为配置文件）
 CMD ["sh", "-c", "test -d /app/config.toml && rm -rf /app/config.toml; python app.py"]
