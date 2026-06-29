@@ -20,7 +20,7 @@ import {
   Wand2,
 } from 'lucide-react';
 import { get, post } from '../utils/api';
-import { renderMarkdown } from '../utils/markdown';
+import { renderMarkdown, escapeHtml } from '../utils/markdown';
 import type { Mermaid } from 'mermaid';
 import type { FileData, ImageItem, Backlink, Frontmatter } from '../types';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -601,6 +601,15 @@ export default function Editor() {
   // effect fires on every keystroke (the whole `preview` HTML string changes)
   // and mermaid.run() is not cancellable mid-flight; without debouncing, rapid
   // typing would queue redundant renders that land on detached DOM nodes.
+  //
+  // Two robustness measures, both learned the hard way:
+  //   1. Parse errors are caught via `api.parse()` and rendered as a visible
+  //      error <pre>. Relying on mermaid.run()'s built-in error graphic is
+  //      unreliable — its DOM-mutation-on-throw depends on singleton state.
+  //   2. The preview div is memoised (see previewEl below) so unrelated state
+  //      changes (images, backlinks, loading) don't make React reconcile
+  //      dangerouslySetInnerHTML and detach the node mermaid just mutated —
+  //      which would silently discard the rendered diagram or error block.
   useEffect(() => {
     const root = previewRef.current;
     if (!root) return;
@@ -609,10 +618,26 @@ export default function Editor() {
     let cancelled = false;
     const timer = window.setTimeout(() => {
       loadMermaid()
-        .then((api) => {
+        .then(async (api) => {
           if (cancelled) return;
-          nodes.forEach((node) => node.removeAttribute('data-processed'));
-          void api.run({ nodes, suppressErrors: true });
+          await Promise.all(nodes.map(async (node) => {
+            const code = node.textContent ?? '';
+            node.removeAttribute('data-processed');
+            try {
+              await api.parse(code);
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              node.innerHTML =
+                `<pre class="mermaid-error" style="margin:0;padding:8px;border:1px solid #fca5a5;background:#fef2f2;color:#991b1b;border-radius:6px;font-family:Monaco,Menlo,Consolas,monospace;font-size:0.85em;white-space:pre-wrap;word-break:break-word">Mermaid 语法错误:\n${escapeHtml(msg)}</pre>`;
+              return;
+            }
+            try {
+              await api.run({ nodes: [node] });
+            } catch {
+              // parse() passed but run() still failed (e.g. layout error);
+              // rare. Leave the raw source rather than masking.
+            }
+          }));
         })
         .catch(() => {
           // Mermaid failed to load (e.g. offline); leave the raw diagram text.
@@ -623,6 +648,17 @@ export default function Editor() {
       if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [preview]);
+  // Memoise the preview element so unrelated Editor state changes (images,
+  // backlinks, loading, frontmatter drawer, …) do NOT recreate the React
+  // element. When the element reference is stable, React bails out of
+  // reconciling this subtree and leaves the mermaid-mutated DOM intact.
+  // Without this, any sibling state change makes React re-apply
+  // dangerouslySetInnerHTML and detach the .mermaid node mermaid just drew
+  // into — the diagram (or its error block) vanishes, leaving raw source.
+  const previewEl = useMemo(
+    () => <div ref={previewRef} className="markdown-body" dangerouslySetInnerHTML={{ __html: preview }} />,
+    [preview],
+  );
 
   if (!currentFile) {
     return (
@@ -783,7 +819,7 @@ export default function Editor() {
           <div className="flex flex-col">
             <div className="text-sm font-medium text-stone-700 mb-2">预览</div>
             <div className="flex-1 overflow-y-auto p-4 border border-stone-200 rounded-lg bg-white">
-              <div ref={previewRef} className="markdown-body" dangerouslySetInnerHTML={{ __html: preview }} />
+              {previewEl}
             </div>
           </div>
         </div>
