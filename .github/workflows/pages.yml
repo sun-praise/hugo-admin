@@ -17,16 +17,17 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
-# 最小权限：pages 写、id-token 签发（deploy-pages 需要）
+# workflow 级别只给 read；Pages / OIDC 凭据收在 deploy job 内
+# build 只装 PyPI 包 + 跑 mkdocs build，不应持有部署凭据
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 jobs:
   build:
     name: Build site
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,6 +64,9 @@ jobs:
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
