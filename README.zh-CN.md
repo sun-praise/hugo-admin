@@ -3,6 +3,7 @@
 [![Tests](https://github.com/Svtter/hugo-admin/workflows/Tests/badge.svg)](https://github.com/Svtter/hugo-admin/actions)
 [![License](https://img.shields.io/github/license/Svtter/hugo-admin)](https://github.com/Svtter/hugo-admin/blob/main/LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
+[![文档](https://img.shields.io/badge/文档-mkdocs--material-blue)](https://sun-praise.github.io/hugo-admin/)
 [![Hugo](https://img.shields.io/badge/hugo-compatible-ff4088)](https://gohugo.io/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
@@ -174,6 +175,22 @@ hugo-admin/
 - [x] 基于密码的管理员登录
 - [ ] 批量操作
 - [ ] 多用户支持
+
+## 文档
+
+完整文档（部署、使用、开发、变更日志）已部署到 GitHub Pages：
+
+**https://sun-praise.github.io/hugo-admin/**
+
+主要章节：
+
+- [Docker 部署](https://sun-praise.github.io/hugo-admin/docker/)
+- [快速开始](https://sun-praise.github.io/hugo-admin/QUICKSTART/)
+- [缓存使用](https://sun-praise.github.io/hugo-admin/CACHE_USAGE/)
+- [GitHub 设置](https://sun-praise.github.io/hugo-admin/GITHUB_SETUP/)
+- [Frontmatter 重构](https://sun-praise.github.io/hugo-admin/FRONTMATTER_REFACTOR/)
+
+使用 [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) 构建，源文件在 [`docs/`](docs/)，由 [`.github/workflows/pages.yml`](.github/workflows/pages.yml) 自动部署。
 
 ## 许可证
 
