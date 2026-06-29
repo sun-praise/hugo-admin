@@ -2,19 +2,42 @@ site_name: Hugo Admin 文档
 site_description: Hugo Admin 项目的官方文档
 site_author: Team Hugo Admin
 
+# 仓库信息（用于 "在 GitHub 编辑" 与仓库跳转）
+repo_url: https://github.com/sun-praise/hugo-admin
+repo_name: sun-praise/hugo-admin
+edit_uri: edit/main/docs/
+
 # 设置主题
 theme:
   name: material
   features:
     - navigation.tabs
     - navigation.sections
+    - navigation.top
+    - navigation.tracking
     - content.code.annotate
     - content.tabs.link
+    - content.action.edit
+    - content.action.view
     - search.highlight
     - search.suggest
   palette:
     primary: indigo
     accent: indigo
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+
+# 仓库与社交链接（页脚图标）
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/sun-praise/hugo-admin
+      name: GitHub 仓库
+    - icon: fontawesome/brands/docker
+      link: https://github.com/sun-praise/hugo-admin/pkgs/container/hugo-admin
+      name: Docker 镜像
 
 # 插件配置
 plugins:
@@ -52,17 +75,22 @@ markdown_extensions:
 nav:
   - 首页: index.md
   - 快速开始: QUICKSTART.md
+  - 部署:
+    - Docker 部署: docker.md
+    - Demo 服务器部署: plan/demo-deployment.md
   - 使用指南:
     - 缓存使用: CACHE_USAGE.md
-    - GitHub设置: GITHUB_SETUP.md
+    - GitHub 设置: GITHUB_SETUP.md
+    - 剪贴板图片粘贴: CLIPBOARD_IMAGE_PASTE.md
   - 开发文档:
-    - Frontmatter重构: FRONTMATTER_REFACTOR.md
+    - Frontmatter 重构: FRONTMATTER_REFACTOR.md
+    - 整体发布功能: development/system-publish.md
     - 测试报告: TEST_REPORT.md
   - 参考文档:
     - 修复列表: FIXES.md
     - 修复摘要: FIX_SUMMARY.md
     - 变更日志: CHANGELOG.md
-    - Claude集成: CLAUDE.md
+    - Claude 集成: CLAUDE.md
   - 贡献与安全:
     - 贡献指南: CONTRIBUTING.md
     - 行为准则: CODE_OF_CONDUCT.md
