@@ -7,8 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.5] - 2026-06-29
+
 ### Fixed
-- 镜像内 Hugo 版本过旧：Dockerfile 锁在 `0.121.1`（2023-12），跑不动现代主题——如作者自己的 Fried-Rice（`theme.toml` 要求 `min_version = 0.157.0`，用到 `hash.FNV32a` / `mod` 等 0.121 不支持的函数），admin「启动 Hugo 服务器」后 hugo 进程立即 parse fail 退出。升级到 `0.163.3`（对齐本机 dev 环境 0.163.1）。影响：jd demo 预览闭环（1313 反代到 `demo-blog.sun-praise.com`）此前 hugo server 起不来，升级后可用。
+- 镜像内 Hugo 版本过旧：Dockerfile 锁在 `0.121.1`（2023-12），跑不动现代主题——如作者自己的 Fried-Rice（`theme.toml` 要求 `min_version = 0.157.0`，用到 `hash.FNV32a` / `mod` 等 0.121 不支持的函数），admin「启动 Hugo 服务器」后 hugo 进程立即 parse fail 退出。升级到 `0.163.3`（对齐本机 dev 环境 0.163.1）。影响：jd demo 预览闭环（1313 反代到 `demo-blog.sun-praise.com`）此前 hugo server 起不来，升级后可用。见 #132。
 
 ## [2.5.4] - 2026-06-28
 
