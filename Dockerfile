@@ -29,7 +29,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 Hugo Extended
-ARG HUGO_VERSION=0.121.1
+# 升级到 0.163.3：Fried-Rice 等现代主题要求 hugo >= 0.157.0（hash.FNV32a / mod
+# 等函数旧版不支持）。对齐本机 dev 环境（0.163.1），消除"本地能跑、demo 跑不动"的版本差。
+ARG HUGO_VERSION=0.163.3
 RUN curl -L "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.tar.gz" -o hugo.tar.gz \
     && tar -xzf hugo.tar.gz -C /usr/local/bin/ \
     && rm hugo.tar.gz \
