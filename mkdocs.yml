@@ -1,6 +1,7 @@
 site_name: Hugo Admin 文档
 site_description: Hugo Admin 项目的官方文档
 site_author: Team Hugo Admin
+site_url: https://sun-praise.github.io/hugo-admin/
 
 # 仓库信息（用于 "在 GitHub 编辑" 与仓库跳转）
 repo_url: https://github.com/sun-praise/hugo-admin
