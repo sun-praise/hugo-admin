@@ -52,6 +52,11 @@ markdown_extensions:
   - meta
   - toc:
       permalink: true
+      # 默认 slugifier 会 strip 非 ASCII 字符，中文标题退化成 _1/_2/...
+      # 用 pymdownx.slugs.slugify 保留 Unicode，URL 仍 URL-safe（小写 + 连字符）
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
   - pymdownx.arithmatex
   - pymdownx.betterem:
       smart_enable: all
