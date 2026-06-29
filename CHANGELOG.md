@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- mkdocs: ``` 代码块渲染走 Material 现代路径——移除老的 `codehilite`（与 `pymdownx.superfences` + `pymdownx.highlight` 冲突，吃了 fence 块后输出 `<div class="codehilite">`、没 Material 钩子、Copy 按钮/行号/行高亮都挂不上）；给 `pymdownx.highlight` 配 Material 推荐参数（`anchor_linenums` / `line_spans=__span` / `pygments_lang_class`），theme features 启用 `content.code.copy`。所有 bash/yaml/nginx/text 块都换成 `<div class="language-xxx highlight">`，Material 样式与 Copy 按钮生效。
 - mkdocs: 中文标题 anchor 不再退化成 `_1`/`_2`/`...`。`toc` 扩展用默认 slugifier 会把非 ASCII 字符 strip 掉，pages 上右侧大纲、URL 锚点全是无意义数字串（#_2 之类）。改用 `pymdownx.slugs.slugify(case=lower)` 保留 Unicode，URL 仍 URL-safe（小写 + 连字符）。影响 10 个含中文标题的 docs 页面（CACHE_USAGE / QUICKSTART / FRONTMATTER_REFACTOR / plan/demo-deployment 等）。
 
 ### Changed

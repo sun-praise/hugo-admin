@@ -16,6 +16,8 @@ theme:
     - navigation.sections
     - navigation.top
     - navigation.tracking
+    # content.code.copy: 在代码块右上角加 Copy 按钮（需要 pymdownx.highlight，codehilite 不会触发）
+    - content.code.copy
     - content.code.annotate
     - content.tabs.link
     - content.action.edit
@@ -47,7 +49,6 @@ plugins:
 # 扩展配置
 markdown_extensions:
   - admonition
-  - codehilite
   - footnotes
   - meta
   - toc:
@@ -66,7 +67,16 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
-  - pymdownx.highlight
+  # pymdownx.highlight 配 Material theme 用：
+  #   anchor_linenums:  给行号加 anchor（分享链接定位到某行）
+  #   line_spans:       用 __span 包行（给行高亮、复制按钮用）
+  #   pygments_lang_class: 给 <code> 加 language-bash 之类类名
+  #   auto_title:       显示语言名（前提是 md 写 ```bash 那种 fence 头）
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+      auto_title: false
   - pymdownx.inlinehilite
   - pymdownx.keys
   - pymdownx.mark
