@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- mkdocs: 中文标题 anchor 不再退化成 `_1`/`_2`/`...`。`toc` 扩展用默认 slugifier 会把非 ASCII 字符 strip 掉，pages 上右侧大纲、URL 锚点全是无意义数字串（#_2 之类）。改用 `pymdownx.slugs.slugify(case=lower)` 保留 Unicode，URL 仍 URL-safe（小写 + 连字符）。影响 10 个含中文标题的 docs 页面（CACHE_USAGE / QUICKSTART / FRONTMATTER_REFACTOR / plan/demo-deployment 等）。
+
 ### Changed
 - 重组 mkdocs 文档结构：把 `DOCKER.md` 移入 `docs/docker.md`（保留 git 历史），新增「部署」分区（Docker 部署、Demo 服务器部署），使用指南补齐「剪贴板图片粘贴」，开发文档补齐「整体发布功能」；`docs/index.md` 改为完整文档导览页；启用 `repo_url` / `edit_uri` 与 Material 9.x 的 `content.action.{edit,view}` 特性，每页加「编辑此页」与「查看源码」按钮，页脚补 GitHub 仓库与 Docker 镜像链接。同步删除 `docs/README.md`（与根目录 `README.md` + `README.zh-CN.md` 重复、且与 `index.md` 在 mkdocs 中冲突）；`docs/development/preview-optimized.md` 是单行占位、移除。
 
