@@ -5,11 +5,13 @@ Hugo 服务器管理服务
 """
 
 import os
+import socket
 import subprocess
 import threading
 import time
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 import psutil
 
@@ -35,6 +37,7 @@ class HugoServerManager:
         self.hugo_root = Path(hugo_root)
         self.socketio = socketio
         self.server_url = server_url or Config.HUGO_SERVER_BASE_URL
+        self._server_port = urlparse(self.server_url).port or 1313
         self.settings_service = settings_service
         self.process = None
         self.pid = None
@@ -184,6 +187,7 @@ class HugoServerManager:
 
         status = {
             "running": self.is_running,
+            "ready": self.is_running and self._check_port_listening(),
             "pid": self.pid,
             "uptime": None,
             "cpu_percent": None,
@@ -229,6 +233,17 @@ class HugoServerManager:
             return proc.is_running()
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return False
+    def _check_port_listening(self, timeout=0.5):
+        """检查 Hugo 服务器端口是否正在监听"""
+        if not self.is_running:
+            return False
+        try:
+            with socket.create_connection(
+                ("127.0.0.1", self._server_port), timeout=timeout
+            ):
+                return True
+        except (ConnectionRefusedError, OSError, socket.timeout):
+            return False
 
     def _monitor_logs(self):
         """监控进程输出日志(在后台线程运行)"""
@@ -247,6 +262,16 @@ class HugoServerManager:
 
         except Exception as e:
             self._add_log(f"日志监控异常: {str(e)}", level="ERROR")
+        finally:
+            # 非 stop() 触发的退出(进程崩溃/OOM) → 记录日志,
+            # 状态由 get_status() → _check_process_alive() 统一清理,
+            # 不在此处修改 is_running/process/pid 避免与 stop() 竞态。
+            if not self.stop_log_thread and self.process:
+                exit_code = self.process.poll()
+                self._add_log(
+                    f"Hugo 服务器已退出 (退出码: {exit_code})",
+                    level="WARNING",
+                )
 
     def _add_log(self, message, level="INFO"):
         """

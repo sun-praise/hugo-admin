@@ -132,9 +132,16 @@ export default function ServerPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
                 <span className="text-stone-700">运行状态:</span>
-                <span className={`font-semibold flex items-center ${status.running ? 'text-green-600' : 'text-stone-500'}`}>
-                  <span className={`w-2 h-2 rounded-full mr-2 ${status.running ? 'bg-green-500' : 'bg-stone-400'}`} />
-                  {status.running ? '运行中' : '已停止'}
+                <span className={`font-semibold flex items-center ${
+                  status.running && status.ready ? 'text-green-600' :
+                  status.running ? 'text-amber-600' : 'text-stone-500'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full mr-2 ${
+                    status.running && status.ready ? 'bg-green-500' :
+                    status.running ? 'bg-amber-500 animate-pulse' : 'bg-stone-400'
+                  }`} />
+                  {status.running && status.ready ? '运行中' :
+                   status.running ? '构建中...' : '已停止'}
                 </span>
               </div>
               {status.running && (
@@ -193,7 +200,7 @@ export default function ServerPage() {
                 <Square className="w-5 h-5 mr-2" />
                 {loading ? '停止中...' : '停止服务器'}
               </button>
-              {status.running && (
+              {status.running && status.ready && (
                 <a
                   href={hugoUrl}
                   target="_blank"
@@ -205,6 +212,11 @@ export default function ServerPage() {
                     访问网站
                   </span>
                 </a>
+              )}
+              {status.running && !status.ready && (
+                <div className="w-full px-6 py-3 bg-stone-200 text-stone-500 text-center rounded-lg cursor-not-allowed">
+                  构建中，请稍候...
+                </div>
               )}
             </div>
           </div>

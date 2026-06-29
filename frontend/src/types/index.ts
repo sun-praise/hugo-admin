@@ -42,6 +42,7 @@ export interface Category {
 
 export interface ServerStatus {
   running: boolean;
+  ready?: boolean;
   pid: number | null;
   uptime?: string;
   cpu_percent?: number;
