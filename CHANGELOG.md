@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - 重组 mkdocs 文档结构：把 `DOCKER.md` 移入 `docs/docker.md`（保留 git 历史），新增「部署」分区（Docker 部署、Demo 服务器部署），使用指南补齐「剪贴板图片粘贴」，开发文档补齐「整体发布功能」；`docs/index.md` 改为完整文档导览页；启用 `repo_url` / `edit_uri` 与 Material 9.x 的 `content.action.{edit,view}` 特性，每页加「编辑此页」与「查看源码」按钮，页脚补 GitHub 仓库与 Docker 镜像链接。同步删除 `docs/README.md`（与根目录 `README.md` + `README.zh-CN.md` 重复、且与 `index.md` 在 mkdocs 中冲突）；`docs/development/preview-optimized.md` 是单行占位、移除。
 
+### Added
+- README: 顶部 badge + 单独的「Documentation」段落指向 https://sun-praise.github.io/hugo-admin/，列出核心章节直接链接。`README.md` 与 `README.zh-CN.md` 都加（保持现有英文/中文拆分的结构）。
+
 ### Security
 - CI: pages workflow 把 `pages: write` / `id-token: write` 从 workflow 级别收到 `deploy` job 内，`build` job 只能 `contents: read`。build job 装 PyPI 包、跑 mkdocs build，不需要部署凭据；收窄后即使 build 链被攻破（恶意 mkdocs/pymdown release）也无法部署或改 Pages。zizmor 标记的 `overly broad permissions` 错误。
 

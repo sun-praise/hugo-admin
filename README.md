@@ -3,6 +3,7 @@
 [![Tests](https://github.com/Svtter/hugo-admin/workflows/Tests/badge.svg)](https://github.com/Svtter/hugo-admin/actions)
 [![License](https://img.shields.io/github/license/Svtter/hugo-admin)](https://github.com/Svtter/hugo-admin/blob/main/LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
+[![Documentation](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://sun-praise.github.io/hugo-admin/)
 [![Hugo](https://img.shields.io/badge/hugo-compatible-ff4088)](https://gohugo.io/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
@@ -174,6 +175,22 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [x] Password-based admin login
 - [ ] Batch operations
 - [ ] Multi-user support
+
+## Documentation
+
+Full documentation (deployment, usage, development, changelog) is available at:
+
+**https://sun-praise.github.io/hugo-admin/**
+
+Topics include:
+
+- [Docker deployment](https://sun-praise.github.io/hugo-admin/docker/)
+- [Quick start](https://sun-praise.github.io/hugo-admin/QUICKSTART/)
+- [Cache system](https://sun-praise.github.io/hugo-admin/CACHE_USAGE/)
+- [GitHub setup](https://sun-praise.github.io/hugo-admin/GITHUB_SETUP/)
+- [Frontmatter refactor](https://sun-praise.github.io/hugo-admin/FRONTMATTER_REFACTOR/)
+
+Built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/); source lives in [`docs/`](docs/), auto-deployed via [`.github/workflows/pages.yml`](.github/workflows/pages.yml).
 
 ## License
 
