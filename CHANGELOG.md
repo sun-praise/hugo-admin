@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- 编辑器预览 mermaid 解析失败时只显示原始源码、没有任何错误提示：原实现 `api.run({ nodes, suppressErrors: true })` 静默吞掉 parse 错误，且 mermaid 自带的错误图标在当前集成下渲染不稳定（依赖内部单例状态）。改为先用 `api.parse(code)` 校验，失败时往节点注入一个带样式的「Mermaid 语法错误」`<pre>`，错误信息和定位行号直接可见。同时把预览容器 `useMemo([preview])` 化，避免 images/backlinks/loading 等无关状态变更触发 React 重新 reconcile `dangerouslySetInnerHTML`、把 mermaid 刚渲染好的 `.mermaid` 节点 detach 掉——这是「图渲染了又消失」「错误块一闪而过」的根因。复现用例：边标签里含 `[]`（如 `C1 -->|新建 Agent, messages=[]| D1[DeepSeek]`）会被 mermaid 11 当成节点形状语法导致整图 parse 失败。
+
 ## [2.5.5] - 2026-06-29
 
 ### Fixed
