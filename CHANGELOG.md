@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- 重组 mkdocs 文档结构：把 `DOCKER.md` 移入 `docs/docker.md`（保留 git 历史），新增「部署」分区（Docker 部署、Demo 服务器部署），使用指南补齐「剪贴板图片粘贴」，开发文档补齐「整体发布功能」；`docs/index.md` 改为完整文档导览页；启用 `repo_url` / `edit_uri` 与 Material 9.x 的 `content.action.{edit,view}` 特性，每页加「编辑此页」与「查看源码」按钮，页脚补 GitHub 仓库与 Docker 镜像链接。同步删除 `docs/README.md`（与根目录 `README.md` + `README.zh-CN.md` 重复、且与 `index.md` 在 mkdocs 中冲突）；`docs/development/preview-optimized.md` 是单行占位、移除。
+
 ### Fixed
 - 编辑器预览 mermaid 解析失败时只显示原始源码、没有任何错误提示：原实现 `api.run({ nodes, suppressErrors: true })` 静默吞掉 parse 错误，且 mermaid 自带的错误图标在当前集成下渲染不稳定（依赖内部单例状态）。改为先用 `api.parse(code)` 校验，失败时往节点注入一个带样式的「Mermaid 语法错误」`<pre>`，错误信息和定位行号直接可见。同时把预览容器 `useMemo([preview])` 化，避免 images/backlinks/loading 等无关状态变更触发 React 重新 reconcile `dangerouslySetInnerHTML`、把 mermaid 刚渲染好的 `.mermaid` 节点 detach 掉——这是「图渲染了又消失」「错误块一闪而过」的根因。复现用例：边标签里含 `[]`（如 `C1 -->|新建 Agent, messages=[]| D1[DeepSeek]`）会被 mermaid 11 当成节点形状语法导致整图 parse 失败。
 
