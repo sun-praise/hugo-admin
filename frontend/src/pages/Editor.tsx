@@ -732,7 +732,7 @@ export default function Editor() {
               <Wand2 className="w-5 h-5" />
             </button>
             <span className="border-l border-stone-300 mx-1 h-6" />
-            <button onClick={saveFile} disabled={saving || !hasChanges} title={saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <button onClick={() => saveFile()} disabled={saving || !hasChanges} title={saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               <Save className="w-5 h-5" />
             </button>
             <button onClick={publishArticle} disabled={publishing || !currentFile || isPublished} title={publishing ? '发布中...' : isPublished ? '已发布' : '发布'} className={`p-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isPublished ? 'bg-stone-400 hover:bg-stone-500' : 'bg-green-600 hover:bg-green-700'}`}>
