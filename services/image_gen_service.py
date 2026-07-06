@@ -8,7 +8,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "google/gemini-3-pro-image-preview"
+DEFAULT_MODEL = "google/gemini-3.1-flash-image-preview"
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
