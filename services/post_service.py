@@ -385,7 +385,7 @@ class PostService:
             file_path: 文件路径(相对于 content 目录或绝对路径)
 
         Returns:
-            (success, content): 成功标志和文件内容
+            (success, content, mtime): 成功标志、文件内容、文件修改时间戳
         """
         try:
             # 处理路径
@@ -396,20 +396,21 @@ class PostService:
 
             # 安全检查:确保文件在 content 目录下
             if not self._is_safe_path(file_path):
-                return False, "访问被拒绝:文件不在允许的目录中"
+                return False, "访问被拒绝:文件不在允许的目录中", 0.0
 
             # 检查文件是否存在
             if not file_path.exists():
-                return False, f"文件不存在: {file_path}"
+                return False, f"文件不存在: {file_path}", 0.0
 
             # 读取文件
+            mtime = file_path.stat().st_mtime
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
-            return True, content
+            return True, content, mtime
 
         except Exception as e:
-            return False, f"读取文件失败: {str(e)}"
+            return False, f"读取文件失败: {str(e)}", 0.0
 
     def read_file_with_frontmatter(self, file_path):
         """
@@ -422,7 +423,7 @@ class PostService:
             file_path: 文件路径(相对于 content 目录或绝对路径)
 
         Returns:
-            (success, content, frontmatter): 成功标志、正文内容、frontmatter 字典
+            (success, content, frontmatter, mtime): 成功标志、正文内容、frontmatter 字典、文件修改时间戳
         """
         try:
             if not Path(file_path).is_absolute():
@@ -431,11 +432,12 @@ class PostService:
             file_path = Path(file_path)
 
             if not self._is_safe_path(file_path):
-                return False, "访问被拒绝:文件不在允许的目录中", {}
+                return False, "访问被拒绝:文件不在允许的目录中", {}, 0.0
 
             if not file_path.exists():
-                return False, f"文件不存在: {file_path}", {}
+                return False, f"文件不存在: {file_path}", {}, 0.0
 
+            mtime = file_path.stat().st_mtime
             text = file_path.read_text(encoding="utf-8")
             lines = text.split("\n")
 
@@ -462,12 +464,12 @@ class PostService:
                 normalized[k] = (
                     str(v) if not isinstance(v, (str, int, float, bool, list)) else v
                 )
-            return True, body, normalized
+            return True, body, normalized, mtime
 
         except Exception as e:
-            return False, f"读取文件失败: {str(e)}", {}
+            return False, f"读取文件失败: {str(e)}", {}, 0.0
 
-    def save_file(self, file_path, content, frontmatter_data=None):
+    def save_file(self, file_path, content, frontmatter_data=None, expected_mtime=None):
         """
         保存文件内容
 
@@ -475,6 +477,7 @@ class PostService:
             file_path: 文件路径
             content: 文件内容（正文，不含 frontmatter）
             frontmatter_data: 可选的 frontmatter 字典，传入时与正文合并写入
+            expected_mtime: 期望的文件修改时间戳，传入时做乐观锁校验
 
         Returns:
             (success, message): 成功标志和消息
@@ -487,6 +490,18 @@ class PostService:
 
             if not self._is_safe_path(file_path):
                 return False, "访问被拒绝:文件不在允许的目录中"
+
+            # 乐观锁：校验 mtime
+            if expected_mtime is not None and file_path.exists():
+                current_mtime = file_path.stat().st_mtime
+                if abs(current_mtime - expected_mtime) > 0.001:
+                    current_content = file_path.read_text(encoding="utf-8")
+                    return False, {
+                        "conflict": True,
+                        "current_content": current_content,
+                        "current_mtime": current_mtime,
+                        "message": "文件已被其他人修改",
+                    }
 
             file_path.parent.mkdir(parents=True, exist_ok=True)
 

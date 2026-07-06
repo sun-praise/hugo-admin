@@ -25,6 +25,7 @@ import type { Mermaid } from 'mermaid';
 import type { FileData, ImageItem, Backlink, Frontmatter } from '../types';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { InlineEditOverlay } from '../components/InlineEdit/Overlay';
+import { ConflictModal } from '../components/ConflictModal';
 
 // Mermaid is heavy (~800KB); load it lazily and only when the preview
 // actually contains a ```mermaid block. Initialised once per session.
@@ -90,10 +91,12 @@ export default function Editor() {
   const [refSearchResults, setRefSearchResults] = useState<Array<{ path: string; title: string }>>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
-  const saveFileRef = useRef<() => Promise<void>>(async () => {});
+  const saveFileRef = useRef<(force?: boolean) => Promise<void>>(async () => {});
   const insertMarkdownRef = useRef<(type: string) => void>(() => {});
   const [generatingCover, setGeneratingCover] = useState(false);
   const [generatingFm, setGeneratingFm] = useState(false);
+  const [fileMtime, setFileMtime] = useState<number | null>(null);
+  const [conflictRemoteContent, setConflictRemoteContent] = useState<string | null>(null);
   const { setTitle: setPageTitle, resetTitle: resetPageTitle } = usePageTitle();
 
   useEffect(() => {
@@ -326,7 +329,13 @@ export default function Editor() {
     showNotification('选区已变化，已取消', 'warning');
   }
 
-  const saveFile = useCallback(async () => {
+  async function discardAndReload() {
+    setConflictRemoteContent(null);
+    await loadFile();
+    showNotification('已加载最新版本', 'info');
+  }
+
+  const saveFile = useCallback(async (force = false) => {
     if (!currentFile) {
       showNotification('未选择文件', 'error');
       return;
@@ -337,10 +346,27 @@ export default function Editor() {
       if (Object.keys(frontmatter).length > 0) {
         body.frontmatter = frontmatter;
       }
-      const data = await post<{ success: boolean; message?: string }>('/api/file/save', body);
+      if (!force && fileMtime !== null) {
+        body.expected_mtime = fileMtime;
+      }
+      if (force) {
+        body.force = true;
+      }
+      const res = await fetch('/api/file/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.status === 409 && data.conflict) {
+        setConflictRemoteContent(data.current_content);
+        return;
+      }
       if (data.success) {
         setOriginalContent(content);
         setOriginalFrontmatter(JSON.parse(JSON.stringify(frontmatter)));
+        setFileMtime(data.mtime ?? null);
+        setConflictRemoteContent(null);
         showNotification('保存成功', 'success');
       } else {
         showNotification('保存失败: ' + data.message, 'error');
@@ -350,7 +376,7 @@ export default function Editor() {
     } finally {
       setSaving(false);
     }
-  }, [currentFile, content, frontmatter]);
+  }, [currentFile, content, frontmatter, fileMtime]);
 
   async function publishArticle() {
     if (!currentFile) {
@@ -547,20 +573,22 @@ export default function Editor() {
     if (!currentFile) return;
     setLoading(true);
     try {
-      const data = await post<FileData & { success: boolean; message?: string }>('/api/file/read-with-frontmatter', { path: currentFile });
+      const data = await post<FileData & { success: boolean; message?: string; mtime?: number }>('/api/file/read-with-frontmatter', { path: currentFile });
       if (data.success) {
         setContent(data.content || '');
         setOriginalContent(data.content || '');
+        setFileMtime(data.mtime ?? null);
         const fm = (data.frontmatter || {}) as Frontmatter;
         setFrontmatter(fm);
         setOriginalFrontmatter(JSON.parse(JSON.stringify(fm)));
         syncFmEdit(fm);
         await checkPublishStatus();
       } else {
-        const fallback = await post<FileData & { success: boolean }>('/api/file/read', { path: currentFile });
+        const fallback = await post<FileData & { success: boolean; mtime?: number }>('/api/file/read', { path: currentFile });
         if (fallback.success) {
           setContent(fallback.content || '');
           setOriginalContent(fallback.content || '');
+          setFileMtime(fallback.mtime ?? null);
           setFrontmatter({});
           setOriginalFrontmatter({});
           await checkPublishStatus();
@@ -1000,6 +1028,17 @@ export default function Editor() {
             <p className="text-stone-700">加载中...</p>
           </div>
         </div>
+      )}
+
+      {/* 冲突对话框 */}
+      {conflictRemoteContent !== null && (
+        <ConflictModal
+          localContent={content}
+          remoteContent={conflictRemoteContent}
+          onSaveForce={() => saveFile(true)}
+          onDiscard={discardAndReload}
+          onClose={() => setConflictRemoteContent(null)}
+        />
       )}
     </div>
   );

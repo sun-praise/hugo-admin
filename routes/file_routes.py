@@ -45,10 +45,12 @@ def register_file_routes(registry, blueprint=None):
         if not file_path:
             return jsonify({"success": False, "message": "缺少文件路径"}), 400
 
-        success, content = registry.post_service.read_file(file_path)
+        success, content, mtime = registry.post_service.read_file(file_path)
 
         if success:
-            return jsonify({"success": True, "content": content, "path": file_path})
+            return jsonify(
+                {"success": True, "content": content, "path": file_path, "mtime": mtime}
+            )
         else:
             return jsonify({"success": False, "message": content}), 404
 
@@ -61,7 +63,7 @@ def register_file_routes(registry, blueprint=None):
         if not file_path:
             return jsonify({"success": False, "message": "缺少文件路径"}), 400
 
-        success, content, fm = registry.post_service.read_file_with_frontmatter(
+        success, content, fm, mtime = registry.post_service.read_file_with_frontmatter(
             file_path
         )
 
@@ -72,6 +74,7 @@ def register_file_routes(registry, blueprint=None):
                     "content": content,
                     "frontmatter": fm,
                     "path": file_path,
+                    "mtime": mtime,
                 }
             )
         else:
@@ -88,9 +91,18 @@ def register_file_routes(registry, blueprint=None):
         if not file_path or content is None:
             return jsonify({"success": False, "message": "缺少必要参数"}), 400
 
+        expected_mtime = data.get("expected_mtime")
+        force = data.get("force", False)
+
         success, message = registry.post_service.save_file(
-            file_path, content, frontmatter_data=frontmatter_data
+            file_path,
+            content,
+            frontmatter_data=frontmatter_data,
+            expected_mtime=None if force else expected_mtime,
         )
+
+        if not success and isinstance(message, dict) and message.get("conflict"):
+            return jsonify({"success": False, **message}), 409
 
         if success:
             # 增量更新引用关系

@@ -91,7 +91,7 @@ def _create_article_dir(post_service, title: str) -> str:
 
 def _set_cover_field(post_service, article_path: str, cover_url: str) -> bool:
     """把 cover 字段写回文章 frontmatter，复用 PostService 的读写方法。"""
-    ok, body, fm = post_service.read_file_with_frontmatter(article_path)
+    ok, body, fm, _mtime = post_service.read_file_with_frontmatter(article_path)
     if not ok:
         return False
     fm["cover"] = cover_url
