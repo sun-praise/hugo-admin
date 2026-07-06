@@ -130,7 +130,7 @@ class AIService:
         @tool("read_post", "Read the content of a blog post", {"file_path": str})
         async def read_post(args: Dict[str, Any]) -> Dict[str, Any]:
             file_path = args["file_path"]
-            success, content = deps.post_service.read_file(file_path)
+            success, content, _mtime = deps.post_service.read_file(file_path)
             if success:
                 return mcp_text(f"文件 `{file_path}` 内容：\n\n{content}")
             return mcp_text(f"读取失败: {content}")
