@@ -402,10 +402,10 @@ class PostService:
             if not file_path.exists():
                 return False, f"文件不存在: {file_path}", 0.0
 
-            # 读取文件
-            mtime = file_path.stat().st_mtime
+            # 读取文件（fstat 在 open 之后，避免 TOCTOU 竞态）
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
+                mtime = os.fstat(f.fileno()).st_mtime
 
             return True, content, mtime
 
@@ -437,8 +437,10 @@ class PostService:
             if not file_path.exists():
                 return False, f"文件不存在: {file_path}", {}, 0.0
 
-            mtime = file_path.stat().st_mtime
-            text = file_path.read_text(encoding="utf-8")
+            # fstat 在 open 之后，避免 TOCTOU 竞态
+            with open(file_path, "r", encoding="utf-8") as f:
+                text = f.read()
+                mtime = os.fstat(f.fileno()).st_mtime
             lines = text.split("\n")
 
             metadata = {}
@@ -480,7 +482,7 @@ class PostService:
             expected_mtime: 期望的文件修改时间戳，传入时做乐观锁校验
 
         Returns:
-            (success, message): 成功标志和消息
+            (success, message, mtime): 成功标志和消息，mtime 在错误时为 0.0
         """
         try:
             if not Path(file_path).is_absolute():
@@ -489,19 +491,23 @@ class PostService:
             file_path = Path(file_path)
 
             if not self._is_safe_path(file_path):
-                return False, "访问被拒绝:文件不在允许的目录中"
+                return False, "访问被拒绝:文件不在允许的目录中", 0.0
 
             # 乐观锁：校验 mtime
             if expected_mtime is not None and file_path.exists():
                 current_mtime = file_path.stat().st_mtime
                 if abs(current_mtime - expected_mtime) > 0.001:
                     current_content = file_path.read_text(encoding="utf-8")
-                    return False, {
-                        "conflict": True,
-                        "current_content": current_content,
-                        "current_mtime": current_mtime,
-                        "message": "文件已被其他人修改",
-                    }
+                    return (
+                        False,
+                        {
+                            "conflict": True,
+                            "current_content": current_content,
+                            "current_mtime": current_mtime,
+                            "message": "文件已被其他人修改",
+                        },
+                        0.0,
+                    )
 
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -514,15 +520,16 @@ class PostService:
 
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(file_content)
+                new_mtime = os.fstat(f.fileno()).st_mtime
 
             # 更新缓存
             if self.use_cache and self.cache_service:
                 self.cache_service.invalidate_post(str(file_path))
 
-            return True, "文件保存成功"
+            return True, "文件保存成功", new_mtime
 
         except Exception as e:
-            return False, f"保存文件失败: {str(e)}"
+            return False, f"保存文件失败: {str(e)}", 0.0
 
     def create_post(self, title):
         """

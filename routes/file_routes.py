@@ -94,7 +94,7 @@ def register_file_routes(registry, blueprint=None):
         expected_mtime = data.get("expected_mtime")
         force = data.get("force", False)
 
-        success, message = registry.post_service.save_file(
+        success, message, new_mtime = registry.post_service.save_file(
             file_path,
             content,
             frontmatter_data=frontmatter_data,
@@ -116,9 +116,10 @@ def register_file_routes(registry, blueprint=None):
             except Exception as e:
                 logger.exception(e)
 
-        return jsonify({"success": success, "message": message}), (
-            200 if success else 500
-        )
+        resp = {"success": success, "message": message}
+        if success and new_mtime is not None:
+            resp["mtime"] = new_mtime
+        return jsonify(resp), (200 if success else 500)
 
     @blueprint.route("/api/post/create", methods=["POST"])
     def create_post():

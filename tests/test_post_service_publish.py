@@ -141,7 +141,7 @@ Content 2
                 str(file_path)
             )
             assert success
-            success, msg = post_service.save_file(
+            success, msg, _new_mtime = post_service.save_file(
                 str(file_path), body, frontmatter_data=fm
             )
             assert success

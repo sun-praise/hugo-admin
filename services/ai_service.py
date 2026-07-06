@@ -143,7 +143,7 @@ class AIService:
         async def write_post(args: Dict[str, Any]) -> Dict[str, Any]:
             file_path = args["file_path"]
             content = args["content"]
-            success, message = deps.post_service.save_file(file_path, content)
+            success, message, _mtime = deps.post_service.save_file(file_path, content)
             if success:
                 return mcp_text(f"✅ 文件 `{file_path}` 保存成功")
             return mcp_text(f"❌ 保存失败: {message}")

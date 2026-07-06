@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { AlertTriangle, Save, RotateCcw, X } from 'lucide-react';
 
 interface ConflictModalProps {
@@ -23,6 +23,22 @@ function computeDiff(oldText: string, newText: string): DiffLine[] {
   // Simple LCS-based diff
   const m = oldLines.length;
   const n = newLines.length;
+
+  // 大文件跳过 LCS，直接返回逐行 same
+  if (m > 2000 || n > 2000) {
+    const lines: DiffLine[] = [];
+    const max = Math.max(m, n);
+    for (let k = 0; k < max; k++) {
+      if (k < m && k < n && oldLines[k] === newLines[k]) {
+        lines.push({ type: 'same', text: oldLines[k], oldNum: k + 1, newNum: k + 1 });
+      } else if (k < m) {
+        lines.push({ type: 'del', text: oldLines[k], oldNum: k + 1 });
+      } else {
+        lines.push({ type: 'add', text: newLines[k], newNum: k + 1 });
+      }
+    }
+    return lines;
+  }
   const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
 
   for (let i = 1; i <= m; i++) {
@@ -79,6 +95,18 @@ export function ConflictModal({
     return { adds, dels };
   }, [diffLines]);
 
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
+  const MAX_DIFF_LINES = 5000;
+  const isOversized = diffLines.length > MAX_DIFF_LINES;
+  const displayLines = isOversized ? diffLines.slice(0, MAX_DIFF_LINES) : diffLines;
+
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl mx-4 max-h-[85vh] flex flex-col">
@@ -104,7 +132,7 @@ export function ConflictModal({
         <div className="flex-1 overflow-auto font-mono text-sm">
           <table className="w-full border-collapse">
             <tbody>
-              {diffLines.map((line, idx) => {
+              {displayLines.map((line, idx) => {
                 const bg =
                   line.type === 'add'
                     ? 'bg-green-50'
@@ -139,6 +167,12 @@ export function ConflictModal({
             </tbody>
           </table>
         </div>
+
+        {isOversized && (
+          <div className="px-6 py-2 bg-amber-50 text-amber-700 text-sm border-t">
+            文件差异过大（{diffLines.length} 行），仅显示前 {MAX_DIFF_LINES} 行
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t bg-stone-50">
