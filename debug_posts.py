@@ -93,7 +93,7 @@ print("\n6. 测试文件读取...")
 try:
     if result["posts"]:
         first_post_path = result["posts"][0]["full_path"]
-        success, content = post_service.read_file(first_post_path)
+        success, content, _mtime = post_service.read_file(first_post_path)
 
         if success:
             print("   ✓ 文件读取成功")

@@ -22,7 +22,7 @@ print("=" * 60)
 
 for path in test_paths:
     print(f"\n测试路径: {path}")
-    success, content = post_service.read_file(path)
+    success, content, _mtime = post_service.read_file(path)
     if success:
         print(f"✓ 成功读取，内容长度: {len(content)}")
         print(f"  前 100 字符: {content[:100]}")

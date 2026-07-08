@@ -91,11 +91,11 @@ def _create_article_dir(post_service, title: str) -> str:
 
 def _set_cover_field(post_service, article_path: str, cover_url: str) -> bool:
     """把 cover 字段写回文章 frontmatter，复用 PostService 的读写方法。"""
-    ok, body, fm = post_service.read_file_with_frontmatter(article_path)
+    ok, body, fm, _mtime = post_service.read_file_with_frontmatter(article_path)
     if not ok:
         return False
     fm["cover"] = cover_url
-    ok2, _msg = post_service.save_file(article_path, body, frontmatter_data=fm)
+    ok2, _msg, _mtime = post_service.save_file(article_path, body, frontmatter_data=fm)
     return ok2
 
 
@@ -232,7 +232,7 @@ def import_markdown(
     fm.setdefault("tags", [])
 
     # 6. 写入文章（正文 + 合并后的 frontmatter，草稿，暂无封面）
-    write_ok, write_msg = post_service.save_file(
+    write_ok, write_msg, _mtime = post_service.save_file(
         article_path, body, frontmatter_data=fm
     )
     if not write_ok:

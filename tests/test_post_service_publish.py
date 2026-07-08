@@ -137,9 +137,11 @@ Content 2
         file_path.write_text(initial)
 
         for _ in range(5):
-            success, body, fm = post_service.read_file_with_frontmatter(str(file_path))
+            success, body, fm, _mtime = post_service.read_file_with_frontmatter(
+                str(file_path)
+            )
             assert success
-            success, msg = post_service.save_file(
+            success, msg, _new_mtime = post_service.save_file(
                 str(file_path), body, frontmatter_data=fm
             )
             assert success
