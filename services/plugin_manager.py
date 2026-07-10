@@ -384,9 +384,7 @@ class PluginManager:
             return plugin_pb2_grpc.TTSGeneratorStub(state.channel)
         return None
 
-    def find_plugin_with_capability(
-        self, capability: str
-    ) -> Optional[dict[str, Any]]:
+    def find_plugin_with_capability(self, capability: str) -> Optional[dict[str, Any]]:
         """Return the first running+enabled plugin info declaring a capability.
 
         Used by article-integration layers (image upload, TTS, ...) to locate

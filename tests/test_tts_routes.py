@@ -15,11 +15,10 @@ from routes.tts_routes import (
     FM_AUDIO,
     FM_AUDIO_DURATION,
     FM_AUDIO_ID,
-    register_tts_routes,
     _run_tts_with_emits,
+    register_tts_routes,
 )
 from services.post_service import PostService
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -29,7 +28,9 @@ from services.post_service import PostService
 def _make_tts_responses(success=True, url="https://r2.example.com/a.mp3"):
     """构造一个 TTSResponse 迭代器：一条 progress + 一条 result。"""
     progress = plugin_pb2.TTSResponse(
-        progress=plugin_pb2.TTSProgress(stage="synthesizing", percent=50.0, message="ok")
+        progress=plugin_pb2.TTSProgress(
+            stage="synthesizing", percent=50.0, message="ok"
+        )
     )
     result = plugin_pb2.TTSResponse(
         result=plugin_pb2.TTSResult(
@@ -109,6 +110,8 @@ class TestRunTtsWithEmits:
         assert events[0][0] == "tts.progress"
         done = [e for e in events if e[0] == "tts.done"]
         assert done and done[0][1]["url"] == "https://r2.example.com/a.mp3"
+        # done 事件必须回传新 mtime（mtime 一致性，见 design Decision 8）
+        assert done[0][1]["mtime"], "tts.done 必须携带 mtime"
 
     def test_plugin_missing_emits_failed(self, temp_setup):
         svc, _article, rel = temp_setup
@@ -122,9 +125,7 @@ class TestRunTtsWithEmits:
             def emit(self, event, payload):
                 events.append((event, payload))
 
-        _run_tts_with_emits(
-            svc, plugin_manager, rel, "x", {}, 0.0, Sock(), "scope-2"
-        )
+        _run_tts_with_emits(svc, plugin_manager, rel, "x", {}, 0.0, Sock(), "scope-2")
         failed = [e for e in events if e[0] == "tts.failed"]
         assert failed
         # frontmatter 未被改动
@@ -145,9 +146,7 @@ class TestRunTtsWithEmits:
             def emit(self, event, payload):
                 events.append((event, payload))
 
-        _run_tts_with_emits(
-            svc, plugin_manager, rel, "x", {}, 0.0, Sock(), "scope-3"
-        )
+        _run_tts_with_emits(svc, plugin_manager, rel, "x", {}, 0.0, Sock(), "scope-3")
         failed = [e for e in events if e[0] == "tts.failed"]
         assert failed and "boom" in failed[0][1]["message"]
 
@@ -166,9 +165,7 @@ class TestRunTtsWithEmits:
                 events.append((event, payload))
 
         # 用一个陈旧的 expected_mtime（明显偏离真实值）触发冲突
-        _run_tts_with_emits(
-            svc, plugin_manager, rel, "x", {}, 1.0, Sock(), "scope-4"
-        )
+        _run_tts_with_emits(svc, plugin_manager, rel, "x", {}, 1.0, Sock(), "scope-4")
         conflict = [e for e in events if e[0] == "tts.conflict"]
         assert conflict
         # 文件未被覆盖（仍无 audio 字段）
@@ -268,6 +265,10 @@ class TestDeleteRoute:
                 json={"article_path": "post/demo/index.md"},
             )
         assert resp.status_code == 200
+        data = resp.get_json()
+        # 删除响应必须回传新 mtime（mtime 一致性，见 design Decision 8）
+        assert data["success"] is True
+        assert data["mtime"], "delete 响应必须携带 mtime"
         _ok, _body, fm2, _ = svc.read_file_with_frontmatter("post/demo/index.md")
         assert FM_AUDIO not in fm2
         assert FM_AUDIO_ID not in fm2

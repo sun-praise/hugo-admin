@@ -53,6 +53,17 @@ TTS 插件对外只返回公网 URL（+ audio_id 供删除），与 `ImageUpload
 
 `DELETE /api/article/tts` 既调插件 `Delete(audio_id)` 删 R2 object，又清空 frontmatter 的 `audio*` 字段。`audio_id` 暂存在内存不可行（后台任务结束即丢），故约定：frontmatter 额外存一个**非公开**字段 `_tts_audio_id` 作为删除凭证。若缺失则只清 frontmatter、不调插件 Delete（降级）。
 
+### Decision 8: mtime 一致性 —— 后端写回后必须回传新 mtime
+
+生成与删除两条路径都会在后台/请求中保存文章文件（改变 mtime）。若不把**新 mtime** 回传给前端，前端持有的 `fileMtime` 就会变陈旧，下一次手动保存带上旧 `expected_mtime`，触发编辑器既有 ConflictModal 的**假冲突**——用户并未手动改文件却被弹冲突框。
+
+因此：
+- `tts.done` Socket 事件携带 `mtime`（写入成功后的新 mtime）
+- `DELETE /api/article/tts` 响应携带 `mtime`
+- 前端 `onDone` / `deleteSpeech` 收到后调用 `setFileMtime(mtime)` 刷新
+
+这样编辑器的乐观锁基准始终与磁盘一致，避免假冲突。
+
 ## Risks / Trade-offs
 
 | Risk | Mitigation |

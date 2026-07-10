@@ -528,6 +528,8 @@ export default function Editor() {
           delete next.audio;
           return next;
         });
+        // 后端已保存文件，刷新 fileMtime 避免下次手动保存触发假冲突
+        if (data.mtime) setFileMtime(data.mtime);
         showNotification('已删除语音', 'success');
       } else {
         showNotification('删除失败: ' + (data.message || '未知错误'), 'error');
@@ -722,13 +724,26 @@ export default function Editor() {
     const onProgress = (d: { stage?: string; percent?: number; message?: string }) => {
       setTtsProgress({ stage: d.stage || '', percent: d.percent ?? 0, message: d.message || '' });
     };
-    const onDone = (d: { url?: string; duration_seconds?: number }) => {
+    const onDone = (d: { url?: string; duration_seconds?: number; format?: string; mtime?: number }) => {
       setGeneratingTts(false);
       setTtsProgress(null);
       if (d.url) {
         setAudioUrl(d.url);
-        setFrontmatter((prev) => ({ ...prev, audio: d.url }));
-        setFmEdit((prev) => ({ ...prev, audio: d.url }));
+        // 持久化后端已写入的全部音频字段，避免下次保存把它们丢掉
+        setFrontmatter((prev) => ({
+          ...prev,
+          audio: d.url,
+          audio_duration_seconds: d.duration_seconds,
+          audio_format: d.format,
+        }));
+        setFmEdit((prev) => ({
+          ...prev,
+          audio: d.url,
+          audio_duration_seconds: d.duration_seconds ? String(d.duration_seconds) : '',
+          audio_format: d.format,
+        }));
+        // 后端已保存文件，刷新 fileMtime 避免下次手动保存触发假冲突
+        if (d.mtime) setFileMtime(d.mtime);
         showNotification('语音播报已生成', 'success');
       }
     };

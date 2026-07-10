@@ -114,7 +114,7 @@ def _run_tts_with_emits(
     if result.audio_id:
         fm[FM_AUDIO_ID] = result.audio_id
 
-    save_ok, save_msg, _new_mtime = post_service.save_file(
+    save_ok, save_msg, new_mtime = post_service.save_file(
         article_path, body, frontmatter_data=fm, expected_mtime=expected_mtime
     )
 
@@ -141,6 +141,8 @@ def _run_tts_with_emits(
             "duration_seconds": result.duration_seconds,
             "format": result.format,
             "audio_id": result.audio_id,
+            # 回传新 mtime，前端据此刷新 fileMtime，避免下次手动保存触发假冲突
+            "mtime": new_mtime,
         },
     )
 
@@ -164,13 +166,17 @@ def register_tts_routes(registry):
                 # config_schema 可能声明可选音色列表
                 try:
                     schema = plugin_manager.get_config_schema(name) or {}
-                    voices = (schema.get("properties") or {}).get(
-                        "voices", {}
-                    ).get("items", {}).get("enum", [])
+                    voices = (
+                        (schema.get("properties") or {})
+                        .get("voices", {})
+                        .get("items", {})
+                        .get("enum", [])
+                    )
                 except Exception:  # noqa: BLE001
                     voices = []
-        return jsonify({"success": True, "available": available, "plugin": name,
-                        "voices": voices})
+        return jsonify(
+            {"success": True, "available": available, "plugin": name, "voices": voices}
+        )
 
     @bp.route("/api/article/tts", methods=["POST"])
     def generate_article_tts():
@@ -248,9 +254,7 @@ def register_tts_routes(registry):
             socketio,
             event_scope,
         )
-        return jsonify(
-            {"success": True, "pending": True, "event_scope": event_scope}
-        )
+        return jsonify({"success": True, "pending": True, "event_scope": event_scope})
 
     @bp.route("/api/article/tts", methods=["DELETE"])
     def delete_article_tts():
@@ -273,11 +277,16 @@ def register_tts_routes(registry):
         for k in (FM_AUDIO, FM_AUDIO_DURATION, FM_AUDIO_FORMAT):
             fm.pop(k, None)
 
-        save_ok, save_msg, _new_mtime = registry.post_service.save_file(
+        save_ok, save_msg, new_mtime = registry.post_service.save_file(
             article_path, body, frontmatter_data=fm
         )
         if not save_ok:
-            return jsonify({"success": False, "message": f"清除 audio 字段失败: {save_msg}"}), 500
+            return (
+                jsonify(
+                    {"success": False, "message": f"清除 audio 字段失败: {save_msg}"}
+                ),
+                500,
+            )
 
         # 通知插件删除托管音频（若有凭证）
         if audio_id:
@@ -291,9 +300,18 @@ def register_tts_routes(registry):
                             timeout=30,
                         )
                     except Exception as e:  # noqa: BLE001
-                        logger.warning("插件删除托管音频失败（已清 frontmatter）: %s", e)
+                        logger.warning(
+                            "插件删除托管音频失败（已清 frontmatter）: %s", e
+                        )
 
-        return jsonify({"success": True, "message": "已删除语音"})
+        return jsonify(
+            {
+                "success": True,
+                "message": "已删除语音",
+                # 回传新 mtime，前端据此刷新 fileMtime，避免下次保存触发假冲突
+                "mtime": new_mtime,
+            }
+        )
 
     return bp
 

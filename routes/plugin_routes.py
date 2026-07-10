@@ -210,15 +210,6 @@ def register_plugin_routes(plugin_manager: PluginManager, socketio=None):
                 404,
             )
 
-        req = plugin_pb2.TTSRequest(
-            text=text,
-            voice=data.get("voice", "") or "",
-            model=data.get("model", "") or "",
-            speed=float(data.get("speed", 1.0)),
-            format=data.get("format", "") or "",
-            language=data.get("language", "") or "",
-            article_path=data.get("article_path", "") or "",
-        )
         event_scope = data.get("event_scope", "")
 
         def _emit(event: str, payload: dict):
@@ -230,6 +221,19 @@ def register_plugin_routes(plugin_manager: PluginManager, socketio=None):
                 logger.exception("Socket emit failed for %s", event)
 
         try:
+            # 构造放 try 内：非法 speed（null/"abc"）会抛 TypeError/ValueError，
+            # 返回 JSON 400 而非逸出成 HTML 500。
+            raw_speed = data.get("speed", 1.0)
+            speed = float(raw_speed) if raw_speed is not None else 1.0
+            req = plugin_pb2.TTSRequest(
+                text=text,
+                voice=data.get("voice", "") or "",
+                model=data.get("model", "") or "",
+                speed=speed,
+                format=data.get("format", "") or "",
+                language=data.get("language", "") or "",
+                article_path=data.get("article_path", "") or "",
+            )
             result = None
             for resp in stub.Generate(req, timeout=300):
                 which = resp.WhichOneof("payload")
@@ -267,6 +271,9 @@ def register_plugin_routes(plugin_manager: PluginManager, socketio=None):
                     "message": result.message,
                 }
             )
+        except (TypeError, ValueError) as e:
+            # 非法 speed（null/"abc" 等）—— 客户端错误，返回 400
+            return jsonify({"success": False, "message": f"无效的参数: {e}"}), 400
         except Exception as e:
             logger.error("TTS via plugin %s failed: %s", name, e)
             return jsonify({"success": False, "message": f"TTS failed: {e}"}), 500

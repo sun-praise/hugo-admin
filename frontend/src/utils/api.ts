@@ -124,8 +124,8 @@ export async function generateArticleTTS(
 /**
  * 删除一篇文章的语音（清 frontmatter 音频字段，并通知插件删托管音频）。
  */
-export async function deleteArticleTTS(articlePath: string): Promise<{ success: boolean; message?: string }> {
-  return request<{ success: boolean; message?: string }>('/api/article/tts', {
+export async function deleteArticleTTS(articlePath: string): Promise<{ success: boolean; message?: string; mtime?: number }> {
+  return request<{ success: boolean; message?: string; mtime?: number }>('/api/article/tts', {
     method: 'DELETE',
     body: JSON.stringify({ article_path: articlePath }),
   });
