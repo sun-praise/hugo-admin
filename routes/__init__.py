@@ -21,6 +21,7 @@ from .server_routes import register_server_routes
 from .settings_routes import register_settings_routes
 from .socketio_routes import register_socketio_handlers
 from .theme_routes import register_theme_routes
+from .tts_routes import register_tts_routes
 
 __all__ = [
     "register_page_routes",
@@ -40,4 +41,5 @@ __all__ = [
     "install_auth_guard",
     "register_theme_routes",
     "register_config_routes",
+    "register_tts_routes",
 ]

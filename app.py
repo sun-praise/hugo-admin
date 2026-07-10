@@ -31,6 +31,7 @@ from routes import (
     register_settings_routes,
     register_socketio_handlers,
     register_theme_routes,
+    register_tts_routes,
 )
 from routes.plugin_routes import register_plugin_routes
 from routes.settings_routes import _ensure_server_url_has_port
@@ -248,11 +249,12 @@ ai_main_bp, fm_bp = register_ai_routes(get_ai_service)
 app.register_blueprint(ai_main_bp)
 app.register_blueprint(fm_bp)
 app.register_blueprint(register_inline_edit_routes(get_ai_service))
-app.register_blueprint(register_plugin_routes(plugin_manager))
+app.register_blueprint(register_plugin_routes(plugin_manager, socketio))
 app.register_blueprint(register_auth_routes(registry))
 app.register_blueprint(register_project_init_routes(app, registry))
 app.register_blueprint(register_theme_routes(registry))
 app.register_blueprint(register_config_routes(app))
+app.register_blueprint(register_tts_routes(registry))
 
 # 全局会话守卫：在所有 Blueprint 注册后挂载，未登录访问 /api/* 一律 401
 # （白名单 /api/auth/login、/api/auth/me、/api/version 除外）。

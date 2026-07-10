@@ -30,6 +30,18 @@ service ImageUploader {
 }
 
 // ============================================
+// Optional capability: TTS (text-to-speech)
+// ============================================
+
+service TTSGenerator {
+  // Server-streaming: plugin emits Progress messages while synthesizing,
+  // and a final Result carrying the public audio URL.
+  rpc Generate(TTSRequest) returns (stream TTSResponse);
+  // Delete a previously generated/hosted audio object.
+  rpc Delete(TTSDeleteRequest) returns (TTSDeleteResponse);
+}
+
+// ============================================
 // Messages
 // ============================================
 
@@ -88,6 +100,50 @@ message ImageDeleteRequest {
 }
 
 message ImageDeleteResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// --- TTSGenerator messages ---
+
+message TTSRequest {
+  string text = 1;          // text to synthesize (article body, no frontmatter)
+  string voice = 2;         // voice id, e.g. "mimo_default"
+  string model = 3;         // e.g. "mimo-v2.5-tts"
+  float speed = 4;          // 0.5–2.0, 1.0 = normal
+  string format = 5;        // "mp3" (default) | "wav"
+  string language = 6;      // optional BCP-47 hint
+  string article_path = 7;  // article path for context (e.g. object key naming)
+}
+
+// A single streamed response: either a progress update or the final result.
+message TTSResponse {
+  oneof payload {
+    TTSProgress progress = 1;
+    TTSResult result = 2;
+  }
+}
+
+message TTSProgress {
+  string stage = 1;    // e.g. "synthesizing" | "uploading"
+  float percent = 2;   // 0.0–100.0
+  string message = 3;  // optional human-readable detail
+}
+
+message TTSResult {
+  bool success = 1;
+  string url = 2;              // public audio URL (e.g. Cloudflare R2)
+  float duration_seconds = 3;  // audio length, 0 if unknown
+  string audio_id = 4;         // provider-specific id for later Delete
+  string format = 5;           // actual delivered format, e.g. "mp3"
+  string message = 6;          // error detail when success=false
+}
+
+message TTSDeleteRequest {
+  string audio_id = 1;
+}
+
+message TTSDeleteResponse {
   bool success = 1;
   string message = 2;
 }

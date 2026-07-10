@@ -23,16 +23,7 @@ def _try_plugin_upload(registry, file_storage, article_path):
         return None
 
     # Find a running plugin with image_upload capability
-    target = None
-    for info in plugin_manager.list_plugins():
-        if (
-            info.get("status") == "running"
-            and info.get("enabled")
-            and "image_upload" in info.get("capabilities", [])
-        ):
-            target = info
-            break
-
+    target = plugin_manager.find_plugin_with_capability("image_upload")
     if target is None:
         return None
 

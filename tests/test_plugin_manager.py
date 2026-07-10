@@ -629,6 +629,50 @@ class TestPluginManagerStubs:
         pm._plugins["p"] = _make_state(name="p", enabled=False, channel=None)
         assert pm.get_image_uploader_stub("p") is None
 
+    @patch("services.plugin_manager.plugin_pb2_grpc")
+    def test_get_tts_generator_stub_running(self, mock_pb2_grpc):
+        """运行中的插件应创建 TTSGeneratorStub。"""
+        pm = PluginManager()
+        channel = MagicMock()
+        pm._plugins["p"] = _make_state(name="p", enabled=True, channel=channel)
+
+        mock_stub = MagicMock()
+        mock_pb2_grpc.TTSGeneratorStub.return_value = mock_stub
+
+        result = pm.get_tts_generator_stub("p")
+        assert result is mock_stub
+        mock_pb2_grpc.TTSGeneratorStub.assert_called_once_with(channel)
+
+    def test_get_tts_generator_stub_stopped(self):
+        """已停止的插件应返回 None。"""
+        pm = PluginManager()
+        pm._plugins["p"] = _make_state(name="p", enabled=False, channel=None)
+        assert pm.get_tts_generator_stub("p") is None
+
+    def test_find_plugin_with_capability_match(self):
+        """应返回第一个声明该能力且运行中的插件。"""
+        pm = PluginManager()
+        pm._plugins["a"] = _make_state(name="a", enabled=True, status="running")
+        pm._plugins["a"].manifest.capabilities = ["tts_generation"]
+        # list_plugins 从 manifest 读 capabilities
+        found = pm.find_plugin_with_capability("tts_generation")
+        assert found is not None
+        assert found["name"] == "a"
+
+    def test_find_plugin_with_capability_no_match(self):
+        """无匹配能力时返回 None。"""
+        pm = PluginManager()
+        pm._plugins["a"] = _make_state(name="a", enabled=True, status="running")
+        pm._plugins["a"].manifest.capabilities = ["image_upload"]
+        assert pm.find_plugin_with_capability("tts_generation") is None
+
+    def test_find_plugin_with_capability_skips_disabled(self):
+        """已停用插件即便声明能力也不返回。"""
+        pm = PluginManager()
+        pm._plugins["a"] = _make_state(name="a", enabled=False, status="stopped")
+        pm._plugins["a"].manifest.capabilities = ["tts_generation"]
+        assert pm.find_plugin_with_capability("tts_generation") is None
+
 
 class TestPluginManagerConfig:
     """PluginManager config 操作测试。"""

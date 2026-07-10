@@ -368,3 +368,133 @@ class ImageUploader:
             timeout,
             metadata,
             _registered_method=True)
+
+
+class TTSGeneratorStub:
+    """============================================
+    Optional capability: TTS (text-to-speech)
+    ============================================
+
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.Generate = channel.unary_stream(
+                '/hugo_admin.plugin.TTSGenerator/Generate',
+                request_serializer=plugin__pb2.TTSRequest.SerializeToString,
+                response_deserializer=plugin__pb2.TTSResponse.FromString,
+                _registered_method=True)
+        self.Delete = channel.unary_unary(
+                '/hugo_admin.plugin.TTSGenerator/Delete',
+                request_serializer=plugin__pb2.TTSDeleteRequest.SerializeToString,
+                response_deserializer=plugin__pb2.TTSDeleteResponse.FromString,
+                _registered_method=True)
+
+
+class TTSGeneratorServicer:
+    """============================================
+    Optional capability: TTS (text-to-speech)
+    ============================================
+
+    """
+
+    def Generate(self, request, context):
+        """Server-streaming: plugin emits Progress messages while synthesizing,
+        and a final Result carrying the public audio URL.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Delete(self, request, context):
+        """Delete a previously generated/hosted audio object.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_TTSGeneratorServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'Generate': grpc.unary_stream_rpc_method_handler(
+                    servicer.Generate,
+                    request_deserializer=plugin__pb2.TTSRequest.FromString,
+                    response_serializer=plugin__pb2.TTSResponse.SerializeToString,
+            ),
+            'Delete': grpc.unary_unary_rpc_method_handler(
+                    servicer.Delete,
+                    request_deserializer=plugin__pb2.TTSDeleteRequest.FromString,
+                    response_serializer=plugin__pb2.TTSDeleteResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'hugo_admin.plugin.TTSGenerator', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('hugo_admin.plugin.TTSGenerator', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class TTSGenerator:
+    """============================================
+    Optional capability: TTS (text-to-speech)
+    ============================================
+
+    """
+
+    @staticmethod
+    def Generate(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/hugo_admin.plugin.TTSGenerator/Generate',
+            plugin__pb2.TTSRequest.SerializeToString,
+            plugin__pb2.TTSResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Delete(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/hugo_admin.plugin.TTSGenerator/Delete',
+            plugin__pb2.TTSDeleteRequest.SerializeToString,
+            plugin__pb2.TTSDeleteResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
