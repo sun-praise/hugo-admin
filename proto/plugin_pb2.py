@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0cplugin.proto\x12\x11hugo_admin.plugin\"\x07\n\x05\x45mpty\"\x92\x01\n\nPluginInfo\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x03 \x01(\t\x12\x0e\n\x06\x61uthor\x18\x04 \x01(\t\x12\x18\n\x10protocol_version\x18\x05 \x01(\t\x12\x14\n\x0c\x63\x61pabilities\x18\x06 \x03(\t\x12\x10\n\x08priority\x18\x07 \x01(\x05\"2\n\x0eHealthResponse\x12\x0f\n\x07healthy\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"+\n\x14\x43onfigSchemaResponse\x12\x13\n\x0bschema_json\x18\x01 \x01(\t\"\'\n\x10SetConfigRequest\x12\x13\n\x0b\x63onfig_json\x18\x01 \x01(\t\"5\n\x11SetConfigResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"l\n\x10ImageUploadChunk\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\x12\x10\n\x08\x66ilename\x18\x02 \x01(\t\x12\x11\n\tmime_type\x18\x03 \x01(\t\x12\x14\n\x0c\x61rticle_path\x18\x04 \x01(\t\x12\x0f\n\x07is_last\x18\x05 \x01(\x08\"V\n\x13ImageUploadResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0b\n\x03url\x18\x02 \x01(\t\x12\x10\n\x08image_id\x18\x03 \x01(\t\x12\x0f\n\x07message\x18\x04 \x01(\t\"&\n\x12ImageDeleteRequest\x12\x10\n\x08image_id\x18\x01 \x01(\t\"7\n\x13ImageDeleteResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t2\xca\x02\n\rPluginService\x12?\n\x04Info\x12\x18.hugo_admin.plugin.Empty\x1a\x1d.hugo_admin.plugin.PluginInfo\x12J\n\x0bHealthCheck\x12\x18.hugo_admin.plugin.Empty\x1a!.hugo_admin.plugin.HealthResponse\x12T\n\x0fGetConfigSchema\x12\x18.hugo_admin.plugin.Empty\x1a\'.hugo_admin.plugin.ConfigSchemaResponse\x12V\n\tSetConfig\x12#.hugo_admin.plugin.SetConfigRequest\x1a$.hugo_admin.plugin.SetConfigResponse2\xc1\x01\n\rImageUploader\x12W\n\x06Upload\x12#.hugo_admin.plugin.ImageUploadChunk\x1a&.hugo_admin.plugin.ImageUploadResponse(\x01\x12W\n\x06\x44\x65lete\x12%.hugo_admin.plugin.ImageDeleteRequest\x1a&.hugo_admin.plugin.ImageDeleteResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0cplugin.proto\x12\x11hugo_admin.plugin\"\x07\n\x05\x45mpty\"\x92\x01\n\nPluginInfo\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x03 \x01(\t\x12\x0e\n\x06\x61uthor\x18\x04 \x01(\t\x12\x18\n\x10protocol_version\x18\x05 \x01(\t\x12\x14\n\x0c\x63\x61pabilities\x18\x06 \x03(\t\x12\x10\n\x08priority\x18\x07 \x01(\x05\"2\n\x0eHealthResponse\x12\x0f\n\x07healthy\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"+\n\x14\x43onfigSchemaResponse\x12\x13\n\x0bschema_json\x18\x01 \x01(\t\"\'\n\x10SetConfigRequest\x12\x13\n\x0b\x63onfig_json\x18\x01 \x01(\t\"5\n\x11SetConfigResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"l\n\x10ImageUploadChunk\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\x12\x10\n\x08\x66ilename\x18\x02 \x01(\t\x12\x11\n\tmime_type\x18\x03 \x01(\t\x12\x14\n\x0c\x61rticle_path\x18\x04 \x01(\t\x12\x0f\n\x07is_last\x18\x05 \x01(\x08\"V\n\x13ImageUploadResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0b\n\x03url\x18\x02 \x01(\t\x12\x10\n\x08image_id\x18\x03 \x01(\t\x12\x0f\n\x07message\x18\x04 \x01(\t\"&\n\x12ImageDeleteRequest\x12\x10\n\x08image_id\x18\x01 \x01(\t\"7\n\x13ImageDeleteResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"\x7f\n\nTTSRequest\x12\x0c\n\x04text\x18\x01 \x01(\t\x12\r\n\x05voice\x18\x02 \x01(\t\x12\r\n\x05model\x18\x03 \x01(\t\x12\r\n\x05speed\x18\x04 \x01(\x02\x12\x0e\n\x06\x66ormat\x18\x05 \x01(\t\x12\x10\n\x08language\x18\x06 \x01(\t\x12\x14\n\x0c\x61rticle_path\x18\x07 \x01(\t\"|\n\x0bTTSResponse\x12\x32\n\x08progress\x18\x01 \x01(\x0b\x32\x1e.hugo_admin.plugin.TTSProgressH\x00\x12.\n\x06result\x18\x02 \x01(\x0b\x32\x1c.hugo_admin.plugin.TTSResultH\x00\x42\t\n\x07payload\">\n\x0bTTSProgress\x12\r\n\x05stage\x18\x01 \x01(\t\x12\x0f\n\x07percent\x18\x02 \x01(\x02\x12\x0f\n\x07message\x18\x03 \x01(\t\"v\n\tTTSResult\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0b\n\x03url\x18\x02 \x01(\t\x12\x18\n\x10\x64uration_seconds\x18\x03 \x01(\x02\x12\x10\n\x08\x61udio_id\x18\x04 \x01(\t\x12\x0e\n\x06\x66ormat\x18\x05 \x01(\t\x12\x0f\n\x07message\x18\x06 \x01(\t\"$\n\x10TTSDeleteRequest\x12\x10\n\x08\x61udio_id\x18\x01 \x01(\t\"5\n\x11TTSDeleteResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t2\xca\x02\n\rPluginService\x12?\n\x04Info\x12\x18.hugo_admin.plugin.Empty\x1a\x1d.hugo_admin.plugin.PluginInfo\x12J\n\x0bHealthCheck\x12\x18.hugo_admin.plugin.Empty\x1a!.hugo_admin.plugin.HealthResponse\x12T\n\x0fGetConfigSchema\x12\x18.hugo_admin.plugin.Empty\x1a\'.hugo_admin.plugin.ConfigSchemaResponse\x12V\n\tSetConfig\x12#.hugo_admin.plugin.SetConfigRequest\x1a$.hugo_admin.plugin.SetConfigResponse2\xc1\x01\n\rImageUploader\x12W\n\x06Upload\x12#.hugo_admin.plugin.ImageUploadChunk\x1a&.hugo_admin.plugin.ImageUploadResponse(\x01\x12W\n\x06\x44\x65lete\x12%.hugo_admin.plugin.ImageDeleteRequest\x1a&.hugo_admin.plugin.ImageDeleteResponse2\xb0\x01\n\x0cTTSGenerator\x12K\n\x08Generate\x12\x1d.hugo_admin.plugin.TTSRequest\x1a\x1e.hugo_admin.plugin.TTSResponse0\x01\x12S\n\x06\x44\x65lete\x12#.hugo_admin.plugin.TTSDeleteRequest\x1a$.hugo_admin.plugin.TTSDeleteResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -51,8 +51,22 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_IMAGEDELETEREQUEST']._serialized_end=622
   _globals['_IMAGEDELETERESPONSE']._serialized_start=624
   _globals['_IMAGEDELETERESPONSE']._serialized_end=679
-  _globals['_PLUGINSERVICE']._serialized_start=682
-  _globals['_PLUGINSERVICE']._serialized_end=1012
-  _globals['_IMAGEUPLOADER']._serialized_start=1015
-  _globals['_IMAGEUPLOADER']._serialized_end=1208
+  _globals['_TTSREQUEST']._serialized_start=681
+  _globals['_TTSREQUEST']._serialized_end=808
+  _globals['_TTSRESPONSE']._serialized_start=810
+  _globals['_TTSRESPONSE']._serialized_end=934
+  _globals['_TTSPROGRESS']._serialized_start=936
+  _globals['_TTSPROGRESS']._serialized_end=998
+  _globals['_TTSRESULT']._serialized_start=1000
+  _globals['_TTSRESULT']._serialized_end=1118
+  _globals['_TTSDELETEREQUEST']._serialized_start=1120
+  _globals['_TTSDELETEREQUEST']._serialized_end=1156
+  _globals['_TTSDELETERESPONSE']._serialized_start=1158
+  _globals['_TTSDELETERESPONSE']._serialized_end=1211
+  _globals['_PLUGINSERVICE']._serialized_start=1214
+  _globals['_PLUGINSERVICE']._serialized_end=1544
+  _globals['_IMAGEUPLOADER']._serialized_start=1547
+  _globals['_IMAGEUPLOADER']._serialized_end=1740
+  _globals['_TTSGENERATOR']._serialized_start=1743
+  _globals['_TTSGENERATOR']._serialized_end=1919
 # @@protoc_insertion_point(module_scope)

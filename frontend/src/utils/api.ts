@@ -84,6 +84,53 @@ export async function uploadMarkdown(
   return request<ImportResult>('/api/article/import', { method: 'POST', body: form });
 }
 
+// ============ TTS 语音播报 ============
+
+export interface TTSStatus {
+  success: boolean;
+  available: boolean;
+  plugin?: string | null;
+  voices: string[];
+}
+
+export interface TTSGenerateResult {
+  success: boolean;
+  pending: boolean;
+  event_scope: string;
+  message?: string;
+}
+
+/**
+ * 查询 TTS 能力是否可用（前端据此显隐"生成语音"按钮）。
+ */
+export async function getTTSStatus(): Promise<TTSStatus> {
+  return get<TTSStatus>('/api/article/tts/status');
+}
+
+/**
+ * 为一篇文章生成语音播报。立即返回 event_scope，进度与结果经 Socket.IO
+ * （tts.progress / tts.done / tts.failed / tts.conflict）上报。
+ */
+export async function generateArticleTTS(
+  articlePath: string,
+  opts?: { voice?: string; model?: string; speed?: number; format?: string; language?: string },
+): Promise<TTSGenerateResult> {
+  return post<TTSGenerateResult>('/api/article/tts', {
+    article_path: articlePath,
+    ...opts,
+  });
+}
+
+/**
+ * 删除一篇文章的语音（清 frontmatter 音频字段，并通知插件删托管音频）。
+ */
+export async function deleteArticleTTS(articlePath: string): Promise<{ success: boolean; message?: string; mtime?: number }> {
+  return request<{ success: boolean; message?: string; mtime?: number }>('/api/article/tts', {
+    method: 'DELETE',
+    body: JSON.stringify({ article_path: articlePath }),
+  });
+}
+
 // ============ Git 历史 ============
 
 export interface CommitStats {

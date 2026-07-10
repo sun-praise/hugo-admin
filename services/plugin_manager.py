@@ -375,6 +375,31 @@ class PluginManager:
             return plugin_pb2_grpc.ImageUploaderStub(state.channel)
         return None
 
+    def get_tts_generator_stub(
+        self, name: str
+    ) -> Optional[plugin_pb2_grpc.TTSGeneratorStub]:
+        """Get the TTSGenerator gRPC stub for a running plugin."""
+        state = self._plugins.get(name)
+        if state and state.enabled and state.channel:
+            return plugin_pb2_grpc.TTSGeneratorStub(state.channel)
+        return None
+
+    def find_plugin_with_capability(self, capability: str) -> Optional[dict[str, Any]]:
+        """Return the first running+enabled plugin info declaring a capability.
+
+        Used by article-integration layers (image upload, TTS, ...) to locate
+        the active plugin for a capability without repeating the scan loop.
+        Returns the plugin info dict (as produced by ``list_plugins``) or None.
+        """
+        for info in self.list_plugins():
+            if (
+                info.get("status") == "running"
+                and info.get("enabled")
+                and capability in info.get("capabilities", [])
+            ):
+                return info
+        return None
+
     # ---- Config ----
 
     def get_plugin_config(self, name: str) -> dict[str, Any]:

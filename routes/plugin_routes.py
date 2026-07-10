@@ -14,8 +14,13 @@ logger = logging.getLogger(__name__)
 bp = Blueprint("plugins", __name__)
 
 
-def register_plugin_routes(plugin_manager: PluginManager):
-    """Register all plugin REST endpoints and capability proxy routes."""
+def register_plugin_routes(plugin_manager: PluginManager, socketio=None):
+    """Register all plugin REST endpoints and capability proxy routes.
+
+    ``socketio`` is optional: when provided, the TTS capability proxy forwards
+    streaming progress events to the client; without it progress is silently
+    consumed (only the final result is returned).
+    """
 
     # ---- Plugin Management ----
 
@@ -173,6 +178,123 @@ def register_plugin_routes(plugin_manager: PluginManager):
             return jsonify({"success": resp.success, "message": resp.message})
         except Exception as e:
             logger.error("Image delete via plugin %s failed: %s", name, e)
+            return jsonify({"success": False, "message": f"Delete failed: {e}"}), 500
+
+    # ---- Capability Proxy: TTS Generation ----
+
+    @bp.route("/api/plugins/<name>/tts/generate", methods=["POST"])
+    def generate_tts_via_plugin(name):
+        """Proxy TTS generation to a plugin's TTSGenerator gRPC service.
+
+        Iterates the server-streaming response. ``progress`` messages are
+        forwarded to the client via Socket.IO (event ``tts.progress``) when a
+        socketio instance is wired in; the final ``result`` is returned as JSON.
+        """
+        data = request.get_json(silent=True) or {}
+        text = data.get("text", "")
+        if not text:
+            return jsonify({"success": False, "message": "缺少待合成文本"}), 400
+
+        stub = plugin_manager.get_tts_generator_stub(name)
+        if stub is None:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": (
+                            f"Plugin {name} not running"
+                            " or does not support tts_generation"
+                        ),
+                    }
+                ),
+                404,
+            )
+
+        event_scope = data.get("event_scope", "")
+
+        def _emit(event: str, payload: dict):
+            if socketio is None:
+                return
+            try:
+                socketio.emit(event, {"scope": event_scope, **payload})
+            except Exception:
+                logger.exception("Socket emit failed for %s", event)
+
+        try:
+            # 构造放 try 内：非法 speed（null/"abc"）会抛 TypeError/ValueError，
+            # 返回 JSON 400 而非逸出成 HTML 500。
+            raw_speed = data.get("speed", 1.0)
+            speed = float(raw_speed) if raw_speed is not None else 1.0
+            req = plugin_pb2.TTSRequest(
+                text=text,
+                voice=data.get("voice", "") or "",
+                model=data.get("model", "") or "",
+                speed=speed,
+                format=data.get("format", "") or "",
+                language=data.get("language", "") or "",
+                article_path=data.get("article_path", "") or "",
+            )
+            result = None
+            for resp in stub.Generate(req, timeout=300):
+                which = resp.WhichOneof("payload")
+                if which == "progress":
+                    p = resp.progress
+                    _emit(
+                        "tts.progress",
+                        {
+                            "stage": p.stage,
+                            "percent": p.percent,
+                            "message": p.message,
+                        },
+                    )
+                elif which == "result":
+                    result = resp.result
+
+            if result is None:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": "插件未返回 TTS 结果",
+                        }
+                    ),
+                    502,
+                )
+
+            return jsonify(
+                {
+                    "success": result.success,
+                    "url": result.url,
+                    "duration_seconds": result.duration_seconds,
+                    "audio_id": result.audio_id,
+                    "format": result.format,
+                    "message": result.message,
+                }
+            )
+        except (TypeError, ValueError) as e:
+            # 非法 speed（null/"abc" 等）—— 客户端错误，返回 400
+            return jsonify({"success": False, "message": f"无效的参数: {e}"}), 400
+        except Exception as e:
+            logger.error("TTS via plugin %s failed: %s", name, e)
+            return jsonify({"success": False, "message": f"TTS failed: {e}"}), 500
+
+    @bp.route("/api/plugins/<name>/tts/<audio_id>", methods=["DELETE"])
+    def delete_tts_via_plugin(name, audio_id):
+        """Proxy TTS audio deletion to a plugin's TTSGenerator gRPC service."""
+        stub = plugin_manager.get_tts_generator_stub(name)
+        if stub is None:
+            return (
+                jsonify({"success": False, "message": f"Plugin {name} not running"}),
+                404,
+            )
+
+        try:
+            resp = stub.Delete(
+                plugin_pb2.TTSDeleteRequest(audio_id=audio_id), timeout=30
+            )
+            return jsonify({"success": resp.success, "message": resp.message})
+        except Exception as e:
+            logger.error("TTS delete via plugin %s failed: %s", name, e)
             return jsonify({"success": False, "message": f"Delete failed: {e}"}), 500
 
     return bp

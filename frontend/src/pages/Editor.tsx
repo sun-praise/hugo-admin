@@ -18,12 +18,19 @@ import {
   ArrowLeftRight,
   Sparkles,
   Wand2,
+  Headphones,
 } from 'lucide-react';
 import { get, post } from '../utils/api';
+import {
+  generateArticleTTS,
+  deleteArticleTTS,
+  getTTSStatus,
+} from '../utils/api';
 import { renderMarkdown, escapeHtml } from '../utils/markdown';
 import type { Mermaid } from 'mermaid';
 import type { FileData, ImageItem, Backlink, Frontmatter } from '../types';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useSocket } from '../hooks/useSocket';
 import { InlineEditOverlay } from '../components/InlineEdit/Overlay';
 import { ConflictModal } from '../components/ConflictModal';
 
@@ -99,6 +106,15 @@ export default function Editor() {
   const [conflictRemoteContent, setConflictRemoteContent] = useState<string | null>(null);
   const { setTitle: setPageTitle, resetTitle: resetPageTitle } = usePageTitle();
 
+  // TTS 语音播报
+  const socketRef = useSocket();
+  const [ttsAvailable, setTtsAvailable] = useState(false);
+  const [ttsVoices, setTtsVoices] = useState<string[]>([]);
+  const [generatingTts, setGeneratingTts] = useState(false);
+  const [ttsProgress, setTtsProgress] = useState<{ stage: string; percent: number; message: string } | null>(null);
+  const [ttsVoice, setTtsVoice] = useState('');
+  const [ttsSpeed, setTtsSpeed] = useState(1.0);
+
   useEffect(() => {
     if (frontmatter.title) {
       setPageTitle(frontmatter.title);
@@ -107,6 +123,9 @@ export default function Editor() {
   }, [frontmatter.title, setPageTitle, resetPageTitle]);
 
   const currentFile = fullPath;
+
+  // audioUrl 直接从 frontmatter.audio 派生，避免在 effect 里 setState（react-hooks/set-state-in-effect）
+  const audioUrl = typeof frontmatter.audio === 'string' ? frontmatter.audio : '';
 
   const updatePreview = useCallback(() => {
     let html = renderMarkdown(content || '', { mermaid: true });
@@ -463,6 +482,64 @@ export default function Editor() {
     }
   }
 
+  async function generateSpeech() {
+    if (!currentFile) {
+      showNotification('未选择文件', 'error');
+      return;
+    }
+    if (!content.trim()) {
+      showNotification('文章内容为空', 'error');
+      return;
+    }
+    setGeneratingTts(true);
+    setTtsProgress({ stage: 'starting', percent: 0, message: '' });
+    try {
+      const data = await generateArticleTTS(currentFile, {
+        voice: ttsVoice || undefined,
+        speed: ttsSpeed,
+      });
+      if (!data.success) {
+        setGeneratingTts(false);
+        setTtsProgress(null);
+        showNotification('语音生成失败: ' + (data.message || '未知错误'), 'error');
+      }
+      // pending=true 时进度与结果由 Socket.IO 事件驱动
+    } catch {
+      setGeneratingTts(false);
+      setTtsProgress(null);
+      showNotification('语音生成请求失败', 'error');
+    }
+  }
+
+  async function deleteSpeech() {
+    if (!currentFile) return;
+    if (!confirm('确定删除该文章的语音播报？')) return;
+    try {
+      const data = await deleteArticleTTS(currentFile);
+      if (data.success) {
+        setFrontmatter((prev) => {
+          const next = { ...prev };
+          delete next.audio;
+          delete next.audio_duration_seconds;
+          delete next.audio_format;
+          return next;
+        });
+        setFmEdit((prev) => {
+          const next = { ...prev };
+          delete next.audio;
+          return next;
+        });
+        // 后端已保存文件，刷新 fileMtime 避免下次手动保存触发假冲突
+        if (data.mtime) setFileMtime(data.mtime);
+        showNotification('已删除语音', 'success');
+      } else {
+        showNotification('删除失败: ' + (data.message || '未知错误'), 'error');
+      }
+    } catch {
+      showNotification('删除语音失败', 'error');
+    }
+  }
+
   async function generateFrontmatterFromAI() {
     if (!currentFile || !content.trim()) {
       showNotification('文章内容为空', 'error');
@@ -619,6 +696,78 @@ export default function Editor() {
     })();
   }, [currentFile, loadFile, loadImages, loadBacklinks]);
 
+  // audioUrl 直接派生自 frontmatter.audio（见上方 const audioUrl），无需 effect 同步
+
+  // 查询 TTS 能力是否可用（控制按钮显隐）
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const st = await getTTSStatus();
+        if (cancelled) return;
+        setTtsAvailable(st.available);
+        setTtsVoices(st.voices || []);
+      } catch {
+        if (!cancelled) setTtsAvailable(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // 监听 TTS Socket.IO 进度/结果事件
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    const onProgress = (d: { stage?: string; percent?: number; message?: string }) => {
+      setTtsProgress({ stage: d.stage || '', percent: d.percent ?? 0, message: d.message || '' });
+    };
+    const onDone = (d: { url?: string; duration_seconds?: number; format?: string; mtime?: number }) => {
+      setGeneratingTts(false);
+      setTtsProgress(null);
+      if (d.url) {
+        const url = d.url;
+        const fmt = d.format || '';
+        // 持久化后端已写入的全部音频字段，避免下次保存把它们丢掉
+        //（audioUrl 由 frontmatter.audio 派生，无需单独 setAudioUrl）
+        setFrontmatter((prev) => ({
+          ...prev,
+          audio: url,
+          audio_duration_seconds: d.duration_seconds,
+          audio_format: fmt,
+        }));
+        setFmEdit((prev) => ({
+          ...prev,
+          audio: url,
+          audio_duration_seconds: d.duration_seconds ? String(d.duration_seconds) : '',
+          audio_format: fmt,
+        }));
+        // 后端已保存文件，刷新 fileMtime 避免下次手动保存触发假冲突
+        if (d.mtime) setFileMtime(d.mtime);
+        showNotification('语音播报已生成', 'success');
+      }
+    };
+    const onFailed = (d: { message?: string }) => {
+      setGeneratingTts(false);
+      setTtsProgress(null);
+      showNotification('语音生成失败: ' + (d.message || '未知错误'), 'error');
+    };
+    const onConflict = (d: { message?: string }) => {
+      setGeneratingTts(false);
+      setTtsProgress(null);
+      showNotification(d.message || '文章已被修改，请保存后重试', 'warning');
+    };
+    socket.on('tts.progress', onProgress);
+    socket.on('tts.done', onDone);
+    socket.on('tts.failed', onFailed);
+    socket.on('tts.conflict', onConflict);
+    return () => {
+      socket.off('tts.progress', onProgress);
+      socket.off('tts.done', onDone);
+      socket.off('tts.failed', onFailed);
+      socket.off('tts.conflict', onConflict);
+    };
+  }, [socketRef]);
+
   useEffect(() => {
     (async () => {
       await updatePreview();
@@ -731,6 +880,11 @@ export default function Editor() {
             <button onClick={generateFrontmatterFromAI} disabled={generatingFm || !currentFile} title={generatingFm ? '生成中...' : 'AI 生成 Frontmatter'} className="p-2 border border-amber-400 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               <Wand2 className="w-5 h-5" />
             </button>
+            {ttsAvailable && (
+              <button onClick={generateSpeech} disabled={generatingTts || !currentFile} title={generatingTts ? '生成语音中...' : '生成语音播报'} className="p-2 border border-emerald-400 text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                <Headphones className="w-5 h-5" />
+              </button>
+            )}
             <span className="border-l border-stone-300 mx-1 h-6" />
             <button onClick={() => saveFile()} disabled={saving || !hasChanges} title={saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               <Save className="w-5 h-5" />
@@ -749,6 +903,42 @@ export default function Editor() {
               </div>
               <span className="text-sm text-stone-600 whitespace-nowrap">{generatingCover ? 'AI 生成封面中...' : 'AI 生成 Frontmatter 中...'}</span>
             </div>
+          </div>
+        )}
+
+        {/* TTS 语音播报参数面板 + 进度 */}
+        {ttsAvailable && (
+          <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-3 mb-4">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-medium text-stone-700">语音播报</span>
+              {ttsVoices.length > 0 && (
+                <select value={ttsVoice} onChange={(e) => setTtsVoice(e.target.value)} className="px-2 py-1 border border-stone-300 rounded-lg text-sm" disabled={generatingTts}>
+                  {ttsVoices.map((v) => (<option key={v} value={v}>{v}</option>))}
+                </select>
+              )}
+              <label className="flex items-center gap-2 text-sm text-stone-600">
+                语速
+                <input type="range" min={0.5} max={2} step={0.1} value={ttsSpeed} onChange={(e) => setTtsSpeed(parseFloat(e.target.value))} disabled={generatingTts} className="w-28" />
+                <span className="font-mono w-8">{ttsSpeed.toFixed(1)}</span>
+              </label>
+              <button onClick={generateSpeech} disabled={generatingTts || !currentFile} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                {audioUrl ? '重新生成' : '生成语音'}
+              </button>
+              {audioUrl && !generatingTts && (
+                <button onClick={deleteSpeech} className="px-3 py-1 border border-stone-300 text-stone-600 rounded-lg text-sm hover:bg-stone-50 transition-colors">删除</button>
+              )}
+            </div>
+            {generatingTts && (
+              <div className="flex items-center gap-3 mt-3">
+                <div className="w-full bg-stone-200 rounded-full h-2 overflow-hidden">
+                  <div className="h-2 rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.min(100, ttsProgress?.percent || 0)}%` }} />
+                </div>
+                <span className="text-sm text-stone-600 whitespace-nowrap">{ttsProgress?.message || ttsProgress?.stage || '生成中...'}</span>
+              </div>
+            )}
+            {audioUrl && !generatingTts && (
+              <audio controls src={audioUrl} className="w-full mt-3" />
+            )}
           </div>
         )}
 
