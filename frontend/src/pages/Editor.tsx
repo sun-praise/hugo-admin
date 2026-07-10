@@ -725,19 +725,21 @@ export default function Editor() {
       setGeneratingTts(false);
       setTtsProgress(null);
       if (d.url) {
+        const url = d.url;
+        const fmt = d.format || '';
         // 持久化后端已写入的全部音频字段，避免下次保存把它们丢掉
         //（audioUrl 由 frontmatter.audio 派生，无需单独 setAudioUrl）
         setFrontmatter((prev) => ({
           ...prev,
-          audio: d.url,
+          audio: url,
           audio_duration_seconds: d.duration_seconds,
-          audio_format: d.format,
+          audio_format: fmt,
         }));
         setFmEdit((prev) => ({
           ...prev,
-          audio: d.url,
+          audio: url,
           audio_duration_seconds: d.duration_seconds ? String(d.duration_seconds) : '',
-          audio_format: d.format,
+          audio_format: fmt,
         }));
         // 后端已保存文件，刷新 fileMtime 避免下次手动保存触发假冲突
         if (d.mtime) setFileMtime(d.mtime);
