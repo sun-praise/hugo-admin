@@ -23,6 +23,7 @@
 - **⚡ 实时更新**: 基于 WebSocket 的实时日志流
 - **💾 缓存系统**: 基于 SQLite 的缓存，快速检索文章
 - **🔐 密码登录**: 单管理员认证，保护所有 API 与实时通道
+- **🔌 插件系统**: 通过基于 gRPC 的插件扩展 hugo-admin——详见[插件系统设计文档](openspec/changes/add-plugin-system/design.md)与[`proto/plugin.proto`](proto/plugin.proto)
 
 ## 技术栈
 
@@ -189,6 +190,7 @@ hugo-admin/
 - [缓存使用](https://sun-praise.github.io/hugo-admin/CACHE_USAGE/)
 - [GitHub 设置](https://sun-praise.github.io/hugo-admin/GITHUB_SETUP/)
 - [Frontmatter 重构](https://sun-praise.github.io/hugo-admin/FRONTMATTER_REFACTOR/)
+- [插件系统](openspec/changes/add-plugin-system/design.md) —— 基于 gRPC 的插件架构、能力与如何编写自己的插件
 
 使用 [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) 构建，源文件在 [`docs/`](docs/)，由 [`.github/workflows/pages.yml`](.github/workflows/pages.yml) 自动部署。
 

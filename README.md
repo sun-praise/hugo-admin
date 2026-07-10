@@ -23,6 +23,7 @@
 - **⚡ Real-time Updates**: WebSocket-based live log streaming
 - **💾 Cache System**: SQLite-based caching for fast post retrieval
 - **🔐 Password Login**: Single-admin authentication gates every API and the realtime channel
+- **🔌 Plugin System**: Extend hugo-admin with gRPC-based plugins — see the [plugin system design](openspec/changes/add-plugin-system/design.md) and [`proto/plugin.proto`](proto/plugin.proto)
 
 ## Tech Stack
 
@@ -189,6 +190,7 @@ Topics include:
 - [Cache system](https://sun-praise.github.io/hugo-admin/CACHE_USAGE/)
 - [GitHub setup](https://sun-praise.github.io/hugo-admin/GITHUB_SETUP/)
 - [Frontmatter refactor](https://sun-praise.github.io/hugo-admin/FRONTMATTER_REFACTOR/)
+- [Plugin system](openspec/changes/add-plugin-system/design.md) — gRPC-based plugin architecture, capabilities, and how to write your own
 
 Built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/); source lives in [`docs/`](docs/), auto-deployed via [`.github/workflows/pages.yml`](.github/workflows/pages.yml).
 
