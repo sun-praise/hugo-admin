@@ -114,7 +114,6 @@ export default function Editor() {
   const [ttsProgress, setTtsProgress] = useState<{ stage: string; percent: number; message: string } | null>(null);
   const [ttsVoice, setTtsVoice] = useState('');
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
-  const [audioUrl, setAudioUrl] = useState('');
 
   useEffect(() => {
     if (frontmatter.title) {
@@ -124,6 +123,9 @@ export default function Editor() {
   }, [frontmatter.title, setPageTitle, resetPageTitle]);
 
   const currentFile = fullPath;
+
+  // audioUrl 直接从 frontmatter.audio 派生，避免在 effect 里 setState（react-hooks/set-state-in-effect）
+  const audioUrl = typeof frontmatter.audio === 'string' ? frontmatter.audio : '';
 
   const updatePreview = useCallback(() => {
     let html = renderMarkdown(content || '', { mermaid: true });
@@ -515,7 +517,6 @@ export default function Editor() {
     try {
       const data = await deleteArticleTTS(currentFile);
       if (data.success) {
-        setAudioUrl('');
         setFrontmatter((prev) => {
           const next = { ...prev };
           delete next.audio;
@@ -695,11 +696,7 @@ export default function Editor() {
     })();
   }, [currentFile, loadFile, loadImages, loadBacklinks]);
 
-  // 同步 frontmatter.audio 到 audioUrl 状态（loadFile/保存后随之更新）
-  useEffect(() => {
-    const a = frontmatter.audio;
-    setAudioUrl(typeof a === 'string' ? a : '');
-  }, [frontmatter.audio]);
+  // audioUrl 直接派生自 frontmatter.audio（见上方 const audioUrl），无需 effect 同步
 
   // 查询 TTS 能力是否可用（控制按钮显隐）
   useEffect(() => {
@@ -728,8 +725,8 @@ export default function Editor() {
       setGeneratingTts(false);
       setTtsProgress(null);
       if (d.url) {
-        setAudioUrl(d.url);
         // 持久化后端已写入的全部音频字段，避免下次保存把它们丢掉
+        //（audioUrl 由 frontmatter.audio 派生，无需单独 setAudioUrl）
         setFrontmatter((prev) => ({
           ...prev,
           audio: d.url,
