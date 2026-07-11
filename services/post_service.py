@@ -871,7 +871,10 @@ class PostService:
 
     def list_images(self, article_path):
         """
-        列出文章目录下的所有图片
+        列出文章中引用的所有图片
+
+        图片现在存储在 Cloudflare R2 (CDN URL)，不再扫描本地 pics/ 目录。
+        从 Markdown 正文和 frontmatter 中解析图片引用。
 
         Args:
             article_path: 文章路径(相对于 content 目录)
@@ -880,37 +883,47 @@ class PostService:
             (success, result): 成功标志和图片列表或错误消息
         """
         try:
-            # 构建文章目录路径
             if not Path(article_path).is_absolute():
                 article_file = self.content_dir / article_path
             else:
                 article_file = Path(article_path)
 
-            # 获取文章所在目录
-            article_dir = article_file.parent
-            pics_dir = article_dir / "pics"
-
-            if not pics_dir.exists():
+            if not article_file.exists():
                 return True, []
 
-            # 支持的图片格式
-            image_extensions = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
-
-            # 列出所有图片
+            text = article_file.read_text(encoding="utf-8")
+            image_extensions = {
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".gif",
+                ".svg",
+                ".webp",
+                ".jfif",
+            }
+            seen = set()
             images = []
-            for img_path in pics_dir.iterdir():
-                if img_path.is_file() and img_path.suffix.lower() in image_extensions:
-                    images.append(
-                        {
-                            "name": img_path.name,
-                            "url": f"pics/{img_path.name}",
-                            "size": img_path.stat().st_size,
-                            "modified": img_path.stat().st_mtime,
-                        }
-                    )
 
-            # 按修改时间倒序排列
-            images.sort(key=lambda x: x["modified"], reverse=True)
+            # 1. Markdown body: ![alt](url) or ![alt](url "title")
+            for match in re.finditer(r'!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)', text):
+                url = match.group(1)
+                if url not in seen:
+                    seen.add(url)
+                    name = url.rsplit("/", 1)[-1] if "/" in url else url
+                    images.append({"name": name, "url": url})
+
+            # 2. Frontmatter: image: <url> or cover: <url>
+            for match in re.finditer(
+                r"^(?:image|cover|featured_image):\s*(.+)$", text, re.MULTILINE
+            ):
+                url = match.group(1).strip().strip('"').strip("'")
+                if url and url not in seen:
+                    is_url = url.startswith("http")
+                    is_file = any(url.lower().endswith(ext) for ext in image_extensions)
+                    if is_url or is_file:
+                        seen.add(url)
+                        name = url.rsplit("/", 1)[-1] if "/" in url else url
+                        images.append({"name": name, "url": url})
 
             return True, images
 

@@ -953,10 +953,12 @@ export default function Editor() {
             </div>
             <div className="grid grid-cols-4 gap-4">
               {images.map((image) => {
+                const isRemoteUrl = image.url.startsWith('http://') || image.url.startsWith('https://');
                 const articleDir = currentFile.replace(/[^/]+$/, '');
+                const imgSrc = isRemoteUrl ? image.url : `/content/${articleDir}${image.url}`;
                 return (
                   <div key={image.name} className="relative group">
-                    <img src={`/content/${articleDir}${image.url}`} alt={image.name} className="w-full h-32 object-cover rounded border border-stone-200" />
+                    <img src={imgSrc} alt={image.name} className="w-full h-32 object-cover rounded border border-stone-200" />
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center z-10">
                       <button onClick={() => copyImageUrl(image.url)} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded shadow-lg">
                         复制链接
