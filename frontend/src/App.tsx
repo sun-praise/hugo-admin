@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import RequireAuth from './components/RequireAuth';
+import Loading from './components/Loading';
 
 // Route-level code splitting: each page loads as its own chunk, keeping the
 // entry bundle small. Heavy dependencies (highlight.js in Editor's markdown
@@ -20,7 +21,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* 登录页独立于 Layout，可未登录访问 */}
-        <Route path="/login" element={<Suspense fallback={null}><Login /></Suspense>} />
+        <Route path="/login" element={<Suspense fallback={<Loading fullScreen />}><Login /></Suspense>} />
         {/* 其余路由需登录 */}
         <Route element={<RequireAuth />}>
           <Route path="/" element={<Layout />}>

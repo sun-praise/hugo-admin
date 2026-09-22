@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import Loading from './Loading';
 import Header from './Header';
 
 // AIChat pulls in the markdown renderer (highlight.js) — load it as a lazy
@@ -20,7 +21,7 @@ export default function Layout() {
         <main className="flex-1 overflow-auto bg-stone-50">
           <Header />
           <div className="p-6">
-            <Suspense fallback={null}>
+            <Suspense fallback={<Loading />}>
               <Outlet />
             </Suspense>
           </div>
