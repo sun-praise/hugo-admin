@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- mkdocs: ``` 代码块渲染走 Material 现代路径——移除老的 `codehilite`（与 `pymdownx.superfences` + `pymdownx.highlight` 冲突，吃了 fence 块后输出 `<div class="codehilite">`、没 Material 钩子、Copy 按钮/行号/行高亮都挂不上）；给 `pymdownx.highlight` 配 Material 推荐参数（`anchor_linenums` / `line_spans=__span` / `pygments_lang_class`），theme features 启用 `content.code.copy`。所有 bash/yaml/nginx/text 块都换成 `<div class="language-xxx highlight">`，Material 样式与 Copy 按钮生效。
+- 前端构建：vite build 报 "Some chunks are larger than 500 kB after minification"（入口 chunk 1.43 MB）。① `highlight.js` 由全量引入（~190 门语法、约 1 MB min）改为官方推荐的 `lib/common` 子集（~36 门常用语言），未注册语言自动回退 plaintext；hljs v11 已移除 toml 语法，改用 ini 语法注册为 `toml` 兜底（TOML 属 INI 家族，Hugo 文章 ```toml 块仍有高亮）。② 页面路由改 `React.lazy` 按需分包；`Layout` 里的 `AIChat`（连带 markdown 渲染器与 highlight.js）也改懒加载——入口 chunk 1,432 kB → 236 kB（gzip 462 → 76 kB），markdown/hljs 拆为 222 kB 共享 chunk 随 Editor/AIChat 按需加载。③ mermaid 内部 ~660 kB 懒加载共享 chunk 无法从应用侧再拆，`chunkSizeWarningLimit` 提至 700 kB 并注释说明；mermaid 仍仅在预览含 ```mermaid 块时才下载，行为不变。
 - mkdocs: 中文标题 anchor 不再退化成 `_1`/`_2`/`...`。`toc` 扩展用默认 slugifier 会把非 ASCII 字符 strip 掉，pages 上右侧大纲、URL 锚点全是无意义数字串（#_2 之类）。改用 `pymdownx.slugs.slugify(case=lower)` 保留 Unicode，URL 仍 URL-safe（小写 + 连字符）。影响 10 个含中文标题的 docs 页面（CACHE_USAGE / QUICKSTART / FRONTMATTER_REFACTOR / plan/demo-deployment 等）。
 
 ### Changed

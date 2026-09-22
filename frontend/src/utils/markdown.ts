@@ -1,7 +1,17 @@
 import { Marked } from 'marked';
 import { markedHighlight } from 'marked-highlight';
-import hljs from 'highlight.js';
+// highlight.js full build bundles ~190 languages (~1 MB minified) into the
+// entry chunk. The "common" set (~35 languages) is the officially recommended
+// subset for bundling; unregistered languages fall back to plaintext via the
+// hljs.getLanguage() check below.
+import hljs from 'highlight.js/lib/common';
+import ini from 'highlight.js/lib/languages/ini';
 import DOMPurify from 'dompurify';
+
+// highlight.js v11 dropped its toml grammar (unmaintained upstream). TOML is
+// INI-family syntax, so ```toml fences (common in Hugo posts) highlight via
+// the ini grammar instead of falling back to plaintext.
+hljs.registerLanguage('toml', ini);
 
 const marked = new Marked(
   markedHighlight({

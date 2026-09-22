@@ -9,5 +9,9 @@ export default defineConfig({
   build: {
     outDir: '../admin-ui',
     emptyOutDir: true,
+    // mermaid (loaded lazily, only when a post contains a ```mermaid block)
+    // ships an internal ~660 kB shared chunk that cannot be split further
+    // from the app side. Every app-owned chunk stays under the default 500 kB.
+    chunkSizeWarningLimit: 700,
   },
 })
