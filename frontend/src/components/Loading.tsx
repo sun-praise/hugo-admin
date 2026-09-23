@@ -5,6 +5,8 @@ import { Loader2 } from 'lucide-react';
 export default function Loading({ fullScreen = false }: { fullScreen?: boolean }) {
   return (
     <div
+      role="status"
+      aria-live="polite"
       className={`flex items-center justify-center gap-2 text-stone-500 ${
         fullScreen ? 'h-screen' : 'py-20'
       }`}
