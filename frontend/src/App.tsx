@@ -1,21 +1,27 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import RequireAuth from './components/RequireAuth';
-import Dashboard from './pages/Dashboard';
-import Posts from './pages/Posts';
-import Editor from './pages/Editor';
-import Server from './pages/Server';
-import Settings from './pages/Settings';
-import Plugins from './pages/Plugins';
-import Git from './pages/Git';
-import Login from './pages/Login';
+import Loading from './components/Loading';
+
+// Route-level code splitting: each page loads as its own chunk, keeping the
+// entry bundle small. Heavy dependencies (highlight.js in Editor's markdown
+// renderer, socket.io-client) ship with the page that uses them.
+const Login = lazy(() => import('./pages/Login'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Posts = lazy(() => import('./pages/Posts'));
+const Editor = lazy(() => import('./pages/Editor'));
+const Server = lazy(() => import('./pages/Server'));
+const Git = lazy(() => import('./pages/Git'));
+const Plugins = lazy(() => import('./pages/Plugins'));
+const Settings = lazy(() => import('./pages/Settings'));
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         {/* 登录页独立于 Layout，可未登录访问 */}
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<Suspense fallback={<Loading fullScreen />}><Login /></Suspense>} />
         {/* 其余路由需登录 */}
         <Route element={<RequireAuth />}>
           <Route path="/" element={<Layout />}>
