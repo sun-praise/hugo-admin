@@ -7,24 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-09-23
+
+### Added
+- TTS 语音播报插件能力（`tts_generation`）：proto 新增可选能力服务 `TTSGenerator`（`Generate` 服务端流式 + `Delete`）；plugin_manager 新增 `get_tts_generator_stub` / `find_plugin_with_capability`；新增 TTS 代理路由 `/api/plugins/<name>/tts/generate`、`/api/plugins/<name>/tts/<audio_id>`（非法 `speed` 参数返回 400）；文章集成（读正文 → 后台任务生成 → 乐观锁写回 frontmatter `audio`，生成完成与删除均回传 `new_mtime` 保持前端 mtime 一致）；前端 Editor 增加生成语音按钮、参数面板与 `<audio>` 播放器，`audioUrl` 由 frontmatter 派生。Go 插件本体在独立仓库 `tts-gen-plugin`。见 #149。
+- 文件保存乐观锁，防止并发编辑互相覆盖：两个编辑器打开同一文件、一方先保存时，另一方保存检测到 mtime 不一致，`/api/file/save` 返回 409 与当前内容，前端弹 `ConflictModal` 展示 unified diff，可选择强制覆盖或放弃。`read_file` / `read_file_with_frontmatter` 返回文件 mtime（写后用 `os.fstat` 取新值，避免 TOCTOU），`save_file` 接受 `expected_mtime`。见 #146。
+- README: 顶部 badge + 单独的「Documentation」段落指向 https://sun-praise.github.io/hugo-admin/，列出核心章节直接链接。`README.md` 与 `README.zh-CN.md` 都加（保持现有英文/中文拆分的结构）。
+- CI: GitHub Pages 部署 workflow（`.github/workflows/pages.yml`），main 推送 docs/mkdocs.yml 变更时自动 `mkdocs build --strict` + `actions/deploy-pages@v4` 发布到 https://sun-praise.github.io/hugo-admin/。mkdocs 依赖收进 `pyproject.toml` 的 `docs` extra 与 uv.lock（mkdocs 1.6.1 / material 9.6.8 / pymdown-extensions 10.14.3），workflow 用 `uv sync --extra docs --no-dev` + `uv run mkdocs build`，与 `test.yml` 的 Python 工具链一致；`mkdocs.yml` 新增 `site_url` 让 canonical / sitemap 指向 Pages 路径。
+
+### Changed
+- 图片存储迁移 Cloudflare R2：`post_service.list_images()` 改为从 Markdown 正文与 frontmatter 提取图片 URL（含 CDN 地址），不再扫描本地 `pics/` 目录；Editor 同时渲染 CDN 与本地路径，图片不再依赖本地存储。
+- 默认图像生成模型切换为 Nano Banana 2（`gemini-3.1-flash-image-preview`）。见 #143。
+- CI: GitHub Actions 升级到最新版本（checkout v7、setup-node v6、setup-python v6、cache v6、pnpm/action-setup v6、setup-uv v7、codecov v7），消除 Node.js 20 deprecation 告警。见 #147。
+- 重组 mkdocs 文档结构：把 `DOCKER.md` 移入 `docs/docker.md`（保留 git 历史），新增「部署」分区（Docker 部署、Demo 服务器部署），使用指南补齐「剪贴板图片粘贴」，开发文档补齐「整体发布功能」；`docs/index.md` 改为完整文档导览页；启用 `repo_url` / `edit_uri` 与 Material 9.x 的 `content.action.{edit,view}` 特性，每页加「编辑此页」与「查看源码」按钮，页脚补 GitHub 仓库与 Docker 镜像链接。同步删除 `docs/README.md`（与根目录 `README.md` + `README.zh-CN.md` 重复、且与 `index.md` 在 mkdocs 中冲突）；`docs/development/preview-optimized.md` 是单行占位、移除。
+
 ### Fixed
 - 前端构建：vite build 报 "Some chunks are larger than 500 kB after minification"（入口 chunk 1.43 MB）。① `highlight.js` 由全量引入（~190 门语法、约 1 MB min）改为官方推荐的 `lib/common` 子集（~36 门常用语言），未注册语言自动回退 plaintext；hljs v11 已移除 toml 语法，改用 ini 语法注册为 `toml` 兜底（TOML 属 INI 家族，Hugo 文章的 TOML 代码块仍有高亮）。② 页面路由改 `React.lazy` 按需分包；`Layout` 里的 `AIChat`（连带 markdown 渲染器与 highlight.js）也改懒加载——入口 chunk 1,432 kB → 236 kB（gzip 462 → 76 kB），markdown/hljs 拆为 222 kB 共享 chunk 随 Editor/AIChat 按需加载；懒加载失败（如重新部署后旧 hash chunk 404）由根级 ErrorBoundary 兜底并提示重新加载，chunk 加载期间显示加载指示。③ mermaid 内部 ~660 kB 懒加载共享 chunk 无法从应用侧再拆，`chunkSizeWarningLimit` 提至 700 kB 并注释说明；mermaid 仍仅在预览含 Mermaid 代码块时才下载，行为不变。
 - mkdocs: 中文标题 anchor 不再退化成 `_1`/`_2`/`...`。`toc` 扩展用默认 slugifier 会把非 ASCII 字符 strip 掉，pages 上右侧大纲、URL 锚点全是无意义数字串（#_2 之类）。改用 `pymdownx.slugs.slugify(case=lower)` 保留 Unicode，URL 仍 URL-safe（小写 + 连字符）。影响 10 个含中文标题的 docs 页面（CACHE_USAGE / QUICKSTART / FRONTMATTER_REFACTOR / plan/demo-deployment 等）。
-
-### Changed
-- 重组 mkdocs 文档结构：把 `DOCKER.md` 移入 `docs/docker.md`（保留 git 历史），新增「部署」分区（Docker 部署、Demo 服务器部署），使用指南补齐「剪贴板图片粘贴」，开发文档补齐「整体发布功能」；`docs/index.md` 改为完整文档导览页；启用 `repo_url` / `edit_uri` 与 Material 9.x 的 `content.action.{edit,view}` 特性，每页加「编辑此页」与「查看源码」按钮，页脚补 GitHub 仓库与 Docker 镜像链接。同步删除 `docs/README.md`（与根目录 `README.md` + `README.zh-CN.md` 重复、且与 `index.md` 在 mkdocs 中冲突）；`docs/development/preview-optimized.md` 是单行占位、移除。
-
-### Added
-- README: 顶部 badge + 单独的「Documentation」段落指向 https://sun-praise.github.io/hugo-admin/，列出核心章节直接链接。`README.md` 与 `README.zh-CN.md` 都加（保持现有英文/中文拆分的结构）。
+- 编辑器预览 mermaid 解析失败时只显示原始源码、没有任何错误提示：原实现 `api.run({ nodes, suppressErrors: true })` 静默吞掉 parse 错误，且 mermaid 自带的错误图标在当前集成下渲染不稳定（依赖内部单例状态）。改为先用 `api.parse(code)` 校验，失败时往节点注入一个带样式的「Mermaid 语法错误」`<pre>`，错误信息和定位行号直接可见。同时把预览容器 `useMemo([preview])` 化，避免 images/backlinks/loading 等无关状态变更触发 React 重新 reconcile `dangerouslySetInnerHTML`、把 mermaid 刚渲染好的 `.mermaid` 节点 detach 掉——这是「图渲染了又消失」「错误块一闪而过」的根因。复现用例：边标签里含 `[]`（如 `C1 -->|新建 Agent, messages=[]| D1[DeepSeek]`）会被 mermaid 11 当成节点形状语法导致整图 parse 失败。
 
 ### Security
 - CI: pages workflow 把 `pages: write` / `id-token: write` 从 workflow 级别收到 `deploy` job 内，`build` job 只能 `contents: read`。build job 装 PyPI 包、跑 mkdocs build，不需要部署凭据；收窄后即使 build 链被攻破（恶意 mkdocs/pymdown release）也无法部署或改 Pages。zizmor 标记的 `overly broad permissions` 错误。
-
-### Added
-- CI: GitHub Pages 部署 workflow（`.github/workflows/pages.yml`），main 推送 docs/mkdocs.yml 变更时自动 `mkdocs build --strict` + `actions/deploy-pages@v4` 发布到 https://sun-praise.github.io/hugo-admin/。mkdocs 依赖收进 `pyproject.toml` 的 `docs` extra 与 uv.lock（mkdocs 1.6.1 / material 9.6.8 / pymdown-extensions 10.14.3），workflow 用 `uv sync --extra docs --no-dev` + `uv run mkdocs build`，与 `test.yml` 的 Python 工具链一致；`mkdocs.yml` 新增 `site_url` 让 canonical / sitemap 指向 Pages 路径。
-
-### Fixed
-- 编辑器预览 mermaid 解析失败时只显示原始源码、没有任何错误提示：原实现 `api.run({ nodes, suppressErrors: true })` 静默吞掉 parse 错误，且 mermaid 自带的错误图标在当前集成下渲染不稳定（依赖内部单例状态）。改为先用 `api.parse(code)` 校验，失败时往节点注入一个带样式的「Mermaid 语法错误」`<pre>`，错误信息和定位行号直接可见。同时把预览容器 `useMemo([preview])` 化，避免 images/backlinks/loading 等无关状态变更触发 React 重新 reconcile `dangerouslySetInnerHTML`、把 mermaid 刚渲染好的 `.mermaid` 节点 detach 掉——这是「图渲染了又消失」「错误块一闪而过」的根因。复现用例：边标签里含 `[]`（如 `C1 -->|新建 Agent, messages=[]| D1[DeepSeek]`）会被 mermaid 11 当成节点形状语法导致整图 parse 失败。
 
 ## [2.5.5] - 2026-06-29
 
