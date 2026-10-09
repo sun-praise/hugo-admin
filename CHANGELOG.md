@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-09
+
+### Added
+- 后端 Go 重写（与 Python 实现并行灰度）：认证（Flask session cookie 与 auth.json 凭据双向互认，双服务共享登录态）、posts 全域（frontmatter 解析/列表聚合/读写/乐观锁/发布）、git 域（status/commits/push/系统发布）、Hugo server 进程管理（日志经 SSE 实时推送）、sqlite 存储层（modernc.org/sqlite 纯 Go，与 Python 同库互读写）、AI 域（trpc-agent-go + Anthropic 兼容端点替代 claude-agent-sdk，只读工具三件套进程内注册，SSE 流式协议逐字节对齐）。
+- API 契约测试体系：pytest 录制器（`RECORD_CONTRACT=1`）生成 81 条契约样本，Go 侧逐条回放比对状态码与响应体（环境字段按端点归一化）；共享 fixture 保证跨语言确定性。
+- 前端实时事件层 `useEvents`：SSE（`/api/events`，Go 服务）优先，连接失败自动降级 socket.io（Python 服务）——同一份前端可连任意后端，事件名与订阅 API 完全兼容。
+- `GET /api/server/logs`：历史日志 REST 端点（替代 socket `request_logs`）。
+- Go 单二进制入口 `cmd/hugo-admin`：配置与 Python 侧同义（SECRET_KEY/AUTH_STORE/HUGO_ROOT/CONTENT_DIR 等），优雅停机。
+
+### Changed
+- 实时推送从 flask-socketio 迁移到 SSE（`internal/realtime` broker），`server_log` 等事件语义不变。
+- `pyproject.toml` 与 `frontend/package.json` 版本号与 `__version__.py` 统一为 3.0.0（此前滞留 2.4.0）。
+
+### Fixed
+- `git_service.get_status` 对整体输出 `strip()` 会剥掉 porcelain 首行的 X 位空格（" M file"），导致首个条目丢首字符且被误判为 staged；改为逐行处理。
+
+
 ## [2.6.0] - 2026-09-23
 
 ### Added
