@@ -108,6 +108,8 @@ func scalarOrFirst(v any) string {
 }
 
 // parseDate 对齐 Python：ISO 字符串（含 Z）→ YYYY-MM-DD → 失败为 nil。
+// Python fromisoformat 额外接受空格分隔的日期时间（如
+// "2026-09-23 10:06:35+08:00"，旧文章带引号保存为字符串），一并支持。
 // YAML 原生日期由 yaml.v3 解成 time.Time，同样接受。
 func parseDate(v any) *time.Time {
 	if v == nil {
@@ -118,7 +120,12 @@ func parseDate(v any) *time.Time {
 		return &t
 	case string:
 		s := strings.ReplaceAll(t, "Z", "+00:00")
-		for _, layout := range []string{time.RFC3339, "2006-01-02"} {
+		for _, layout := range []string{
+			time.RFC3339,
+			"2006-01-02 15:04:05-07:00", // 空格分隔（fromisoformat 兼容）
+			"2006-01-02 15:04:05",
+			"2006-01-02",
+		} {
 			if ts, err := time.Parse(layout, s); err == nil {
 				return &ts
 			}

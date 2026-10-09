@@ -257,3 +257,28 @@ func TestModTimeAndDateFormats(t *testing.T) {
 		t.Fatalf("relative path = %q", p.Path)
 	}
 }
+
+func TestParseDateFormats(t *testing.T) {
+	cases := map[string]string{
+		"2026-01-02T15:04:05+08:00": "2026-01-02", // RFC3339
+		"2026-01-02 15:04:05+08:00": "2026-01-02", // 空格分隔（旧文章带引号保存）
+		"2026-01-02 15:04:05":       "2026-01-02",
+		"2026-01-02":                "2026-01-02",
+		"2026-01-02T15:04:05Z":      "2026-01-02",
+	}
+	for in, wantDate := range cases {
+		ts := parseDate(in)
+		if ts == nil {
+			t.Errorf("parseDate(%q) = nil", in)
+			continue
+		}
+		if got := ts.Format("2006-01-02"); got != wantDate {
+			t.Errorf("parseDate(%q) = %s, want %s", in, got, wantDate)
+		}
+	}
+	for _, bad := range []any{"not-a-date", "", 42} {
+		if ts := parseDate(bad); ts != nil {
+			t.Errorf("parseDate(%v) 应为 nil，得到 %v", bad, ts)
+		}
+	}
+}
