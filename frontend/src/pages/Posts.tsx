@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, RefreshCw, Plus, Upload, FileUp, Tag, FolderOpen, Calendar, Clock, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { get, post, uploadMarkdown } from '../utils/api';
-import { useSocket } from '../hooks/useSocket';
+import { useEvents } from '../hooks/useEvents';
 import type { Post, PostsResponse, Tag as TagType, Category } from '../types';
 
 export default function Posts() {
@@ -123,7 +123,7 @@ export default function Posts() {
     }
   }
 
-  const socketRef = useSocket();
+  const eventsRef = useEvents();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
@@ -134,7 +134,7 @@ export default function Posts() {
   // 订阅本次导入的封面后台进度。导航到编辑器后组件卸载，订阅随之失效；
   // 若封面在停留期间完成则给出即时反馈。
   function subscribeCoverProgress(scope?: string) {
-    const socket = socketRef.current;
+    const socket = eventsRef.current;
     if (!socket) return;
     const onDone = (payload: { scope?: string; url?: string }) => {
       if (scope && payload.scope && payload.scope !== scope) return;

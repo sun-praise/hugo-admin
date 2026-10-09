@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Bug, Square, ExternalLink, Trash2 } from 'lucide-react';
 import { get, post } from '../utils/api';
-import { useSocket } from '../hooks/useSocket';
+import { useEvents } from '../hooks/useEvents';
 import type { ServerStatus, LogEntry } from '../types';
 
 export default function ServerPage() {
@@ -16,7 +16,7 @@ export default function ServerPage() {
   const [loading, setLoading] = useState(false);
   const [hugoUrl, setHugoUrl] = useState('http://0.0.0.0:1313');
   const logContainerRef = useRef<HTMLDivElement>(null);
-  const socketRef = useSocket();
+  const eventsRef = useEvents();
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -47,20 +47,20 @@ export default function ServerPage() {
   }, [fetchStatus, fetchHugoUrl]);
 
   useEffect(() => {
-    const socket = socketRef.current;
-    if (!socket) return;
+    const events = eventsRef.current;
+    if (!events) return;
 
     const handleLog = (data: LogEntry) => {
       setLogs((prev) => [...prev, data]);
     };
 
-    socket.on('server_log', handleLog);
-    socket.emit('request_logs');
+    events.on('server_log', handleLog);
+    events.emit('request_logs');
 
     return () => {
-      socket.off('server_log', handleLog);
+      events.off('server_log', handleLog);
     };
-  }, [socketRef]);
+  }, [eventsRef]);
 
   useEffect(() => {
     if (logContainerRef.current) {

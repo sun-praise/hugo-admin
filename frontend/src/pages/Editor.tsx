@@ -30,7 +30,7 @@ import { renderMarkdown, escapeHtml } from '../utils/markdown';
 import type { Mermaid } from 'mermaid';
 import type { FileData, ImageItem, Backlink, Frontmatter } from '../types';
 import { usePageTitle } from '../hooks/usePageTitle';
-import { useSocket } from '../hooks/useSocket';
+import { useEvents } from '../hooks/useEvents';
 import { InlineEditOverlay } from '../components/InlineEdit/Overlay';
 import { ConflictModal } from '../components/ConflictModal';
 
@@ -107,7 +107,7 @@ export default function Editor() {
   const { setTitle: setPageTitle, resetTitle: resetPageTitle } = usePageTitle();
 
   // TTS 语音播报
-  const socketRef = useSocket();
+  const eventsRef = useEvents();
   const [ttsAvailable, setTtsAvailable] = useState(false);
   const [ttsVoices, setTtsVoices] = useState<string[]>([]);
   const [generatingTts, setGeneratingTts] = useState(false);
@@ -716,7 +716,7 @@ export default function Editor() {
 
   // 监听 TTS Socket.IO 进度/结果事件
   useEffect(() => {
-    const socket = socketRef.current;
+    const socket = eventsRef.current;
     if (!socket) return;
     const onProgress = (d: { stage?: string; percent?: number; message?: string }) => {
       setTtsProgress({ stage: d.stage || '', percent: d.percent ?? 0, message: d.message || '' });
@@ -766,7 +766,7 @@ export default function Editor() {
       socket.off('tts.failed', onFailed);
       socket.off('tts.conflict', onConflict);
     };
-  }, [socketRef]);
+  }, [eventsRef]);
 
   useEffect(() => {
     (async () => {
