@@ -23,6 +23,7 @@ import (
 	"github.com/svtter/hugo-admin/internal/hugo"
 	"github.com/svtter/hugo-admin/internal/plugin"
 	"github.com/svtter/hugo-admin/internal/realtime"
+	"github.com/svtter/hugo-admin/internal/settings"
 )
 
 // publicAPIPath 对应 Python auth_routes.PUBLIC_API_PATHS；
@@ -36,31 +37,37 @@ var publicAPIPath = map[string]bool{
 
 // Options 聚合可选服务依赖（nil 时对应端点返回 500/503）。
 type Options struct {
-	Git      *git.Service
-	Hugo     *hugo.Manager
-	Database *db.DB
-	AI       *ai.Service
-	Chat     *chathistory.Service
-	Plugins  *plugin.Manager
+	Git       *git.Service
+	Hugo      *hugo.Manager
+	Database  *db.DB
+	AI        *ai.Service
+	Chat      *chathistory.Service
+	Plugins   *plugin.Manager
+	Settings  *settings.Service
+	EnvAPIKey string
 }
 
 type Server struct {
-	cfg       *config.Config
-	store     *auth.Store
-	broker    *realtime.Broker
-	gitSvc    *git.Service
-	hugo      *hugo.Manager
-	database  *db.DB
-	aiSvc     *ai.Service
-	chat      *chathistory.Service
-	pluginMgr *plugin.Manager
-	mux       *http.ServeMux
+	cfg           *config.Config
+	store         *auth.Store
+	broker        *realtime.Broker
+	gitSvc        *git.Service
+	hugo          *hugo.Manager
+	database      *db.DB
+	aiSvc         *ai.Service
+	chat          *chathistory.Service
+	pluginMgr     *plugin.Manager
+	settingsSvc   *settings.Service
+	sessionAPIKey string
+	envAPIKey     string
+	mux           *http.ServeMux
 }
 
 func New(cfg *config.Config, store *auth.Store, broker *realtime.Broker, opts Options) *Server {
 	s := &Server{cfg: cfg, store: store, broker: broker, mux: http.NewServeMux(),
 		gitSvc: opts.Git, hugo: opts.Hugo, database: opts.Database,
-		aiSvc: opts.AI, chat: opts.Chat, pluginMgr: opts.Plugins}
+		aiSvc: opts.AI, chat: opts.Chat, pluginMgr: opts.Plugins,
+		settingsSvc: opts.Settings, envAPIKey: opts.EnvAPIKey}
 	s.routes()
 	return s
 }
@@ -117,6 +124,17 @@ func (s *Server) routes() {
 	m.HandleFunc("DELETE /api/plugins/{name}/image/{image_id}", s.handlePluginImageDelete)
 	m.HandleFunc("POST /api/plugins/{name}/tts/generate", s.handlePluginTTSGenerate)
 	m.HandleFunc("DELETE /api/plugins/{name}/tts/{audio_id}", s.handlePluginTTSDelete)
+	m.HandleFunc("GET /api/settings", s.handleSettingsGet)
+	m.HandleFunc("PUT /api/settings", s.handleSettingsPut)
+	m.HandleFunc("GET /api/config", s.handleConfigList)
+	m.HandleFunc("GET /api/config/{filename}", s.handleConfigGet)
+	m.HandleFunc("PUT /api/config/{filename}", s.handleConfigPut)
+	m.HandleFunc("GET /api/themes", s.handleThemeList)
+	m.HandleFunc("GET /api/themes/available", s.handleThemeAvailable)
+	m.HandleFunc("POST /api/themes/install", s.handleThemeInstall)
+	m.HandleFunc("POST /api/themes/activate", s.handleThemeActivate)
+	m.HandleFunc("POST /api/themes/preview", s.handleThemePreview)
+	m.HandleFunc("GET /api/content/{filename...}", s.handleContentFile)
 	m.HandleFunc("GET /admin-ui/", s.handleStatic)
 	m.HandleFunc("/", s.handleSPA)
 }

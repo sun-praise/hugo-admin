@@ -23,6 +23,7 @@ import (
 	"github.com/svtter/hugo-admin/internal/hugo"
 	"github.com/svtter/hugo-admin/internal/plugin"
 	"github.com/svtter/hugo-admin/internal/realtime"
+	"github.com/svtter/hugo-admin/internal/settings"
 )
 
 func main() {
@@ -70,10 +71,23 @@ func main() {
 	pluginMgr.StartAll()
 	defer pluginMgr.StopAll()
 
+	// 设置服务：路径对齐 app.py（HUGO_ROOT/.admin/settings.json，
+	// legacy 为 CONTENT_DIR/.admin/settings.json）
+	settingsSvc := settings.NewService(
+		filepath.Join(cfg.HugoRoot, ".admin", "settings.json"),
+		map[string]string{
+			"AI_BASE_URL":   os.Getenv("AI_BASE_URL"),
+			"AI_MODEL":      os.Getenv("AI_MODEL"),
+			"HUGO_BASE_DIR": cfg.HugoRoot,
+		},
+		filepath.Join(cfg.ContentDir, ".admin", "settings.json"),
+	)
+
 	srv := httpapi.New(cfg, store, broker, httpapi.Options{
 		Git: gitSvc, Hugo: hugoMgr, Database: database,
 		AI: aiSvc, Chat: chathistory.New(database),
-		Plugins: pluginMgr,
+		Plugins:  pluginMgr,
+		Settings: settingsSvc, EnvAPIKey: os.Getenv("AI_API_KEY"),
 	})
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,

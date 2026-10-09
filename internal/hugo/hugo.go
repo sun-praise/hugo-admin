@@ -240,3 +240,9 @@ func procMemoryMB(pid int) (float64, bool) {
 	}
 	return 0, false
 }
+
+// ServerURL 返回当前 Hugo 预览服务器基础 URL。
+func (m *Manager) ServerURL() string { return m.serverURL }
+
+// SetServerURL 更新预览服务器基础 URL（设置页保存后生效）。
+func (m *Manager) SetServerURL(url string) { m.serverURL = url }
