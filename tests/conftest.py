@@ -86,11 +86,16 @@ def _record_api_contract(request):
         try:
             req = resp.request
             if req is not None and req.path.startswith("/api/"):
+                # 请求体取自 open(json=...) 参数：resp.request 的流已被
+                # 应用消费，重读会抛 400（werkzeug 不跨实例共享缓存）
+                req_body = kwargs.get("json")
+                if req_body is None and isinstance(kwargs.get("data"), (str, bytes)):
+                    req_body = kwargs["data"]
                 sample = {
                     "method": req.method,
                     "path": req.path,
                     "query": req.query_string.decode("utf-8") or None,
-                    "request_json": _decode_body(req.get_data()),
+                    "request_json": req_body,
                     "status": resp.status_code,
                     "response_json": _decode_body(resp.get_data()),
                     "source": request.node.nodeid,
