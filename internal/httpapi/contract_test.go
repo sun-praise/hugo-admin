@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -25,11 +26,33 @@ type contractSample struct {
 
 // implementedRoutes 是 Go 侧已实现并通过契约比对的端点。
 var implementedRoutes = map[string]bool{
-	"GET /api/auth/me":        true,
-	"POST /api/auth/login":    true,
-	"POST /api/auth/logout":   true,
-	"POST /api/auth/password": true,
-	"GET /api/version":        true,
+	"GET /api/auth/me":          true,
+	"POST /api/auth/login":      true,
+	"POST /api/auth/logout":     true,
+	"POST /api/auth/password":   true,
+	"GET /api/version":          true,
+	"GET /api/posts":            true,
+	"GET /api/posts/tags":       true,
+	"GET /api/posts/categories": true,
+}
+
+// postsFixtureDir 与 Python 测试 tests/test_posts_http_api.py 共享的
+// fixture 内容目录（该测试 setup 时写入）。
+const postsFixtureDir = "../../contracts/fixtures/posts"
+
+// normalizeEnvFields 剔除随机器/检出路径变化的字段，其余严格比对。
+func normalizeEnvFields(body map[string]any, path string) {
+	if !strings.HasPrefix(path, "/api/posts") {
+		return
+	}
+	if posts, ok := body["posts"].([]any); ok {
+		for _, p := range posts {
+			if m, ok := p.(map[string]any); ok {
+				delete(m, "full_path")
+				delete(m, "mod_time")
+			}
+		}
+	}
 }
 
 func TestContractReplay(t *testing.T) {
@@ -39,14 +62,30 @@ func TestContractReplay(t *testing.T) {
 	}
 
 	ts := newTestServer(t)
+
+	// posts 样本复用录制侧的 fixture 目录，保证 path/full_path 一致
+	var postsTS *httptest.Server
+	serverFor := func(path string) *httptest.Server {
+		if !strings.HasPrefix(path, "/api/posts") {
+			return ts
+		}
+		if postsTS == nil {
+			if _, err := os.Stat(postsFixtureDir); err != nil {
+				t.Skipf("posts fixture 不存在（先跑 pytest tests/test_posts_http_api.py）: %v", err)
+			}
+			postsTS = newTestServerWithContent(t, postsFixtureDir)
+		}
+		return postsTS
+	}
+
 	bareClient := &http.Client{}
 
 	// 每条样本用全新登录的客户端：logout 等样本会破坏共享登录态
-	freshLoggedClient := func() *http.Client {
+	freshLoggedClient := func(base string) *http.Client {
 		c := &http.Client{}
 		jar, _ := cookiejar.New(nil)
 		c.Jar = jar
-		login(t, c, ts.URL)
+		login(t, c, base)
 		return c
 	}
 
@@ -67,13 +106,15 @@ func TestContractReplay(t *testing.T) {
 			continue
 		}
 
+		target := serverFor(s.Path)
+
 		// 样本是守卫 401 → 用未登录客户端；否则用全新登录的客户端
 		client := bareClient
 		if s.Status != 401 {
-			client = freshLoggedClient()
+			client = freshLoggedClient(target.URL)
 		}
 
-		url := ts.URL + s.Path
+		url := target.URL + s.Path
 		if s.Query != "" {
 			url += "?" + s.Query
 		}
@@ -91,6 +132,11 @@ func TestContractReplay(t *testing.T) {
 		var got map[string]any
 		_ = json.NewDecoder(resp.Body).Decode(&got)
 		resp.Body.Close()
+
+		normalizeEnvFields(got, s.Path)
+		if want, ok := s.ResponseJSON.(map[string]any); ok {
+			normalizeEnvFields(want, s.Path)
+		}
 
 		if resp.StatusCode != s.Status {
 			t.Errorf("%s %s（%s）: status got %d want %d", s.Method, s.Path, s.Source, resp.StatusCode, s.Status)

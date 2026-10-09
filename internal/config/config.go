@@ -13,6 +13,7 @@ type Config struct {
 	SecretKey     string // SECRET_KEY，默认值同 config.py 开发配置
 	AuthStorePath string // 凭据文件，默认 data/auth.json
 	AdminUIDir    string // 前端构建产物目录，默认 admin-ui
+	ContentDir    string // Hugo 内容目录，默认 <root>/content
 	Version       string // 从 __version__.py 读取，读不到则回退
 }
 
@@ -28,6 +29,7 @@ func Load(root string) *Config {
 		SecretKey:     envOr("SECRET_KEY", "dev-secret-key-change-in-production"),
 		AuthStorePath: envOr("AUTH_STORE", filepath.Join(root, "data", "auth.json")),
 		AdminUIDir:    envOr("ADMIN_UI_DIR", filepath.Join(root, "admin-ui")),
+		ContentDir:    envOr("CONTENT_DIR", filepath.Join(root, "content")),
 		Version:       readVersion(filepath.Join(root, "__version__.py")),
 	}
 	return c

@@ -54,6 +54,9 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/auth/logout", s.handleLogout)
 	m.HandleFunc("POST /api/auth/password", s.handlePassword)
 	m.HandleFunc("GET /api/events", s.handleEvents)
+	m.HandleFunc("GET /api/posts", s.handlePosts)
+	m.HandleFunc("GET /api/posts/tags", s.handlePostTags)
+	m.HandleFunc("GET /api/posts/categories", s.handlePostCategories)
 	m.HandleFunc("GET /admin-ui/", s.handleStatic)
 	m.HandleFunc("/", s.handleSPA)
 }

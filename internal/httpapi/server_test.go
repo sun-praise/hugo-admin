@@ -18,17 +18,27 @@ import (
 const devSecret = "dev-secret-key-change-in-production"
 
 func newTestServer(t *testing.T) *httptest.Server {
+	return newTestServerWithContent(t, "")
+}
+
+// newTestServerWithContent 用指定 content 目录构建测试服务
+// （契约回放复用 contracts/fixtures/posts 时路径需与录制侧一致）。
+func newTestServerWithContent(t *testing.T, contentDir string) *httptest.Server {
 	t.Helper()
 	dir := t.TempDir()
 	// SPA index，供回退测试
 	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>spa</html>"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if contentDir == "" {
+		contentDir = t.TempDir()
+	}
 	cfg := &config.Config{
 		Port:          "0",
 		SecretKey:     devSecret,
 		AuthStorePath: filepath.Join(t.TempDir(), "auth.json"),
 		AdminUIDir:    dir,
+		ContentDir:    contentDir,
 		Version:       "2.6.0",
 	}
 	store, err := auth.OpenStore(cfg.AuthStorePath)
