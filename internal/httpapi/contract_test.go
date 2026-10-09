@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/svtter/hugo-admin/internal/chathistory"
 	"github.com/svtter/hugo-admin/internal/db"
 	"github.com/svtter/hugo-admin/internal/git"
 )
@@ -52,6 +53,14 @@ var implementedRoutes = map[string]bool{
 	"POST /api/article/status/bulk":        true,
 	"POST /api/article/publish":            true,
 	"POST /api/article/publish/bulk":       true,
+	"GET /api/ai/sessions":                 true,
+	"POST /api/ai/sessions":                true,
+}
+
+// implementedPrefixes 覆盖带路径参数的端点（id 段为随机值）。
+var implementedPrefixes = []string{
+	"GET /api/ai/sessions/",
+	"DELETE /api/ai/sessions/",
 }
 
 // envFieldIgnores 列出随机器/时间变化的字段（支持嵌套路径：
@@ -70,6 +79,10 @@ var envFieldIgnores = map[string][]string{
 		"operation_id", "results[].message", "results[].published_at",
 	},
 	"GET /api/git/pushes": {"pushes[].pushed_at", "pushes[].pushed_at_iso"},
+	"GET /api/ai/sessions": {
+		"sessions[].session_id", "sessions[].created_at", "sessions[].updated_at",
+	},
+	"POST /api/ai/sessions": {"session_id", "created_at", "updated_at"},
 }
 
 // deletePath 按点分路径删除字段；段名带 "[]" 表示遍历数组元素。
@@ -254,6 +267,13 @@ func TestContractReplay(t *testing.T) {
 	seedArticleFixture(t, articleContentDir)
 	articleTS := newTestServerFull(t, articleContentDir, nil, nil)
 
+	// AI sessions 样本：真实 sqlite + chat history 服务
+	aiDB, err := db.Open(filepath.Join(t.TempDir(), "cache.db"))
+	if err != nil {
+		t.Fatalf("ai db: %v", err)
+	}
+	aiTS := newTestServerOpts(t, "", Options{Database: aiDB, Chat: chathistory.New(aiDB)})
+
 	serverFor := func(path, source string) *httptest.Server {
 		// git 测试里的 file/save 样本必须落在 git repo 的 contentDir
 		if strings.HasPrefix(source, "tests/test_git_http_api.py") {
@@ -264,6 +284,9 @@ func TestContractReplay(t *testing.T) {
 		}
 		if strings.HasPrefix(source, "tests/test_article_http_api.py") {
 			return articleTS
+		}
+		if strings.HasPrefix(source, "tests/test_ai_sessions_http_api.py") {
+			return aiTS
 		}
 		if strings.HasPrefix(path, "/api/posts") {
 			if postsTS == nil {
@@ -303,7 +326,16 @@ func TestContractReplay(t *testing.T) {
 
 		key := s.Method + " " + s.Path
 		isAPI404 := s.Status == 404 && strings.HasPrefix(s.Path, "/api/")
-		if !implementedRoutes[key] && !isAPI404 {
+		implemented := implementedRoutes[key]
+		if !implemented {
+			for _, prefix := range implementedPrefixes {
+				if strings.HasPrefix(key, prefix) {
+					implemented = true
+					break
+				}
+			}
+		}
+		if !implemented && !isAPI404 {
 			skipped++
 			continue
 		}

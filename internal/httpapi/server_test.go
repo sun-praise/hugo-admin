@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/svtter/hugo-admin/internal/auth"
+	"github.com/svtter/hugo-admin/internal/chathistory"
 	"github.com/svtter/hugo-admin/internal/config"
 	"github.com/svtter/hugo-admin/internal/db"
 	"github.com/svtter/hugo-admin/internal/git"
@@ -30,8 +31,13 @@ func newTestServerWithContent(t *testing.T, contentDir string) *httptest.Server 
 	return newTestServerFull(t, contentDir, nil, nil)
 }
 
-// newTestServerFull 完整注入：content 目录与可选 git/hugo 服务。
+// newTestServerFull 完整注入：content 目录与可选服务依赖。
 func newTestServerFull(t *testing.T, contentDir string, gitSvc *git.Service, database *db.DB) *httptest.Server {
+	return newTestServerOpts(t, contentDir, Options{Git: gitSvc, Database: database})
+}
+
+// newTestServerOpts 注入完整 Options（AI/chat 批次使用）。
+func newTestServerOpts(t *testing.T, contentDir string, opts Options) *httptest.Server {
 	t.Helper()
 	dir := t.TempDir()
 	// SPA index，供回退测试
@@ -49,12 +55,17 @@ func newTestServerFull(t *testing.T, contentDir string, gitSvc *git.Service, dat
 		ContentDir:    contentDir,
 		Version:       "2.6.0",
 	}
-	hugoMgr := hugo.NewManager(t.TempDir(), "", nil)
+	if opts.Hugo == nil {
+		opts.Hugo = hugo.NewManager(t.TempDir(), "", nil)
+	}
+	if opts.Database != nil && opts.Chat == nil {
+		opts.Chat = chathistory.New(opts.Database)
+	}
 	store, err := auth.OpenStore(cfg.AuthStorePath)
 	if err != nil {
 		t.Fatalf("auth store: %v", err)
 	}
-	srv := New(cfg, store, realtime.NewBroker(), gitSvc, hugoMgr, database)
+	srv := New(cfg, store, realtime.NewBroker(), opts)
 	ts := httptest.NewServer(srv)
 	// 默认 client 没有 cookie jar，登录态无法保持
 	jar, _ := cookiejar.New(nil)

@@ -14,7 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/svtter/hugo-admin/internal/ai"
 	"github.com/svtter/hugo-admin/internal/auth"
+	"github.com/svtter/hugo-admin/internal/chathistory"
 	"github.com/svtter/hugo-admin/internal/config"
 	"github.com/svtter/hugo-admin/internal/db"
 	"github.com/svtter/hugo-admin/internal/git"
@@ -31,6 +33,15 @@ var publicAPIPath = map[string]bool{
 	"/api/health":     true,
 }
 
+// Options 聚合可选服务依赖（nil 时对应端点返回 500/503）。
+type Options struct {
+	Git      *git.Service
+	Hugo     *hugo.Manager
+	Database *db.DB
+	AI       *ai.Service
+	Chat     *chathistory.Service
+}
+
 type Server struct {
 	cfg      *config.Config
 	store    *auth.Store
@@ -38,11 +49,15 @@ type Server struct {
 	gitSvc   *git.Service
 	hugo     *hugo.Manager
 	database *db.DB
+	aiSvc    *ai.Service
+	chat     *chathistory.Service
 	mux      *http.ServeMux
 }
 
-func New(cfg *config.Config, store *auth.Store, broker *realtime.Broker, gitSvc *git.Service, hugoMgr *hugo.Manager, database *db.DB) *Server {
-	s := &Server{cfg: cfg, store: store, broker: broker, gitSvc: gitSvc, hugo: hugoMgr, database: database, mux: http.NewServeMux()}
+func New(cfg *config.Config, store *auth.Store, broker *realtime.Broker, opts Options) *Server {
+	s := &Server{cfg: cfg, store: store, broker: broker, mux: http.NewServeMux(),
+		gitSvc: opts.Git, hugo: opts.Hugo, database: opts.Database,
+		aiSvc: opts.AI, chat: opts.Chat}
 	s.routes()
 	return s
 }
@@ -80,6 +95,12 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/server/start", s.handleServerStart)
 	m.HandleFunc("POST /api/server/stop", s.handleServerStop)
 	m.HandleFunc("GET /api/server/logs", s.handleServerLogs)
+	m.HandleFunc("GET /api/ai/sessions", s.handleAIListSessions)
+	m.HandleFunc("POST /api/ai/sessions", s.handleAICreateSession)
+	m.HandleFunc("GET /api/ai/sessions/{id}", s.handleAIGetSession)
+	m.HandleFunc("DELETE /api/ai/sessions/{id}", s.handleAIDeleteSession)
+	m.HandleFunc("POST /api/ai/chat", s.handleAIChat)
+	m.HandleFunc("POST /api/ai/inline-edit", s.handleInlineEdit)
 	m.HandleFunc("GET /admin-ui/", s.handleStatic)
 	m.HandleFunc("/", s.handleSPA)
 }

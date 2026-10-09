@@ -13,7 +13,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/svtter/hugo-admin/internal/ai"
 	"github.com/svtter/hugo-admin/internal/auth"
+	"github.com/svtter/hugo-admin/internal/chathistory"
 	"github.com/svtter/hugo-admin/internal/config"
 	"github.com/svtter/hugo-admin/internal/db"
 	"github.com/svtter/hugo-admin/internal/git"
@@ -54,7 +56,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("git 服务初始化失败: %v", err)
 	}
-	srv := httpapi.New(cfg, store, broker, gitSvc, hugoMgr, database)
+
+	// AI：配置语义对齐 config.py（AI_API_KEY/AI_BASE_URL/AI_MODEL）
+	aiSvc := ai.New(os.Getenv("AI_API_KEY"), os.Getenv("AI_BASE_URL"), os.Getenv("AI_MODEL"),
+		ai.Deps{ContentDir: cfg.ContentDir, Git: gitSvc, Hugo: hugoMgr})
+	if !aiSvc.Enabled() {
+		log.Print("AI service disabled: AI_API_KEY not configured")
+	}
+
+	srv := httpapi.New(cfg, store, broker, httpapi.Options{
+		Git: gitSvc, Hugo: hugoMgr, Database: database,
+		AI: aiSvc, Chat: chathistory.New(database),
+	})
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           srv,
