@@ -15,6 +15,7 @@ import (
 
 	"github.com/svtter/hugo-admin/internal/auth"
 	"github.com/svtter/hugo-admin/internal/config"
+	"github.com/svtter/hugo-admin/internal/git"
 	"github.com/svtter/hugo-admin/internal/httpapi"
 	"github.com/svtter/hugo-admin/internal/realtime"
 )
@@ -38,7 +39,12 @@ func main() {
 		log.Fatalf("凭据存储初始化失败: %v", err)
 	}
 
-	srv := httpapi.New(cfg, store, realtime.NewBroker())
+	gitSvc, err := git.New(cfg.HugoRoot, nil) // 推送历史记录待 sqlite 批次接入
+	if err != nil {
+		log.Fatalf("git 服务初始化失败: %v", err)
+	}
+
+	srv := httpapi.New(cfg, store, realtime.NewBroker(), gitSvc)
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           srv,

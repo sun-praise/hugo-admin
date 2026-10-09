@@ -6,9 +6,12 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/svtter/hugo-admin/internal/git"
 )
 
 // 回放 contracts/api_samples.jsonl（由 RECORD_CONTRACT=1 pytest 生成）中
@@ -39,6 +42,10 @@ var implementedRoutes = map[string]bool{
 	"POST /api/file/read-with-frontmatter": true,
 	"POST /api/file/save":                  true,
 	"POST /api/post/create":                true,
+	"GET /api/git/status":                  true,
+	"GET /api/git/commits":                 true,
+	"POST /api/git/push":                   true,
+	"POST /api/publish/system":             true,
 }
 
 // envFieldIgnores 列出随机器/时间变化的顶层字段，回放比对时剔除。
@@ -69,6 +76,64 @@ func seedWriteFixture(t *testing.T, contentDir string) {
 	write("post/hello.md", "---\ntitle: Hello\ndate: 2026-01-01\ndraft: false\n---\n\nHello body。\n")
 	write("post/dual.md", "---\ntitle: Dual\n---\n---\ninner\n---\nreal body\n")
 	write("post/lock.md", "锁定基准\n")
+}
+
+// seedGitRepo 复刻 tests/test_git_http_api.py 的仓库序列（固定
+// author/committer 日期 → commit hash 确定）。三处保持同步：
+// internal/git/git_test.go 的 setupRepo、tests/test_git_http_api.py、此处。
+func seedGitRepo(t *testing.T) string {
+	t.Helper()
+	base := t.TempDir()
+	repo := filepath.Join(base, "repo")
+	bare := filepath.Join(base, "remote.git")
+	if err := os.MkdirAll(filepath.Join(repo, "content", "post"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	run := func(dir string, env map[string]string, args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(),
+			"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null")
+		for k, v := range env {
+			cmd.Env = append(cmd.Env, k+"="+v)
+		}
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	write := func(rel, content string) {
+		t.Helper()
+		path := filepath.Join(repo, "content", "post", rel)
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	run(repo, nil, "init", "-b", "main")
+	run(repo, nil, "config", "user.name", "契约测试")
+	run(repo, nil, "config", "user.email", "contract@test.local")
+
+	d1 := map[string]string{
+		"GIT_AUTHOR_DATE": "2026-01-01T12:00:00+08:00", "GIT_COMMITTER_DATE": "2026-01-01T12:00:00+08:00"}
+	write("a.md", "a\n")
+	run(repo, d1, "add", "-A")
+	run(repo, d1, "commit", "-m", "init: 第一提交")
+
+	d2 := map[string]string{
+		"GIT_AUTHOR_DATE": "2026-01-02T08:30:00+08:00", "GIT_COMMITTER_DATE": "2026-01-02T08:30:00+08:00"}
+	write("b.md", "b\n")
+	run(repo, d2, "add", "-A")
+	run(repo, d2, "commit", "-m", "feat: 第二提交（含|竖线）")
+
+	write("d.md", "d\n")
+	run(repo, nil, "add", "content/post/d.md")
+	write("b.md", "b changed\n")
+	write("c.md", "c\n")
+
+	run(base, nil, "init", "-b", "main", "--bare", bare)
+	run(repo, nil, "remote", "add", "origin", bare)
+	return repo
 }
 
 // normalizeEnvFields 剔除环境相关字段，其余严格比对。
@@ -104,7 +169,20 @@ func TestContractReplay(t *testing.T) {
 	seedWriteFixture(t, writeContentDir)
 	writeTS := newTestServerWithContent(t, writeContentDir)
 
-	serverFor := func(path string) *httptest.Server {
+	// git 契约样本：contentDir 即 repo/content（publish 流经 /api/file/save
+	// 制造改动，再由 git 端点提交推送），按样本顺序回放
+	gitRepo := seedGitRepo(t)
+	gitSvc, err := git.New(gitRepo, nil)
+	if err != nil {
+		t.Fatalf("git service: %v", err)
+	}
+	gitTS := newTestServerFull(t, filepath.Join(gitRepo, "content"), gitSvc)
+
+	serverFor := func(path, source string) *httptest.Server {
+		// git 测试里的 file/save 样本必须落在 git repo 的 contentDir
+		if strings.HasPrefix(source, "tests/test_git_http_api.py") {
+			return gitTS
+		}
 		if strings.HasPrefix(path, "/api/posts") {
 			if postsTS == nil {
 				if _, err := os.Stat(postsFixtureDir); err != nil {
@@ -148,7 +226,7 @@ func TestContractReplay(t *testing.T) {
 			continue
 		}
 
-		target := serverFor(s.Path)
+		target := serverFor(s.Path, s.Source)
 
 		// 样本是守卫 401 → 用未登录客户端；否则用全新登录的客户端
 		client := bareClient

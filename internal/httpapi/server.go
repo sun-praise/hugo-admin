@@ -16,6 +16,7 @@ import (
 
 	"github.com/svtter/hugo-admin/internal/auth"
 	"github.com/svtter/hugo-admin/internal/config"
+	"github.com/svtter/hugo-admin/internal/git"
 	"github.com/svtter/hugo-admin/internal/realtime"
 )
 
@@ -32,11 +33,12 @@ type Server struct {
 	cfg    *config.Config
 	store  *auth.Store
 	broker *realtime.Broker
+	gitSvc *git.Service
 	mux    *http.ServeMux
 }
 
-func New(cfg *config.Config, store *auth.Store, broker *realtime.Broker) *Server {
-	s := &Server{cfg: cfg, store: store, broker: broker, mux: http.NewServeMux()}
+func New(cfg *config.Config, store *auth.Store, broker *realtime.Broker, gitSvc *git.Service) *Server {
+	s := &Server{cfg: cfg, store: store, broker: broker, gitSvc: gitSvc, mux: http.NewServeMux()}
 	s.routes()
 	return s
 }
@@ -61,6 +63,10 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/file/read-with-frontmatter", s.handleFileReadWithFM)
 	m.HandleFunc("POST /api/file/save", s.handleFileSave)
 	m.HandleFunc("POST /api/post/create", s.handlePostCreate)
+	m.HandleFunc("GET /api/git/status", s.handleGitStatus)
+	m.HandleFunc("GET /api/git/commits", s.handleGitCommits)
+	m.HandleFunc("POST /api/git/push", s.handleGitPush)
+	m.HandleFunc("POST /api/publish/system", s.handlePublishSystem)
 	m.HandleFunc("GET /admin-ui/", s.handleStatic)
 	m.HandleFunc("/", s.handleSPA)
 }
