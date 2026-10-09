@@ -1,0 +1,935 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Hugo Blog 管理 · 重设计预览</title>
+<style>
+/* ===== Design Tokens ===== */
+:root {
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-2: #f4f4f5;
+  --surface-3: #ebebeb;
+  --border: #e4e4e7;
+  --border-strong: #d4d4d8;
+  --text-1: #18181b;
+  --text-2: #52525b;
+  --text-3: #9ca3a8;
+  --accent: #2563eb;
+  --accent-soft: #eff6ff;
+  --green: #16a34a;
+  --green-dot: #22c55e;
+  --amber: #b45309;
+  --amber-soft: #fffbeb;
+  --radius-lg: 12px;
+  --radius: 10px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --shadow-pop: 0 24px 48px -16px rgb(24 24 24 / 0.22), 0 0 0 1px rgb(24 24 24 / 0.04);
+}
+
+html { height: 100%; }
+body {
+  margin: 0;
+  min-height: 100%;
+  font: 400 14px/1.55 var(--font);
+  color: var(--text-1);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+[hidden] { display: none !important; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+kbd {
+  font: 500 11px var(--mono);
+  color: var(--text-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom-color: var(--border-strong);
+  border-radius: 4px;
+  padding: 1px 5px;
+  line-height: 1.4;
+}
+
+/* ===== App Shell ===== */
+.app { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; }
+
+/* ===== Sidebar ===== */
+.sidebar {
+  position: sticky; top: 0; height: 100vh;
+  display: flex; flex-direction: column;
+  padding: 16px 12px 12px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  box-sizing: border-box;
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; }
+.brand-mark {
+  width: 28px; height: 28px; flex: none;
+  display: grid; place-items: center;
+  background: var(--text-1); color: #fff;
+  border-radius: 8px;
+  font-size: 14px; font-weight: 700;
+}
+.brand-text { line-height: 1.3; min-width: 0; }
+.brand-text strong { display: block; font-size: 14px; letter-spacing: -0.01em; }
+.brand-text span { display: block; font-size: 12px; color: var(--text-3); }
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav-label {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--text-3); text-transform: uppercase;
+  padding: 12px 10px 6px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  height: 34px; padding: 0 10px;
+  border: 0; border-radius: var(--radius-xs);
+  background: none; cursor: pointer;
+  font-size: 13.5px; font-weight: 500;
+  color: var(--text-2); text-align: start;
+  transition: background 0.12s ease, color 0.12s ease;
+  &:hover { background: var(--surface-2); color: var(--text-1); }
+  &.is-active { background: var(--surface-3); color: var(--text-1); }
+}
+.nav-item svg { width: 16px; height: 16px; flex: none; color: var(--text-3); }
+.nav-item:hover svg, .nav-item.is-active svg { color: var(--text-1); }
+.nav-item .count {
+  margin-inline-start: auto;
+  font: 500 11px var(--mono); color: var(--text-3);
+}
+.sidebar-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); }
+.user { display: flex; align-items: center; gap: 10px; padding: 6px 8px; }
+.avatar {
+  width: 28px; height: 28px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  color: #fff; font-size: 12px; font-weight: 600;
+}
+.user-text { min-width: 0; line-height: 1.3; }
+.user-text strong { display: block; font-size: 13px; }
+.user-text span { display: block; font-size: 11.5px; color: var(--text-3); }
+.icon-btn {
+  margin-inline-start: auto;
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border: 0; border-radius: var(--radius-xs);
+  background: none; cursor: pointer; color: var(--text-3);
+  &:hover { background: var(--surface-2); color: var(--text-1); }
+}
+.icon-btn svg { width: 15px; height: 15px; }
+
+/* ===== Topbar ===== */
+.main { min-width: 0; display: flex; flex-direction: column; }
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 12px;
+  height: 56px; padding: 0 28px;
+  background: rgb(250 250 250 / 0.86);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.searchbox {
+  display: flex; align-items: center; gap: 8px;
+  width: clamp(240px, 30vw, 420px); height: 32px; padding: 0 8px 0 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-3); font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+  &:hover { border-color: var(--border-strong); }
+}
+.searchbox svg { width: 15px; height: 15px; flex: none; }
+.searchbox span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.searchbox kbd { margin-inline-start: auto; }
+.topbar-actions { margin-inline-start: auto; display: flex; align-items: center; gap: 10px; }
+.status-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 30px; padding: 0 12px;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface);
+  font-size: 12.5px; font-weight: 500; color: var(--text-2);
+}
+.status-pill .pid { font: 400 11px var(--mono); color: var(--text-3); }
+.dot { position: relative; width: 7px; height: 7px; flex: none; border-radius: 999px; background: var(--green-dot); }
+.dot::after {
+  content: ""; position: absolute; inset: 0;
+  border-radius: inherit; background: inherit;
+  animation: pulse 2.2s ease-out infinite;
+}
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.7; }
+  70%, 100% { transform: scale(2.4); opacity: 0; }
+}
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 32px; padding: 0 12px;
+  border: 0; border-radius: var(--radius-sm);
+  background: var(--text-1); color: #fff;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: background 0.12s ease;
+  &:hover { background: #2e2e33; }
+}
+.btn-primary svg { width: 15px; height: 15px; }
+.btn-primary kbd {
+  border-color: rgb(255 255 255 / 0.24);
+  background: rgb(255 255 255 / 0.08);
+  color: rgb(255 255 255 / 0.72);
+}
+
+/* ===== Content ===== */
+.content { padding: 28px 32px 56px; max-width: 1760px; width: 100%; box-sizing: border-box; margin-inline: auto; }
+.page-head h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.page-sub { margin: 4px 0 0; font-size: 13.5px; color: var(--text-2); }
+
+/* ===== Stat Cards ===== */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 24px 0 16px; }
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px 14px;
+  animation: rise 0.35s ease both;
+}
+.stat-card:nth-child(2) { animation-delay: 0.04s; }
+.stat-card:nth-child(3) { animation-delay: 0.08s; }
+.stat-card:nth-child(4) { animation-delay: 0.12s; }
+.stat-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.stat-label { font-size: 13px; color: var(--text-2); }
+.stat-icon {
+  width: 30px; height: 30px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 8px;
+  background: var(--surface-2); color: var(--text-2);
+}
+.stat-icon svg { width: 15px; height: 15px; }
+.stat-value {
+  margin-top: 10px;
+  font-size: 27px; font-weight: 600; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  display: flex; align-items: center; gap: 8px;
+}
+.stat-value.is-live { color: var(--green); font-size: 21px; }
+.stat-sub { margin-top: 2px; font-size: 12.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.stat-sub .up { color: var(--green); font-weight: 500; }
+
+/* ===== Cards ===== */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 13px 16px 13px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.card-title { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.card-title .sub { margin-inline-start: 8px; font-size: 12.5px; font-weight: 400; color: var(--text-3); }
+.link-accent {
+  display: inline-flex; align-items: center; gap: 2px;
+  font-size: 13px; font-weight: 500; color: var(--accent);
+  text-decoration: none;
+  &:hover { text-decoration: underline; }
+}
+.link-accent svg { width: 14px; height: 14px; }
+
+.dash-grid {
+  display: grid; grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px; align-items: start;
+  animation: rise 0.35s 0.16s ease both;
+}
+@media (min-width: 1440px) {
+  .dash-grid { grid-template-columns: minmax(0, 1fr) 400px; }
+}
+.rail { display: grid; gap: 16px; min-width: 0; }
+
+/* ===== Recent Posts ===== */
+.post-list { padding: 8px; display: grid; gap: 2px; }
+.post-row {
+  display: block; width: 100%;
+  padding: 11px 12px;
+  border: 0; border-radius: var(--radius-sm);
+  background: none; cursor: pointer; text-align: start;
+  transition: background 0.1s ease;
+  &:hover { background: var(--surface-2); }
+}
+.post-meta { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.post-title {
+  flex: 1; min-width: 0;
+  font-size: 14px; font-weight: 550;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.post-status {
+  flex: none;
+  font-size: 11.5px; font-weight: 500;
+  padding: 1.5px 8px; border-radius: 999px;
+}
+.post-status.draft { background: var(--amber-soft); color: var(--amber); }
+.post-date { flex: none; font-size: 12.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.post-line2 { display: flex; align-items: center; gap: 12px; margin-top: 3px; min-width: 0; }
+.post-excerpt {
+  flex: 1; min-width: 0;
+  font-size: 13px; color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.post-tags { display: flex; gap: 6px; flex: none; }
+.tag {
+  font-size: 11.5px; color: var(--text-2);
+  background: var(--surface-2);
+  padding: 1.5px 8px; border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ===== Quick Actions ===== */
+.quick-list { padding: 8px; display: grid; gap: 2px; }
+.quick-item {
+  display: flex; align-items: center; gap: 10px;
+  height: 34px; padding: 0 10px;
+  border: 0; border-radius: var(--radius-xs);
+  background: none; cursor: pointer; text-align: start;
+  font-size: 13.5px; font-weight: 500; color: var(--text-1);
+  transition: background 0.1s ease;
+  &:hover { background: var(--surface-2); }
+}
+.quick-item svg { width: 15px; height: 15px; flex: none; color: var(--text-3); }
+.quick-item:hover svg { color: var(--text-1); }
+.quick-item .hint { margin-inline-start: auto; font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* ===== Activity ===== */
+.card-body { padding: 16px 20px 14px; }
+.bars { display: flex; align-items: flex-end; gap: 6px; height: 72px; }
+.bar { flex: 1; border-radius: 3px 3px 2px 2px; background: var(--surface-3); min-height: 3px; }
+.bar.on { background: var(--text-1); }
+.bars-caption {
+  display: flex; justify-content: space-between;
+  margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);
+  font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums;
+}
+.bars-caption strong { color: var(--text-1); font-weight: 600; }
+
+/* ===== System Info ===== */
+.sys-list { padding: 8px; display: grid; gap: 2px; }
+.sys-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  height: 32px; padding: 0 12px;
+  border-radius: var(--radius-xs);
+  font-size: 13px; color: var(--text-2);
+  transition: background 0.1s ease;
+  &:hover { background: var(--surface-2); }
+}
+.sys-row strong { font-weight: 500; color: var(--text-1); font-variant-numeric: tabular-nums; }
+.sys-row strong .warn { color: var(--amber); }
+
+/* ===== Placeholder ===== */
+.placeholder { text-align: center; padding: 96px 24px; }
+.placeholder .mark {
+  width: 44px; height: 44px; margin: 0 auto 16px;
+  display: grid; place-items: center;
+  border-radius: 12px; background: var(--surface-2); color: var(--text-3);
+}
+.placeholder .mark svg { width: 20px; height: 20px; }
+.placeholder h2 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+.placeholder p { margin: 0 auto 20px; max-width: 380px; font-size: 13.5px; color: var(--text-2); }
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); cursor: pointer;
+  font-size: 13px; font-weight: 500; color: var(--text-1);
+  &:hover { background: var(--surface-2); }
+}
+
+/* ===== Command Palette ===== */
+.palette-root { position: fixed; inset: 0; z-index: 50; }
+.palette-overlay {
+  position: absolute; inset: 0;
+  background: rgb(24 24 24 / 0.4);
+  backdrop-filter: blur(2px);
+  animation: fade 0.15s ease;
+}
+.palette {
+  position: relative; width: min(580px, calc(100vw - 32px));
+  margin: 14vh auto 0;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+  animation: pop 0.16s ease;
+}
+.palette-input-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 16px; height: 52px;
+  border-bottom: 1px solid var(--border);
+}
+.palette-input-row svg { width: 16px; height: 16px; color: var(--text-3); flex: none; }
+.palette-input-row input {
+  flex: 1; min-width: 0; height: 100%;
+  border: 0; outline: none; background: none;
+  font: 400 15px var(--font); color: var(--text-1);
+}
+.palette-input-row input::placeholder { color: var(--text-3); }
+.palette-list { max-height: 336px; overflow-y: auto; padding: 8px; }
+.palette-group {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--text-3); text-transform: uppercase;
+  padding: 8px 10px 4px;
+}
+.palette-item {
+  display: flex; align-items: center; gap: 10px;
+  height: 38px; padding: 0 10px;
+  border-radius: var(--radius-xs);
+  font-size: 13.5px; color: var(--text-1);
+  cursor: pointer;
+  &.is-active { background: var(--surface-2); }
+}
+.palette-item svg { width: 15px; height: 15px; flex: none; color: var(--text-3); }
+.palette-item .hint { margin-inline-start: auto; }
+.palette-empty { padding: 28px 0; text-align: center; font-size: 13px; color: var(--text-3); }
+.palette-foot {
+  display: flex; align-items: center; gap: 14px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 12px; color: var(--text-3);
+}
+.palette-foot kbd { margin-right: 4px; }
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed; left: 50%; bottom: 28px; z-index: 60;
+  transform: translate(-50%, 8px);
+  background: var(--text-1); color: #fff;
+  font-size: 13px; font-weight: 500;
+  padding: 9px 16px; border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgb(24 24 24 / 0.2);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+}
+@keyframes fade { from { opacity: 0; } }
+@keyframes pop {
+  from { opacity: 0; transform: translateY(-6px) scale(0.99); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 1080px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dash-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 860px) {
+  .app { grid-template-columns: 60px minmax(0, 1fr); }
+  .sidebar { padding: 16px 10px 12px; }
+  .brand { padding: 4px 0 16px; justify-content: center; }
+  .brand-text, .nav-item span, .nav-item .count, .user-text, .nav-label { display: none; }
+  .nav-item { justify-content: center; padding: 0; }
+  .user { justify-content: center; padding: 6px 0; }
+  .icon-btn { margin: 0; position: static; }
+  .sidebar-foot .icon-btn { display: none; }
+  .searchbox span { display: none; }
+  .searchbox { width: auto; }
+  .status-pill .pid { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ===== Sidebar ===== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">H</div>
+      <div class="brand-text">
+        <strong>Hugo Blog</strong>
+        <span>管理控制台</span>
+      </div>
+    </div>
+
+    <nav class="nav" aria-label="主导航">
+      <div class="nav-label">工作台</div>
+      <button class="nav-item is-active" data-view="dashboard" data-title="仪表板">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>仪表板</span>
+      </button>
+      <button class="nav-item" data-view="posts" data-title="文章管理">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+        <span>文章管理</span>
+        <span class="count">128</span>
+      </button>
+      <button class="nav-item" data-view="editor" data-title="文章编辑器">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        <span>编辑器</span>
+      </button>
+      <div class="nav-label">系统</div>
+      <button class="nav-item" data-view="server" data-title="服务器控制">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        <span>服务器控制</span>
+      </button>
+      <button class="nav-item" data-view="git" data-title="Git">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+        <span>Git</span>
+      </button>
+      <button class="nav-item" data-view="plugins" data-title="插件">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 10 5-10 5L2 7l10-5z"/><path d="m2 12 10 5 10-5"/><path d="m2 17 10 5 10-5"/></svg>
+        <span>插件</span>
+      </button>
+      <button class="nav-item" data-view="settings" data-title="设置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span>设置</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="user">
+        <div class="avatar">S</div>
+        <div class="user-text">
+          <strong>svtter</strong>
+          <span>管理员</span>
+        </div>
+        <button class="icon-btn" title="退出登录" aria-label="退出登录">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <div class="main">
+    <header class="topbar">
+      <button class="searchbox" id="openPalette" aria-label="打开搜索">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <span>搜索文章、跳转页面、执行操作…</span>
+        <kbd>⌘K</kbd>
+      </button>
+      <div class="topbar-actions">
+        <div class="status-pill" title="Hugo 开发服务器状态">
+          <span class="dot" aria-hidden="true"></span>
+          Hugo 运行中
+          <span class="pid">PID 4821</span>
+        </div>
+        <button class="btn-primary" id="newPostBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+          新建文章
+          <kbd>N</kbd>
+        </button>
+      </div>
+    </header>
+
+    <!-- ===== Dashboard ===== -->
+    <main class="content" id="view-dashboard">
+      <div class="page-head">
+        <h1>仪表板</h1>
+        <p class="page-sub" id="greeting">欢迎回来</p>
+      </div>
+
+      <section class="stats" aria-label="统计">
+        <div class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">总文章数</span>
+            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+          </div>
+          <div class="stat-value">128</div>
+          <div class="stat-sub"><span class="up">本周 +2</span> · 草稿 3 篇</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">标签</span>
+            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r="0.5" fill="currentColor"/></svg></span>
+          </div>
+          <div class="stat-value">42</div>
+          <div class="stat-sub">最常用：Python · Hugo · Git</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">分类</span>
+            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></span>
+          </div>
+          <div class="stat-value">8</div>
+          <div class="stat-sub">技术 · 随笔 · 翻译 …</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Hugo 服务器</span>
+            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg></span>
+          </div>
+          <div class="stat-value is-live"><span class="dot" aria-hidden="true"></span>运行中</div>
+          <div class="stat-sub">PID 4821 · 端口 1313</div>
+        </div>
+      </section>
+
+      <div class="dash-grid">
+        <section class="card" aria-label="最近文章">
+          <div class="card-head">
+            <span class="card-title">最近文章</span>
+            <a class="link-accent" href="#" onclick="return false">
+              查看全部
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </a>
+          </div>
+          <div class="post-list">
+            <button class="post-row">
+              <div class="post-meta">
+                <span class="post-title">把 Flask 服务迁到 asyncio 的完整实录</span>
+                <span class="post-date">10-07</span>
+              </div>
+              <div class="post-line2">
+                <span class="post-excerpt">从线程池到事件循环：一份可以照着做的迁移清单，包括踩过的死锁和背压坑。</span>
+                <span class="post-tags"><span class="tag">Python</span><span class="tag">asyncio</span></span>
+              </div>
+            </button>
+            <button class="post-row">
+              <div class="post-meta">
+                <span class="post-title">博客图床迁移到 Cloudflare R2 的踩坑记录</span>
+                <span class="post-date">10-03</span>
+              </div>
+              <div class="post-line2">
+                <span class="post-excerpt">零出口流量费是真的，但自定义域名、缓存规则和存量图片重写各有各的学问。</span>
+                <span class="post-tags"><span class="tag">Hugo</span><span class="tag">R2</span></span>
+              </div>
+            </button>
+            <button class="post-row">
+              <div class="post-meta">
+                <span class="post-title">给博客加上 TTS 语音播报：插件化实现思路</span>
+                <span class="post-date">09-28</span>
+              </div>
+              <div class="post-line2">
+                <span class="post-excerpt">把语音生成做成插件而不是硬编码，能力注册、生命周期和降级策略怎么设计。</span>
+                <span class="post-tags"><span class="tag">插件</span><span class="tag">TTS</span></span>
+              </div>
+            </button>
+            <button class="post-row">
+              <div class="post-meta">
+                <span class="post-title">用 Git Worktree 并行开发的工作流</span>
+                <span class="post-status draft">草稿</span>
+                <span class="post-date">09-21</span>
+              </div>
+              <div class="post-line2">
+                <span class="post-excerpt">同时在多个分支上工作而不互相踩脚，main 工作区永远保持干净。</span>
+                <span class="post-tags"><span class="tag">Git</span></span>
+              </div>
+            </button>
+            <button class="post-row">
+              <div class="post-meta">
+                <span class="post-title">Hugo 构建慢？一次性能优化纪要</span>
+                <span class="post-date">09-15</span>
+              </div>
+              <div class="post-line2">
+                <span class="post-excerpt">从 28 秒到 6 秒：图片管线、模板缓存和 render-passes 的取舍记录。</span>
+                <span class="post-tags"><span class="tag">Hugo</span><span class="tag">性能</span></span>
+              </div>
+            </button>
+          </div>
+        </section>
+
+        <div class="rail">
+          <section class="card" aria-label="快捷操作">
+            <div class="card-head">
+              <span class="card-title">快捷操作</span>
+            </div>
+            <div class="quick-list">
+              <button class="quick-item" data-action="新建文章">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                新建文章
+                <span class="hint">N</span>
+              </button>
+              <button class="quick-item" data-action="浏览文章">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                浏览文章
+                <span class="hint">128 篇</span>
+              </button>
+              <button class="quick-item" data-action="系统发布">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                系统发布
+                <span class="hint">2 处待提交</span>
+              </button>
+              <button class="quick-item" data-action="推送最新文章">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                推送最新文章
+                <span class="hint">3 天前</span>
+              </button>
+              <button class="quick-item" data-action="推送指定文章">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                推送指定文章
+              </button>
+              <button class="quick-item" data-action="服务器控制">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                服务器控制
+                <span class="hint">运行中</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="card" aria-label="发布动态">
+            <div class="card-head">
+              <span class="card-title">发布动态</span>
+            </div>
+            <div class="card-body">
+              <div class="bars" role="img" aria-label="近 12 周发布 11 篇文章" id="bars"></div>
+              <div class="bars-caption">
+                <span>近 12 周 · 共 <strong>11</strong> 篇</span>
+                <span>本周 <strong>2</strong> 篇</span>
+              </div>
+            </div>
+          </section>
+          <section class="card" aria-label="系统概况">
+            <div class="card-head">
+              <span class="card-title">系统概况</span>
+            </div>
+            <div class="sys-list">
+              <div class="sys-row"><span>Hugo 版本</span><strong>v0.147.2</strong></div>
+              <div class="sys-row"><span>当前分支</span><strong>main</strong></div>
+              <div class="sys-row"><span>待提交改动</span><strong><span class="warn">2 个文件</span></strong></div>
+              <div class="sys-row"><span>最近构建</span><strong>6 小时前 · 3.2s</strong></div>
+              <div class="sys-row"><span>邮件订阅者</span><strong>1,204</strong></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <!-- ===== Placeholder ===== -->
+    <main class="content" id="view-placeholder" hidden>
+      <div class="page-head">
+        <h1 id="phTitle">页面</h1>
+        <p class="page-sub">本次预览聚焦整体框架与仪表板</p>
+      </div>
+      <section class="card placeholder">
+        <div class="mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <h2>该页面未包含在本次预览中</h2>
+        <p>确认整体风格后，会按同一套设计语言推广到文章管理、编辑器、Git、插件与设置等全部页面。</p>
+        <button class="btn-ghost" data-view="dashboard">返回仪表板</button>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- ===== Command Palette ===== -->
+<div class="palette-root" id="palette" hidden>
+  <div class="palette-overlay" id="paletteOverlay"></div>
+  <div class="palette" role="dialog" aria-modal="true" aria-label="搜索与命令">
+    <div class="palette-input-row">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="paletteInput" type="text" placeholder="搜索文章、跳转页面、执行操作…" autocomplete="off" spellcheck="false">
+      <kbd>esc</kbd>
+    </div>
+    <div class="palette-list" id="paletteList"></div>
+    <div class="palette-foot">
+      <span><kbd>↑</kbd><kbd>↓</kbd>导航</span>
+      <span><kbd>↵</kbd>选择</span>
+      <span><kbd>esc</kbd>关闭</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (sel) { return document.querySelector(sel); };
+
+  /* ===== Greeting ===== */
+  (function () {
+    var h = new Date().getHours();
+    var part = h < 6 ? '夜深了' : h < 12 ? '上午好' : h < 18 ? '下午好' : '晚上好';
+    var now = new Date();
+    $('#greeting').textContent = part + '，svtter · ' + (now.getMonth() + 1) + ' 月 ' + now.getDate() + ' 日，继续写点东西吧';
+  })();
+
+  /* ===== Toast ===== */
+  var toastEl = $('#toast');
+  var toastTimer = null;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('is-visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('is-visible'); }, 2200);
+  }
+
+  /* ===== View switching ===== */
+  var navItems = Array.prototype.slice.call(document.querySelectorAll('.nav-item'));
+  var viewDashboard = $('#view-dashboard');
+  var viewPlaceholder = $('#view-placeholder');
+
+  function showView(view, title) {
+    navItems.forEach(function (btn) {
+      btn.classList.toggle('is-active', btn.dataset.view === view);
+    });
+    if (view === 'dashboard') {
+      viewDashboard.hidden = false;
+      viewPlaceholder.hidden = true;
+    } else {
+      viewDashboard.hidden = true;
+      viewPlaceholder.hidden = false;
+      $('#phTitle').textContent = title || view;
+    }
+  }
+
+  navItems.forEach(function (btn) {
+    btn.addEventListener('click', function () { showView(btn.dataset.view, btn.dataset.title); });
+  });
+  document.querySelectorAll('[data-view]').forEach(function (el) {
+    if (el.classList.contains('nav-item')) return;
+    el.addEventListener('click', function () { showView(el.dataset.view); });
+  });
+
+  /* ===== Activity bars ===== */
+  (function () {
+    var values = [0, 1, 0, 2, 1, 0, 1, 1, 0, 2, 1, 2];
+    var bars = $('#bars');
+    values.forEach(function (v, i) {
+      var bar = document.createElement('div');
+      bar.className = 'bar' + (v > 0 ? ' on' : '');
+      bar.style.height = Math.max(3, v * 26) + 'px';
+      bar.title = (i === values.length - 1 ? '本周' : (values.length - 1 - i) + ' 周前') + '：' + v + ' 篇';
+      bars.appendChild(bar);
+    });
+  })();
+
+  /* ===== Quick actions / buttons ===== */
+  document.querySelectorAll('.quick-item').forEach(function (btn) {
+    btn.addEventListener('click', function () { toast('原型演示：「' + btn.dataset.action + '」'); });
+  });
+  $('#newPostBtn').addEventListener('click', function () { toast('原型演示：新建文章（真实应用会询问标题并打开编辑器）'); });
+  document.querySelector('.icon-btn').addEventListener('click', function () { toast('原型演示：退出登录'); });
+
+  /* ===== Command palette ===== */
+  var ICONS = {
+    home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+    file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+    pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+    server: '<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/>',
+    git: '<line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+    layers: '<path d="m12 2 10 5-10 5L2 7l10-5z"/><path d="m2 12 10 5 10-5"/><path d="m2 17 10 5 10-5"/>',
+    settings: '<circle cx="12" cy="12" r="3"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+    mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+    send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>'
+  };
+  function icon(name) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[name] || '') + '</svg>';
+  }
+
+  var COMMANDS = [
+    { group: '操作', icon: 'plus', label: '新建文章', hint: 'N' },
+    { group: '操作', icon: 'upload', label: '系统发布（提交并触发构建）', hint: '2 处待提交' },
+    { group: '操作', icon: 'mail', label: '推送最新文章到订阅者' },
+    { group: '操作', icon: 'send', label: '推送指定文章…' },
+    { group: '页面', icon: 'home', label: '仪表板', view: 'dashboard', title: '仪表板' },
+    { group: '页面', icon: 'file', label: '文章管理', view: 'posts', title: '文章管理' },
+    { group: '页面', icon: 'pen', label: '编辑器', view: 'editor', title: '文章编辑器' },
+    { group: '页面', icon: 'server', label: '服务器控制', view: 'server', title: '服务器控制' },
+    { group: '页面', icon: 'git', label: 'Git', view: 'git', title: 'Git' },
+    { group: '页面', icon: 'layers', label: '插件', view: 'plugins', title: '插件' },
+    { group: '页面', icon: 'settings', label: '设置', view: 'settings', title: '设置' },
+    { group: '最近文章', icon: 'file', label: '把 Flask 服务迁到 asyncio 的完整实录', hint: '10-07' },
+    { group: '最近文章', icon: 'file', label: '博客图床迁移到 Cloudflare R2 的踩坑记录', hint: '10-03' },
+    { group: '最近文章', icon: 'file', label: '给博客加上 TTS 语音播报：插件化实现思路', hint: '09-28' }
+  ];
+
+  var palette = $('#palette');
+  var paletteInput = $('#paletteInput');
+  var paletteList = $('#paletteList');
+  var filtered = [];
+  var activeIndex = 0;
+
+  function renderList() {
+    var q = paletteInput.value.trim().toLowerCase();
+    filtered = COMMANDS.filter(function (c) { return c.label.toLowerCase().indexOf(q) !== -1; });
+    activeIndex = 0;
+    if (!filtered.length) {
+      paletteList.innerHTML = '<div class="palette-empty">没有匹配的结果</div>';
+      return;
+    }
+    var html = '';
+    var lastGroup = null;
+    filtered.forEach(function (c, i) {
+      if (c.group !== lastGroup) {
+        html += '<div class="palette-group">' + c.group + '</div>';
+        lastGroup = c.group;
+      }
+      html += '<div class="palette-item' + (i === activeIndex ? ' is-active' : '') + '" data-index="' + i + '">'
+        + icon(c.icon)
+        + '<span>' + c.label + '</span>'
+        + (c.hint ? '<span class="hint">' + c.hint + '</span>' : '')
+        + '</div>';
+    });
+    paletteList.innerHTML = html;
+  }
+
+  function setActive(i) {
+    activeIndex = i;
+    var items = paletteList.querySelectorAll('.palette-item');
+    items.forEach(function (el, idx) {
+      el.classList.toggle('is-active', idx === activeIndex);
+    });
+    var el = items[activeIndex];
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+  }
+
+  function runCommand(c) {
+    closePalette();
+    if (c.view) {
+      showView(c.view, c.title);
+      toast('已打开：' + c.label);
+    } else {
+      toast('原型演示：「' + c.label + '」');
+    }
+  }
+
+  function openPalette() {
+    palette.hidden = false;
+    paletteInput.value = '';
+    renderList();
+    paletteInput.focus();
+  }
+  function closePalette() { palette.hidden = true; }
+
+  $('#openPalette').addEventListener('click', openPalette);
+  $('#paletteOverlay').addEventListener('click', closePalette);
+  paletteInput.addEventListener('input', renderList);
+  paletteInput.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(Math.min(activeIndex + 1, filtered.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(activeIndex - 1, 0)); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (filtered[activeIndex]) runCommand(filtered[activeIndex]); }
+  });
+  paletteList.addEventListener('click', function (e) {
+    var item = e.target.closest('.palette-item');
+    if (item && filtered[+item.dataset.index]) runCommand(filtered[+item.dataset.index]);
+  });
+  paletteList.addEventListener('mousemove', function (e) {
+    var item = e.target.closest('.palette-item');
+    if (item) setActive(+item.dataset.index);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      palette.hidden ? openPalette() : closePalette();
+    } else if (e.key === 'Escape' && !palette.hidden) {
+      closePalette();
+    } else if (palette.hidden && e.key.toLowerCase() === 'n'
+               && !e.metaKey && !e.ctrlKey && !e.altKey
+               && document.activeElement === document.body) {
+      toast('原型演示：新建文章（真实应用会询问标题并打开编辑器）');
+    }
+  });
+})();
+</script>
+</body>
+</html>
