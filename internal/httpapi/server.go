@@ -135,6 +135,9 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/themes/activate", s.handleThemeActivate)
 	m.HandleFunc("POST /api/themes/preview", s.handleThemePreview)
 	m.HandleFunc("GET /api/content/{filename...}", s.handleContentFile)
+	m.HandleFunc("GET /api/article/tts/status", s.handleArticleTTSStatus)
+	m.HandleFunc("POST /api/article/tts", s.handleArticleTTSGenerate)
+	m.HandleFunc("DELETE /api/article/tts", s.handleArticleTTSDelete)
 	m.HandleFunc("GET /admin-ui/", s.handleStatic)
 	m.HandleFunc("/", s.handleSPA)
 }

@@ -1,7 +1,6 @@
 package posts
 
 import (
-	"crypto/rand"
 	"fmt"
 	"os"
 	"sync"
@@ -9,6 +8,7 @@ import (
 	"time"
 
 	"github.com/svtter/hugo-admin/internal/frontmatter"
+	"github.com/svtter/hugo-admin/internal/util"
 )
 
 // 发布域：对齐 post_service 的 publish_article /
@@ -36,18 +36,10 @@ func withFileLock(path string, fn func() (bool, string)) (bool, string) {
 	return fn()
 }
 
-func newOperationID() string {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	b[6] = (b[6] & 0x0f) | 0x40 // uuid v4
-	b[8] = (b[8] & 0x3f) | 0x80
-	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-}
-
 // PublishArticle 对齐 publish_article：draft true → false，无 publishDate
 // 则补东八区时间；已发布返回"文章已经发布"。
 func PublishArticle(contentDir, filePath string) (bool, string, string) {
-	operationID := newOperationID()
+	operationID := util.NewOperationID()
 	abs := joinContent(contentDir, filePath)
 	if !isSafePath(contentDir, abs) {
 		return false, "访问被拒绝:文件不在允许的目录中", operationID
@@ -109,7 +101,7 @@ func BulkPublishArticles(contentDir string, filePaths []string) map[string]any {
 		"total_count":     len(filePaths),
 		"published_count": published,
 		"failed_count":    failed,
-		"operation_id":    newOperationID(),
+		"operation_id":    util.NewOperationID(),
 		"results":         results,
 		"duration_ms":     0,
 	}
