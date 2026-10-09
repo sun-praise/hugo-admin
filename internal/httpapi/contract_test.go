@@ -1,7 +1,10 @@
 package httpapi
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -21,13 +24,22 @@ import (
 // 随迁移推进逐步纳入，保证 Go 侧与 Python 侧行为一致。
 
 type contractSample struct {
-	Method       string `json:"method"`
-	Path         string `json:"path"`
-	Query        string `json:"query"`
-	RequestJSON  any    `json:"request_json"`
-	Status       int    `json:"status"`
-	ResponseJSON any    `json:"response_json"`
-	Source       string `json:"source"`
+	Method        string            `json:"method"`
+	Path          string            `json:"path"`
+	Query         string            `json:"query"`
+	RequestJSON   any               `json:"request_json"`
+	RequestFiles  *requestFiles     `json:"request_files"`
+	RequestFields map[string]string `json:"request_fields"`
+	Status        int               `json:"status"`
+	ResponseJSON  any               `json:"response_json"`
+	Source        string            `json:"source"`
+}
+
+// requestFiles 是录制器捕获的 multipart 文件（base64）。
+type requestFiles struct {
+	Field    string `json:"field"`
+	Filename string `json:"filename"`
+	DataB64  string `json:"data_b64"`
 }
 
 // implementedRoutes 是 Go 侧已实现并通过契约比对的端点。
@@ -55,6 +67,8 @@ var implementedRoutes = map[string]bool{
 	"POST /api/article/publish/bulk":       true,
 	"GET /api/ai/sessions":                 true,
 	"POST /api/ai/sessions":                true,
+	"POST /api/image/upload":               true,
+	"POST /api/image/list":                 true,
 }
 
 // implementedPrefixes 覆盖带路径参数的端点（id 段为随机值）。
@@ -274,6 +288,19 @@ func TestContractReplay(t *testing.T) {
 	}
 	aiTS := newTestServerOpts(t, "", Options{Database: aiDB, Chat: chathistory.New(aiDB)})
 
+	// image 样本：独立 content 目录（fixture 文章 + 上传落盘）
+	imageTS := newTestServerWithContent(t, func() string {
+		dir := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(dir, "post"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "post", "img.md"),
+			[]byte("---\ntitle: 图片文章\ndate: 2026-03-01\ndraft: false\n---\n\n正文\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return dir
+	}())
+
 	serverFor := func(path, source string) *httptest.Server {
 		// git 测试里的 file/save 样本必须落在 git repo 的 contentDir
 		if strings.HasPrefix(source, "tests/test_git_http_api.py") {
@@ -287,6 +314,9 @@ func TestContractReplay(t *testing.T) {
 		}
 		if strings.HasPrefix(source, "tests/test_ai_sessions_http_api.py") {
 			return aiTS
+		}
+		if strings.HasPrefix(source, "tests/test_image_http_api.py") {
+			return imageTS
 		}
 		if strings.HasPrefix(path, "/api/posts") {
 			if postsTS == nil {
@@ -352,12 +382,31 @@ func TestContractReplay(t *testing.T) {
 		if s.Query != "" {
 			url += "?" + s.Query
 		}
-		var reqBody string
-		if m, ok := s.RequestJSON.(map[string]any); ok {
-			reqBody = mustJSON(m)
+		var req *http.Request
+		if s.RequestFiles != nil {
+			// multipart 样本：从录制侧的 base64 重构表单
+			data, err := base64.StdEncoding.DecodeString(s.RequestFiles.DataB64)
+			if err != nil {
+				t.Fatalf("样本文件解码失败: %v", err)
+			}
+			var buf bytes.Buffer
+			mw := multipart.NewWriter(&buf)
+			fw, _ := mw.CreateFormFile(s.RequestFiles.Field, s.RequestFiles.Filename)
+			fw.Write(data)
+			for k, v := range s.RequestFields {
+				mw.WriteField(k, v)
+			}
+			mw.Close()
+			req, _ = http.NewRequest(s.Method, url, &buf)
+			req.Header.Set("Content-Type", mw.FormDataContentType())
+		} else {
+			var reqBody string
+			if m, ok := s.RequestJSON.(map[string]any); ok {
+				reqBody = mustJSON(m)
+			}
+			req, _ = http.NewRequest(s.Method, url, strings.NewReader(reqBody))
+			req.Header.Set("Content-Type", "application/json")
 		}
-		req, _ := http.NewRequest(s.Method, url, strings.NewReader(reqBody))
-		req.Header.Set("Content-Type", "application/json")
 		resp, err := client.Do(req)
 		if err != nil {
 			t.Errorf("%s %s: %v", s.Method, s.Path, err)

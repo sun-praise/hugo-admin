@@ -101,6 +101,8 @@ func (s *Server) routes() {
 	m.HandleFunc("DELETE /api/ai/sessions/{id}", s.handleAIDeleteSession)
 	m.HandleFunc("POST /api/ai/chat", s.handleAIChat)
 	m.HandleFunc("POST /api/ai/inline-edit", s.handleInlineEdit)
+	m.HandleFunc("POST /api/image/upload", s.handleImageUpload)
+	m.HandleFunc("POST /api/image/list", s.handleImageList)
 	m.HandleFunc("GET /admin-ui/", s.handleStatic)
 	m.HandleFunc("/", s.handleSPA)
 }

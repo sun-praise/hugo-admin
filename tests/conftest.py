@@ -81,7 +81,50 @@ def _record_api_contract(request):
         except ValueError:
             return text[:200]
 
+    def _extract_files(kwargs):
+        """从 open(data={...}) 提取 multipart 文件项（werkzeug 形态：
+        (stream, filename[, content_type]) 元组或 FileStorage）。"""
+        import base64 as _b64
+
+        data_kw = kwargs.get("data")
+        if not isinstance(data_kw, dict):
+            return None
+        for field, f in data_kw.items():
+            if isinstance(f, str):
+                continue  # 普通表单字段由 _extract_fields 处理
+            fname, fdata = None, None
+            if isinstance(f, (tuple, list)) and len(f) >= 2 and hasattr(f[0], "read"):
+                fname = f[1]
+                f[0].seek(0)
+                fdata = f[0].read()
+                f[0].seek(0)
+            elif hasattr(f, "filename") and hasattr(f, "read"):
+                fname = f.filename or "file"
+                f.seek(0)
+                fdata = f.read()
+                f.seek(0)
+            if fname is not None:
+                if isinstance(fdata, str):
+                    fdata = fdata.encode("utf-8")
+                return {
+                    "field": field,
+                    "filename": fname,
+                    "data_b64": _b64.b64encode(fdata).decode("ascii"),
+                }
+        return None
+
+    def _extract_fields(kwargs):
+        """提取 multipart 请求里的非文件表单字段。"""
+        data_kw = kwargs.get("data")
+        if not isinstance(data_kw, dict):
+            return None
+        fields = {k: v for k, v in data_kw.items() if isinstance(v, str)}
+        return fields or None
+
     def _recording_open(self, *args, **kwargs):
+        # 文件提取必须在 original_open 之前：werkzeug 构建请求后会关闭
+        # data 里的流，之后再读会抛 "I/O operation on closed file"
+        prerequest_files = _extract_files(kwargs)
         resp = original_open(self, *args, **kwargs)
         try:
             req = resp.request
@@ -96,6 +139,8 @@ def _record_api_contract(request):
                     "path": req.path,
                     "query": req.query_string.decode("utf-8") or None,
                     "request_json": req_body,
+                    "request_files": prerequest_files,
+                    "request_fields": _extract_fields(kwargs),
                     "status": resp.status_code,
                     "response_json": _decode_body(resp.get_data()),
                     "source": request.node.nodeid,
