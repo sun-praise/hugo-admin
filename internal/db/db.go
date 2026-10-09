@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -199,4 +200,158 @@ func newSessionID() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// ============ post_references ============
+
+// RefEntry 是一条引用关系。
+type RefEntry struct {
+	TargetPath string `json:"target_path"`
+	Context    string `json:"context"`
+}
+
+// UpsertReferences 对齐 upsert_references：替换某源文件的全部引用。
+func (d *DB) UpsertReferences(sourcePath string, refs []RefEntry) error {
+	if _, err := d.sql.Exec(`DELETE FROM post_references WHERE source_path = ?`, sourcePath); err != nil {
+		return err
+	}
+	for _, ref := range refs {
+		if _, err := d.sql.Exec(
+			`INSERT OR IGNORE INTO post_references (source_path, target_path, context) VALUES (?, ?, ?)`,
+			sourcePath, ref.TargetPath, ref.Context); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// BatchUpsertReferences 对齐 batch_upsert_references。
+func (d *DB) BatchUpsertReferences(all map[string][]RefEntry) error {
+	tx, err := d.sql.Begin()
+	if err != nil {
+		return err
+	}
+	for source, refs := range all {
+		if _, err := tx.Exec(`DELETE FROM post_references WHERE source_path = ?`, source); err != nil {
+			tx.Rollback()
+			return err
+		}
+		for _, ref := range refs {
+			if _, err := tx.Exec(
+				`INSERT OR IGNORE INTO post_references (source_path, target_path, context) VALUES (?, ?, ?)`,
+				source, ref.TargetPath, ref.Context); err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+	}
+	return tx.Commit()
+}
+
+// Backlink 对齐 get_backlinks 的返回行。
+type Backlink struct {
+	Path    string `json:"path"`
+	Title   string `json:"title"`
+	Context string `json:"context"`
+}
+
+// GetBacklinks 对齐 get_backlinks：JOIN posts 表取标题。
+// Go 版 posts 表由 UpsertPost 填充（引用扫描时写入）。
+func (d *DB) GetBacklinks(targetPath string) ([]Backlink, error) {
+	rows, err := d.sql.Query(`
+		SELECT p.relative_path, COALESCE(p.title, ''), COALESCE(pr.context, '')
+		FROM post_references pr
+		LEFT JOIN posts p ON pr.source_path = p.file_path
+		WHERE pr.target_path = ?
+		ORDER BY p.date DESC`, targetPath)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Backlink{}
+	for rows.Next() {
+		var b Backlink
+		if err := rows.Scan(&b.Path, &b.Title, &b.Context); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
+// GetAllReferences 对齐 get_all_references。
+func (d *DB) GetAllReferences() (map[string][]string, error) {
+	rows, err := d.sql.Query(`SELECT source_path, target_path FROM post_references`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][]string{}
+	for rows.Next() {
+		var src, tgt string
+		if err := rows.Scan(&src, &tgt); err != nil {
+			return nil, err
+		}
+		out[src] = append(out[src], tgt)
+	}
+	return out, rows.Err()
+}
+
+// UpsertPost 对齐 upsert_post（引用扫描时维护 posts 缓存行，
+// 供 backlinks 的标题 JOIN 与搜索使用）。
+func (d *DB) UpsertPost(filePath, relativePath, title, date, description, excerpt, cover string, tags, categories []string, modTime float64) error {
+	tagsJSON, _ := json.Marshal(tags)
+	catsJSON, _ := json.Marshal(categories)
+	_, err := d.sql.Exec(`
+		INSERT OR REPLACE INTO posts
+		(file_path, relative_path, title, date, description, excerpt, cover,
+		 tags, categories, mod_time, cached_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		filePath, relativePath, title, date, description, excerpt, cover,
+		string(tagsJSON), string(catsJSON), modTime, float64(time.Now().UnixNano())/1e9)
+	return err
+}
+
+// SearchPostRow 是搜索结果行。
+type SearchPostRow struct {
+	RelativePath string
+	Title        string
+	Description  string
+	Excerpt      string
+	Tags         string
+	Categories   string
+}
+
+// SearchPostsLike 对齐 search_posts 的 LIKE 查询。
+func (d *DB) SearchPostsLike(query, category, tag string) ([]SearchPostRow, error) {
+	sql := `SELECT relative_path, title, description, excerpt, tags, categories FROM posts WHERE 1=1`
+	var args []any
+	if query != "" {
+		sql += ` AND (title LIKE ? OR description LIKE ? OR excerpt LIKE ? OR relative_path LIKE ?)`
+		term := "%" + query + "%"
+		args = append(args, term, term, term, term)
+	}
+	if category != "" {
+		sql += ` AND categories LIKE ?`
+		args = append(args, fmt.Sprintf(`%%"%s"%%`, category))
+	}
+	if tag != "" {
+		sql += ` AND tags LIKE ?`
+		args = append(args, fmt.Sprintf(`%%"%s"%%`, tag))
+	}
+	sql += ` ORDER BY date DESC`
+	rows, err := d.sql.Query(sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SearchPostRow{}
+	for rows.Next() {
+		var r SearchPostRow
+		if err := rows.Scan(&r.RelativePath, &r.Title, &r.Description, &r.Excerpt, &r.Tags, &r.Categories); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }

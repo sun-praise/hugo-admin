@@ -23,6 +23,7 @@ import (
 	"github.com/svtter/hugo-admin/internal/hugo"
 	"github.com/svtter/hugo-admin/internal/plugin"
 	"github.com/svtter/hugo-admin/internal/realtime"
+	"github.com/svtter/hugo-admin/internal/refs"
 	"github.com/svtter/hugo-admin/internal/settings"
 )
 
@@ -43,6 +44,7 @@ type Options struct {
 	AI        *ai.Service
 	Chat      *chathistory.Service
 	Plugins   *plugin.Manager
+	Refs      *refs.Service
 	Settings  *settings.Service
 	EnvAPIKey string
 }
@@ -57,6 +59,7 @@ type Server struct {
 	aiSvc         *ai.Service
 	chat          *chathistory.Service
 	pluginMgr     *plugin.Manager
+	refsSvc       *refs.Service
 	settingsSvc   *settings.Service
 	sessionAPIKey string
 	envAPIKey     string
@@ -67,7 +70,7 @@ func New(cfg *config.Config, store *auth.Store, broker *realtime.Broker, opts Op
 	s := &Server{cfg: cfg, store: store, broker: broker, mux: http.NewServeMux(),
 		gitSvc: opts.Git, hugo: opts.Hugo, database: opts.Database,
 		aiSvc: opts.AI, chat: opts.Chat, pluginMgr: opts.Plugins,
-		settingsSvc: opts.Settings, envAPIKey: opts.EnvAPIKey}
+		refsSvc: opts.Refs, settingsSvc: opts.Settings, envAPIKey: opts.EnvAPIKey}
 	s.routes()
 	return s
 }
@@ -138,6 +141,13 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /api/article/tts/status", s.handleArticleTTSStatus)
 	m.HandleFunc("POST /api/article/tts", s.handleArticleTTSGenerate)
 	m.HandleFunc("DELETE /api/article/tts", s.handleArticleTTSDelete)
+	m.HandleFunc("POST /api/email/push-latest", s.handleEmailPushLatest)
+	m.HandleFunc("POST /api/email/push-article", s.handleEmailPushArticle)
+	m.HandleFunc("GET /api/email/preview-latest", s.handleEmailPreviewLatest)
+	m.HandleFunc("GET /api/email/preview-article", s.handleEmailPreviewArticle)
+	m.HandleFunc("POST /api/references/scan", s.handleRefsScan)
+	m.HandleFunc("GET /api/references/backlinks", s.handleRefsBacklinks)
+	m.HandleFunc("GET /api/posts/search", s.handlePostsSearch)
 	m.HandleFunc("GET /admin-ui/", s.handleStatic)
 	m.HandleFunc("/", s.handleSPA)
 }

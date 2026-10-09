@@ -23,6 +23,7 @@ import (
 	"github.com/svtter/hugo-admin/internal/hugo"
 	"github.com/svtter/hugo-admin/internal/plugin"
 	"github.com/svtter/hugo-admin/internal/realtime"
+	"github.com/svtter/hugo-admin/internal/refs"
 	"github.com/svtter/hugo-admin/internal/settings"
 )
 
@@ -71,6 +72,10 @@ func main() {
 	pluginMgr.StartAll()
 	defer pluginMgr.StopAll()
 
+	// 引用关系服务（对齐 app.py 的 ref_service.scan_all() 启动扫描）
+	refsSvc := refs.New(cfg.ContentDir, database)
+	refsSvc.ScanAll()
+
 	// 设置服务：路径对齐 app.py（HUGO_ROOT/.admin/settings.json，
 	// legacy 为 CONTENT_DIR/.admin/settings.json）
 	settingsSvc := settings.NewService(
@@ -87,6 +92,7 @@ func main() {
 		Git: gitSvc, Hugo: hugoMgr, Database: database,
 		AI: aiSvc, Chat: chathistory.New(database),
 		Plugins:  pluginMgr,
+		Refs:     refsSvc,
 		Settings: settingsSvc, EnvAPIKey: os.Getenv("AI_API_KEY"),
 	})
 	httpSrv := &http.Server{
