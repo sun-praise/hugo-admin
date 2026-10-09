@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Go PoC — SSE + trpc-agent-go</title>
+<style>
+  body { font-family: sans-serif; max-width: 780px; margin: 24px auto; padding: 0 16px; }
+  section { border: 1px solid #ddd; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; }
+  h2 { font-size: 16px; margin: 4px 0 8px; }
+  #evt-log { background: #f6f6f6; height: 180px; overflow-y: auto; font-size: 13px;
+             font-family: monospace; padding: 8px; border-radius: 4px; white-space: pre-wrap; }
+  textarea { width: 100%; height: 80px; box-sizing: border-box; }
+  button { padding: 6px 14px; margin-top: 6px; }
+  #ai-out { margin-top: 8px; min-height: 40px; }
+  .tool { color: #b45309; }
+  .delta { color: #1f2937; }
+  .meta { color: #9ca3af; }
+</style>
+</head>
+<body>
+<h1>hugo-admin Go 重写 PoC</h1>
+
+<section>
+  <h2>1. SSE 实时通道（替代 flask-socketio）</h2>
+  <div id="conn" class="meta">未连接</div>
+  <button onclick="ttsDemo()">模拟 TTS 任务（广播进度）</button>
+  <div id="evt-log"></div>
+</section>
+
+<section>
+  <h2>2. AI 流式改写（trpc-agent-go + DeepSeek Anthropic 端点）</h2>
+  <textarea id="ai-input">这个方案的性能很好，我们用了很多新技术，架构也很优雅。</textarea>
+  <button onclick="aiRewrite()">AI 润色</button>
+  <div id="ai-out"><span class="meta">结果将流式输出到这里…</span></div>
+</section>
+
+<script>
+const evtLog = document.getElementById('evt-log');
+function logLine(cls, text) {
+  const div = document.createElement('div');
+  if (cls) div.className = cls;
+  div.textContent = text;
+  evtLog.appendChild(div);
+  evtLog.scrollTop = evtLog.scrollHeight;
+}
+
+const es = new EventSource('/api/events');
+es.addEventListener('connected', () => {
+  document.getElementById('conn').textContent = '已连接（SSE）';
+  logLine('meta', '[connected]');
+});
+es.addEventListener('tts_progress', e => logLine('meta', '[tts_progress] ' + e.data));
+es.addEventListener('tts_done', e => logLine('meta', '[tts_done] ' + e.data));
+
+async function ttsDemo() {
+  await fetch('/api/tts/demo', { method: 'POST' });
+}
+
+async function aiRewrite() {
+  const out = document.getElementById('ai-out');
+  out.innerHTML = '';
+  const append = (cls, text) => {
+    let span = out.querySelector('span:last-of-type.' + cls);
+    if (!span || span.done) {
+      span = document.createElement('span');
+      span.className = cls;
+      out.appendChild(span);
+    }
+    span.textContent += text;
+  };
+  const resp = await fetch('/api/ai/rewrite', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: document.getElementById('ai-input').value }),
+  });
+  if (!resp.ok) {
+    out.textContent = 'HTTP ' + resp.status + ' — ' + await resp.text();
+    return;
+  }
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf('\n\n')) >= 0) {
+      const frame = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      let name = 'message', data = '';
+      for (const line of frame.split('\n')) {
+        if (line.startsWith('event: ')) name = line.slice(7);
+        if (line.startsWith('data: ')) data = line.slice(6);
+      }
+      if (name === 'ai_delta') append('delta', JSON.parse(data).text);
+      else if (name === 'ai_tool') append('tool', '[调用工具 ' + JSON.parse(data).name + '] ');
+      else if (name === 'error') append('tool', '[错误] ' + data);
+      else if (name === 'done') append('meta', ' [完成]');
+      out.querySelectorAll('span').forEach(s => s.done = true);
+    }
+  }
+}
+</script>
+</body>
+</html>
