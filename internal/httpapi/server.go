@@ -57,6 +57,10 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /api/posts", s.handlePosts)
 	m.HandleFunc("GET /api/posts/tags", s.handlePostTags)
 	m.HandleFunc("GET /api/posts/categories", s.handlePostCategories)
+	m.HandleFunc("POST /api/file/read", s.handleFileRead)
+	m.HandleFunc("POST /api/file/read-with-frontmatter", s.handleFileReadWithFM)
+	m.HandleFunc("POST /api/file/save", s.handleFileSave)
+	m.HandleFunc("POST /api/post/create", s.handlePostCreate)
 	m.HandleFunc("GET /admin-ui/", s.handleStatic)
 	m.HandleFunc("/", s.handleSPA)
 }

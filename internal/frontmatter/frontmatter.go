@@ -42,10 +42,10 @@ func Parse(data []byte) (*Document, error) {
 		return &Document{Metadata: meta, Content: text}, nil
 	}
 	block := rest[:end]
-	// 收尾分隔线之后的内容，剥掉紧随的换行
+	// 收尾分隔线之后的内容：剥掉所有前导换行（python-frontmatter 的
+	// loads 语义，空格保留），尾部原样保留
 	content := rest[end+len(delimiter):]
-	content = strings.TrimPrefix(content, "\r")
-	content = strings.TrimPrefix(content, "\n")
+	content = strings.TrimLeft(content, "\r\n")
 
 	if err := yaml.Unmarshal([]byte(block), &meta); err != nil {
 		return nil, err
@@ -77,24 +77,18 @@ func cutLine(s string) (line, rest string) {
 	return s, ""
 }
 
-// Dump 序列化为 python-frontmatter.dumps 的常见形态：
-// "---
-// <yaml>
-// ---
-// <content>"。Metadata 为空时仅输出 content。
+// Dump 序列化为 python-frontmatter.dumps 的确切形态：
+// "---\n<yaml.strip()>\n---\n\n<content.strip()>"。
+// Metadata 为空时仅输出 content 原文。
 func (d *Document) Dump() []byte {
 	if len(d.Metadata) == 0 {
 		return []byte(d.Content)
 	}
 	var buf bytes.Buffer
-	buf.WriteString(delimiter + "\n")
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
 	_ = enc.Encode(d.Metadata)
 	enc.Close()
-	buf.WriteString(delimiter + "\n")
-	if d.Content != "" {
-		buf.WriteString(d.Content)
-	}
-	return buf.Bytes()
+	yamlStr := strings.TrimSpace(buf.String())
+	return []byte(delimiter + "\n" + yamlStr + "\n" + delimiter + "\n\n" + strings.TrimSpace(d.Content))
 }

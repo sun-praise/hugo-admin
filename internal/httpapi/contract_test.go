@@ -6,6 +6,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -26,32 +27,65 @@ type contractSample struct {
 
 // implementedRoutes 是 Go 侧已实现并通过契约比对的端点。
 var implementedRoutes = map[string]bool{
-	"GET /api/auth/me":          true,
-	"POST /api/auth/login":      true,
-	"POST /api/auth/logout":     true,
-	"POST /api/auth/password":   true,
-	"GET /api/version":          true,
-	"GET /api/posts":            true,
-	"GET /api/posts/tags":       true,
-	"GET /api/posts/categories": true,
+	"GET /api/auth/me":                     true,
+	"POST /api/auth/login":                 true,
+	"POST /api/auth/logout":                true,
+	"POST /api/auth/password":              true,
+	"GET /api/version":                     true,
+	"GET /api/posts":                       true,
+	"GET /api/posts/tags":                  true,
+	"GET /api/posts/categories":            true,
+	"POST /api/file/read":                  true,
+	"POST /api/file/read-with-frontmatter": true,
+	"POST /api/file/save":                  true,
+	"POST /api/post/create":                true,
+}
+
+// envFieldIgnores 列出随机器/时间变化的顶层字段，回放比对时剔除。
+var envFieldIgnores = map[string][]string{
+	"POST /api/file/read":                  {"mtime"},
+	"POST /api/file/read-with-frontmatter": {"mtime"},
+	"POST /api/file/save":                  {"mtime", "current_mtime"},
+	"POST /api/post/create":                {"path"}, // path 含当日日期
 }
 
 // postsFixtureDir 与 Python 测试 tests/test_posts_http_api.py 共享的
 // fixture 内容目录（该测试 setup 时写入）。
 const postsFixtureDir = "../../contracts/fixtures/posts"
 
-// normalizeEnvFields 剔除随机器/检出路径变化的字段，其余严格比对。
-func normalizeEnvFields(body map[string]any, path string) {
-	if !strings.HasPrefix(path, "/api/posts") {
-		return
+// seedWriteFixture 复刻 tests/test_file_http_api.py 的 seed 文件，
+// 写域样本按录制顺序回放，文件状态随之流转。
+func seedWriteFixture(t *testing.T, contentDir string) {
+	t.Helper()
+	write := func(rel, content string) {
+		path := filepath.Join(contentDir, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if posts, ok := body["posts"].([]any); ok {
-		for _, p := range posts {
-			if m, ok := p.(map[string]any); ok {
-				delete(m, "full_path")
-				delete(m, "mod_time")
+	write("post/hello.md", "---\ntitle: Hello\ndate: 2026-01-01\ndraft: false\n---\n\nHello body。\n")
+	write("post/dual.md", "---\ntitle: Dual\n---\n---\ninner\n---\nreal body\n")
+	write("post/lock.md", "锁定基准\n")
+}
+
+// normalizeEnvFields 剔除环境相关字段，其余严格比对。
+func normalizeEnvFields(body map[string]any, key string) {
+	if strings.HasPrefix(key, "GET /api/posts") {
+		if posts, ok := body["posts"].([]any); ok {
+			for _, p := range posts {
+				if m, ok := p.(map[string]any); ok {
+					delete(m, "full_path")
+					delete(m, "mod_time")
+				}
 			}
 		}
+		return
+	}
+	for _, field := range envFieldIgnores[key] {
+		delete(body, field)
 	}
 }
 
@@ -65,17 +99,25 @@ func TestContractReplay(t *testing.T) {
 
 	// posts 样本复用录制侧的 fixture 目录，保证 path/full_path 一致
 	var postsTS *httptest.Server
+	// 写域样本：全新 temp content 目录 + 固定 seed，按样本顺序回放
+	writeContentDir := t.TempDir()
+	seedWriteFixture(t, writeContentDir)
+	writeTS := newTestServerWithContent(t, writeContentDir)
+
 	serverFor := func(path string) *httptest.Server {
-		if !strings.HasPrefix(path, "/api/posts") {
-			return ts
-		}
-		if postsTS == nil {
-			if _, err := os.Stat(postsFixtureDir); err != nil {
-				t.Skipf("posts fixture 不存在（先跑 pytest tests/test_posts_http_api.py）: %v", err)
+		if strings.HasPrefix(path, "/api/posts") {
+			if postsTS == nil {
+				if _, err := os.Stat(postsFixtureDir); err != nil {
+					t.Skipf("posts fixture 不存在（先跑 pytest tests/test_posts_http_api.py）: %v", err)
+				}
+				postsTS = newTestServerWithContent(t, postsFixtureDir)
 			}
-			postsTS = newTestServerWithContent(t, postsFixtureDir)
+			return postsTS
 		}
-		return postsTS
+		if strings.HasPrefix(path, "/api/file") || strings.HasPrefix(path, "/api/post") {
+			return writeTS
+		}
+		return ts
 	}
 
 	bareClient := &http.Client{}
@@ -133,9 +175,9 @@ func TestContractReplay(t *testing.T) {
 		_ = json.NewDecoder(resp.Body).Decode(&got)
 		resp.Body.Close()
 
-		normalizeEnvFields(got, s.Path)
+		normalizeEnvFields(got, key)
 		if want, ok := s.ResponseJSON.(map[string]any); ok {
-			normalizeEnvFields(want, s.Path)
+			normalizeEnvFields(want, key)
 		}
 
 		if resp.StatusCode != s.Status {

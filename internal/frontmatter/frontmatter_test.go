@@ -53,11 +53,16 @@ func TestDumpRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 	dumped := doc.Dump()
+	// python-frontmatter.dumps 的确切形态（实测字节）
+	want := "---\nnum: 42\ntitle: Round\n---\n\n内容"
+	if string(dumped) != want {
+		t.Fatalf("dump = %q, want %q", dumped, want)
+	}
 	doc2, err := Parse(dumped)
 	if err != nil {
 		t.Fatalf("re-parse: %v (%q)", err, dumped)
 	}
-	if doc2.Metadata["title"] != "Round" || doc2.Content != "内容\n" {
+	if doc2.Metadata["title"] != "Round" || doc2.Content != "内容" {
 		t.Fatalf("round trip 失败: %#v / %q", doc2.Metadata, doc2.Content)
 	}
 }
