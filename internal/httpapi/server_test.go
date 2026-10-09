@@ -12,6 +12,7 @@ import (
 
 	"github.com/svtter/hugo-admin/internal/auth"
 	"github.com/svtter/hugo-admin/internal/config"
+	"github.com/svtter/hugo-admin/internal/db"
 	"github.com/svtter/hugo-admin/internal/git"
 	"github.com/svtter/hugo-admin/internal/hugo"
 	"github.com/svtter/hugo-admin/internal/realtime"
@@ -20,17 +21,17 @@ import (
 const devSecret = "dev-secret-key-change-in-production"
 
 func newTestServer(t *testing.T) *httptest.Server {
-	return newTestServerFull(t, "", nil)
+	return newTestServerFull(t, "", nil, nil)
 }
 
 // newTestServerWithContent 用指定 content 目录构建测试服务
 // （契约回放复用 contracts/fixtures/posts 时路径需与录制侧一致）。
 func newTestServerWithContent(t *testing.T, contentDir string) *httptest.Server {
-	return newTestServerFull(t, contentDir, nil)
+	return newTestServerFull(t, contentDir, nil, nil)
 }
 
 // newTestServerFull 完整注入：content 目录与可选 git/hugo 服务。
-func newTestServerFull(t *testing.T, contentDir string, gitSvc *git.Service) *httptest.Server {
+func newTestServerFull(t *testing.T, contentDir string, gitSvc *git.Service, database *db.DB) *httptest.Server {
 	t.Helper()
 	dir := t.TempDir()
 	// SPA index，供回退测试
@@ -53,7 +54,7 @@ func newTestServerFull(t *testing.T, contentDir string, gitSvc *git.Service) *ht
 	if err != nil {
 		t.Fatalf("auth store: %v", err)
 	}
-	srv := New(cfg, store, realtime.NewBroker(), gitSvc, hugoMgr)
+	srv := New(cfg, store, realtime.NewBroker(), gitSvc, hugoMgr, database)
 	ts := httptest.NewServer(srv)
 	// 默认 client 没有 cookie jar，登录态无法保持
 	jar, _ := cookiejar.New(nil)

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/svtter/hugo-admin/internal/db"
 	"github.com/svtter/hugo-admin/internal/git"
 )
 
@@ -45,6 +46,7 @@ var implementedRoutes = map[string]bool{
 	"GET /api/git/status":                  true,
 	"GET /api/git/commits":                 true,
 	"POST /api/git/push":                   true,
+	"GET /api/git/pushes":                  true,
 	"POST /api/publish/system":             true,
 	"GET /api/article/status":              true,
 	"POST /api/article/status/bulk":        true,
@@ -67,6 +69,7 @@ var envFieldIgnores = map[string][]string{
 	"POST /api/article/publish/bulk": {
 		"operation_id", "results[].message", "results[].published_at",
 	},
+	"GET /api/git/pushes": {"pushes[].pushed_at", "pushes[].pushed_at_iso"},
 }
 
 // deletePath 按点分路径删除字段；段名带 "[]" 表示遍历数组元素。
@@ -232,17 +235,32 @@ func TestContractReplay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("git service: %v", err)
 	}
-	gitTS := newTestServerFull(t, filepath.Join(gitRepo, "content"), gitSvc)
+	gitTS := newTestServerFull(t, filepath.Join(gitRepo, "content"), gitSvc, nil)
+
+	// pushes 样本：git 服务注入真实 db（push 落库后经 /api/git/pushes 查询）
+	pushesRepo := seedGitRepo(t)
+	pushesDB, err := db.Open(filepath.Join(t.TempDir(), "cache.db"))
+	if err != nil {
+		t.Fatalf("pushes db: %v", err)
+	}
+	pushesGit, err := git.New(pushesRepo, pushesDB)
+	if err != nil {
+		t.Fatalf("pushes git: %v", err)
+	}
+	pushesTS := newTestServerFull(t, filepath.Join(pushesRepo, "content"), pushesGit, pushesDB)
 
 	// article 样本：独立 content 目录（file 批次样本会改写共享文件）
 	articleContentDir := t.TempDir()
 	seedArticleFixture(t, articleContentDir)
-	articleTS := newTestServerFull(t, articleContentDir, nil)
+	articleTS := newTestServerFull(t, articleContentDir, nil, nil)
 
 	serverFor := func(path, source string) *httptest.Server {
 		// git 测试里的 file/save 样本必须落在 git repo 的 contentDir
 		if strings.HasPrefix(source, "tests/test_git_http_api.py") {
 			return gitTS
+		}
+		if strings.HasPrefix(source, "tests/test_pushes_http_api.py") {
+			return pushesTS
 		}
 		if strings.HasPrefix(source, "tests/test_article_http_api.py") {
 			return articleTS

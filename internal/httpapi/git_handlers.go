@@ -20,6 +20,48 @@ func (s *Server) gitOrUnavailable(w http.ResponseWriter) *git.Service {
 	return s.gitSvc
 }
 
+// GET /api/git/pushes?page=&per_page=
+// 对齐 publish_routes.git_pushes：分页查询推送历史。
+func (s *Server) handleGitPushes(w http.ResponseWriter, r *http.Request) {
+	if s.database == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"success": false, "message": "推送历史不可用：数据库未初始化",
+		})
+		return
+	}
+	page := intParam(r, "page", 1)
+	perPage := intParam(r, "per_page", 20)
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 {
+		perPage = 20
+	}
+	if perPage > 100 {
+		perPage = 100
+	}
+
+	pushes, total, err := s.database.ListPushes(perPage, (page-1)*perPage)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"success": false, "message": "获取推送历史失败: " + err.Error(),
+		})
+		return
+	}
+	totalPages := 1
+	if perPage > 0 {
+		totalPages = (total + perPage - 1) / perPage
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success":     true,
+		"pushes":      pushes,
+		"total":       total,
+		"page":        page,
+		"per_page":    perPage,
+		"total_pages": totalPages,
+	})
+}
+
 // GET /api/git/status
 func (s *Server) handleGitStatus(w http.ResponseWriter, r *http.Request) {
 	if svc := s.gitOrUnavailable(w); svc != nil {
