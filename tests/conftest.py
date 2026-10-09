@@ -63,6 +63,7 @@ import os as _os
 @pytest.fixture(autouse=True)
 def _record_api_contract(request):
     if _os.environ.get("RECORD_CONTRACT") != "1":
+        yield
         return
     from flask.testing import FlaskClient
 
