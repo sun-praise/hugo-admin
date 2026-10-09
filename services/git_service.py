@@ -97,11 +97,13 @@ class GitService:
             }
 
         # 解析状态输出
+        # 注意不能对整体输出 strip()：porcelain 首行的 X 位可能是空格
+        # （" M file"），整体 strip 会剥掉首字符导致首条目丢字/误分类
         staged = []
         unstaged = []
         untracked = []
 
-        for line in stdout.strip().split("\n"):
+        for line in stdout.split("\n"):
             if not line:
                 continue
 

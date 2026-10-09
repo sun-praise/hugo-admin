@@ -68,7 +68,9 @@ def _write_fixtures():
         )
         path = FIXTURE_DIR / rel
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(frontmatter.dumps(fm), encoding="utf-8")
+        # 补尾换行：与 pre-commit 的 end-of-file-fixer 保持一致，
+        # 避免每次重跑测试后 hook 又改文件
+        path.write_text(frontmatter.dumps(fm) + "\n", encoding="utf-8")
 
 
 @pytest.fixture
