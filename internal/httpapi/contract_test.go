@@ -17,6 +17,7 @@ import (
 	"github.com/svtter/hugo-admin/internal/chathistory"
 	"github.com/svtter/hugo-admin/internal/db"
 	"github.com/svtter/hugo-admin/internal/git"
+	"github.com/svtter/hugo-admin/internal/plugin"
 )
 
 // 回放 contracts/api_samples.jsonl（由 RECORD_CONTRACT=1 pytest 生成）中
@@ -75,6 +76,10 @@ var implementedRoutes = map[string]bool{
 var implementedPrefixes = []string{
 	"GET /api/ai/sessions/",
 	"DELETE /api/ai/sessions/",
+	"GET /api/plugins/",
+	"PUT /api/plugins/",
+	"POST /api/plugins/",
+	"DELETE /api/plugins/",
 }
 
 // envFieldIgnores 列出随机器/时间变化的字段（支持嵌套路径：
@@ -288,6 +293,9 @@ func TestContractReplay(t *testing.T) {
 	}
 	aiTS := newTestServerOpts(t, "", Options{Database: aiDB, Chat: chathistory.New(aiDB)})
 
+	// plugins 样本：无插件 manager（404/500 路径与状态无关）
+	pluginsTS := newTestServerOpts(t, "", Options{Plugins: plugin.NewManager(t.TempDir())})
+
 	// image 样本：独立 content 目录（fixture 文章 + 上传落盘）
 	imageTS := newTestServerWithContent(t, func() string {
 		dir := t.TempDir()
@@ -317,6 +325,9 @@ func TestContractReplay(t *testing.T) {
 		}
 		if strings.HasPrefix(source, "tests/test_image_http_api.py") {
 			return imageTS
+		}
+		if strings.HasPrefix(source, "tests/test_plugins_http_api.py") {
+			return pluginsTS
 		}
 		if strings.HasPrefix(path, "/api/posts") {
 			if postsTS == nil {

@@ -21,6 +21,7 @@ import (
 	"github.com/svtter/hugo-admin/internal/git"
 	"github.com/svtter/hugo-admin/internal/httpapi"
 	"github.com/svtter/hugo-admin/internal/hugo"
+	"github.com/svtter/hugo-admin/internal/plugin"
 	"github.com/svtter/hugo-admin/internal/realtime"
 )
 
@@ -64,9 +65,15 @@ func main() {
 		log.Print("AI service disabled: AI_API_KEY not configured")
 	}
 
+	// 插件系统：~/.hugo-admin（与 Python 共享插件目录/配置/密钥）
+	pluginMgr := plugin.NewManager(plugin.DefaultBaseDir())
+	pluginMgr.StartAll()
+	defer pluginMgr.StopAll()
+
 	srv := httpapi.New(cfg, store, broker, httpapi.Options{
 		Git: gitSvc, Hugo: hugoMgr, Database: database,
 		AI: aiSvc, Chat: chathistory.New(database),
+		Plugins: pluginMgr,
 	})
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,

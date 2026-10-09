@@ -21,6 +21,7 @@ import (
 	"github.com/svtter/hugo-admin/internal/db"
 	"github.com/svtter/hugo-admin/internal/git"
 	"github.com/svtter/hugo-admin/internal/hugo"
+	"github.com/svtter/hugo-admin/internal/plugin"
 	"github.com/svtter/hugo-admin/internal/realtime"
 )
 
@@ -40,24 +41,26 @@ type Options struct {
 	Database *db.DB
 	AI       *ai.Service
 	Chat     *chathistory.Service
+	Plugins  *plugin.Manager
 }
 
 type Server struct {
-	cfg      *config.Config
-	store    *auth.Store
-	broker   *realtime.Broker
-	gitSvc   *git.Service
-	hugo     *hugo.Manager
-	database *db.DB
-	aiSvc    *ai.Service
-	chat     *chathistory.Service
-	mux      *http.ServeMux
+	cfg       *config.Config
+	store     *auth.Store
+	broker    *realtime.Broker
+	gitSvc    *git.Service
+	hugo      *hugo.Manager
+	database  *db.DB
+	aiSvc     *ai.Service
+	chat      *chathistory.Service
+	pluginMgr *plugin.Manager
+	mux       *http.ServeMux
 }
 
 func New(cfg *config.Config, store *auth.Store, broker *realtime.Broker, opts Options) *Server {
 	s := &Server{cfg: cfg, store: store, broker: broker, mux: http.NewServeMux(),
 		gitSvc: opts.Git, hugo: opts.Hugo, database: opts.Database,
-		aiSvc: opts.AI, chat: opts.Chat}
+		aiSvc: opts.AI, chat: opts.Chat, pluginMgr: opts.Plugins}
 	s.routes()
 	return s
 }
@@ -103,6 +106,17 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/ai/inline-edit", s.handleInlineEdit)
 	m.HandleFunc("POST /api/image/upload", s.handleImageUpload)
 	m.HandleFunc("POST /api/image/list", s.handleImageList)
+	m.HandleFunc("GET /api/plugins", s.handlePluginList)
+	m.HandleFunc("GET /api/plugins/market", s.handlePluginMarket)
+	m.HandleFunc("GET /api/plugins/{name}/config-schema", s.handlePluginConfigSchema)
+	m.HandleFunc("GET /api/plugins/{name}/config", s.handlePluginConfigGet)
+	m.HandleFunc("PUT /api/plugins/{name}/config", s.handlePluginConfigSet)
+	m.HandleFunc("POST /api/plugins/{name}/enable", s.handlePluginEnable)
+	m.HandleFunc("POST /api/plugins/{name}/disable", s.handlePluginDisable)
+	m.HandleFunc("POST /api/plugins/{name}/image/upload", s.handlePluginImageUpload)
+	m.HandleFunc("DELETE /api/plugins/{name}/image/{image_id}", s.handlePluginImageDelete)
+	m.HandleFunc("POST /api/plugins/{name}/tts/generate", s.handlePluginTTSGenerate)
+	m.HandleFunc("DELETE /api/plugins/{name}/tts/{audio_id}", s.handlePluginTTSDelete)
 	m.HandleFunc("GET /admin-ui/", s.handleStatic)
 	m.HandleFunc("/", s.handleSPA)
 }

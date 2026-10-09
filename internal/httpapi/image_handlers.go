@@ -56,6 +56,19 @@ func (s *Server) handleImageUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 插件上传优先（对齐 _try_plugin_upload：R2/CDN 等能力插件）
+	if s.pluginMgr != nil {
+		if target := s.pluginMgr.FindPluginWithCapability("image_upload"); target != nil {
+			name, _ := target["name"].(string)
+			if _, seekErr := file.Seek(0, 0); seekErr == nil {
+				if uploaded := s.uploadViaPlugin(w, r, name, file, header, articlePath); uploaded {
+					return
+				}
+			}
+			// 插件上传失败 → 回退本地保存（对齐 Python fallback 语义）
+		}
+	}
+
 	data, err := io.ReadAll(io.LimitReader(file, posts.MaxImageSize+1))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{
