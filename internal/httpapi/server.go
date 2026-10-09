@@ -17,6 +17,7 @@ import (
 	"github.com/svtter/hugo-admin/internal/auth"
 	"github.com/svtter/hugo-admin/internal/config"
 	"github.com/svtter/hugo-admin/internal/git"
+	"github.com/svtter/hugo-admin/internal/hugo"
 	"github.com/svtter/hugo-admin/internal/realtime"
 )
 
@@ -34,11 +35,12 @@ type Server struct {
 	store  *auth.Store
 	broker *realtime.Broker
 	gitSvc *git.Service
+	hugo   *hugo.Manager
 	mux    *http.ServeMux
 }
 
-func New(cfg *config.Config, store *auth.Store, broker *realtime.Broker, gitSvc *git.Service) *Server {
-	s := &Server{cfg: cfg, store: store, broker: broker, gitSvc: gitSvc, mux: http.NewServeMux()}
+func New(cfg *config.Config, store *auth.Store, broker *realtime.Broker, gitSvc *git.Service, hugoMgr *hugo.Manager) *Server {
+	s := &Server{cfg: cfg, store: store, broker: broker, gitSvc: gitSvc, hugo: hugoMgr, mux: http.NewServeMux()}
 	s.routes()
 	return s
 }
@@ -67,6 +69,14 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /api/git/commits", s.handleGitCommits)
 	m.HandleFunc("POST /api/git/push", s.handleGitPush)
 	m.HandleFunc("POST /api/publish/system", s.handlePublishSystem)
+	m.HandleFunc("GET /api/article/status", s.handleArticleStatus)
+	m.HandleFunc("POST /api/article/status/bulk", s.handleArticleStatusBulk)
+	m.HandleFunc("POST /api/article/publish", s.handleArticlePublish)
+	m.HandleFunc("POST /api/article/publish/bulk", s.handleArticlePublishBulk)
+	m.HandleFunc("GET /api/server/status", s.handleServerStatus)
+	m.HandleFunc("POST /api/server/start", s.handleServerStart)
+	m.HandleFunc("POST /api/server/stop", s.handleServerStop)
+	m.HandleFunc("GET /api/server/logs", s.handleServerLogs)
 	m.HandleFunc("GET /admin-ui/", s.handleStatic)
 	m.HandleFunc("/", s.handleSPA)
 }

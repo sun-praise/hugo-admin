@@ -17,6 +17,7 @@ import (
 	"github.com/svtter/hugo-admin/internal/config"
 	"github.com/svtter/hugo-admin/internal/git"
 	"github.com/svtter/hugo-admin/internal/httpapi"
+	"github.com/svtter/hugo-admin/internal/hugo"
 	"github.com/svtter/hugo-admin/internal/realtime"
 )
 
@@ -44,7 +45,9 @@ func main() {
 		log.Fatalf("git 服务初始化失败: %v", err)
 	}
 
-	srv := httpapi.New(cfg, store, realtime.NewBroker(), gitSvc)
+	broker := realtime.NewBroker()
+	hugoMgr := hugo.NewManager(cfg.HugoRoot, os.Getenv("HUGO_SERVER_BASE_URL"), broker)
+	srv := httpapi.New(cfg, store, broker, gitSvc, hugoMgr)
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           srv,

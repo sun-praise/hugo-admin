@@ -13,6 +13,7 @@ import (
 	"github.com/svtter/hugo-admin/internal/auth"
 	"github.com/svtter/hugo-admin/internal/config"
 	"github.com/svtter/hugo-admin/internal/git"
+	"github.com/svtter/hugo-admin/internal/hugo"
 	"github.com/svtter/hugo-admin/internal/realtime"
 )
 
@@ -28,7 +29,7 @@ func newTestServerWithContent(t *testing.T, contentDir string) *httptest.Server 
 	return newTestServerFull(t, contentDir, nil)
 }
 
-// newTestServerFull 完整注入：content 目录与可选 git 服务。
+// newTestServerFull 完整注入：content 目录与可选 git/hugo 服务。
 func newTestServerFull(t *testing.T, contentDir string, gitSvc *git.Service) *httptest.Server {
 	t.Helper()
 	dir := t.TempDir()
@@ -47,11 +48,12 @@ func newTestServerFull(t *testing.T, contentDir string, gitSvc *git.Service) *ht
 		ContentDir:    contentDir,
 		Version:       "2.6.0",
 	}
+	hugoMgr := hugo.NewManager(t.TempDir(), "", nil)
 	store, err := auth.OpenStore(cfg.AuthStorePath)
 	if err != nil {
 		t.Fatalf("auth store: %v", err)
 	}
-	srv := New(cfg, store, realtime.NewBroker(), gitSvc)
+	srv := New(cfg, store, realtime.NewBroker(), gitSvc, hugoMgr)
 	ts := httptest.NewServer(srv)
 	// 默认 client 没有 cookie jar，登录态无法保持
 	jar, _ := cookiejar.New(nil)

@@ -46,14 +46,56 @@ var implementedRoutes = map[string]bool{
 	"GET /api/git/commits":                 true,
 	"POST /api/git/push":                   true,
 	"POST /api/publish/system":             true,
+	"GET /api/article/status":              true,
+	"POST /api/article/status/bulk":        true,
+	"POST /api/article/publish":            true,
+	"POST /api/article/publish/bulk":       true,
 }
 
-// envFieldIgnores 列出随机器/时间变化的顶层字段，回放比对时剔除。
+// envFieldIgnores 列出随机器/时间变化的字段（支持嵌套路径：
+// "a.b" 与数组通配 "a[].b"），回放比对时剔除。
 var envFieldIgnores = map[string][]string{
 	"POST /api/file/read":                  {"mtime"},
 	"POST /api/file/read-with-frontmatter": {"mtime"},
 	"POST /api/file/save":                  {"mtime", "current_mtime"},
 	"POST /api/post/create":                {"path"}, // path 含当日日期
+	"GET /api/article/status": {
+		"status.file_path", "status.frontmatter", "status.last_published", // frontmatter 日期序列化两边不同；last_published 为发布时刻
+	},
+	"POST /api/article/status/bulk": {"results[].status.file_path", "results[].status.frontmatter"},
+	"POST /api/article/publish":     {"published_at", "operation_id", "error"},
+	"POST /api/article/publish/bulk": {
+		"operation_id", "results[].message", "results[].published_at",
+	},
+}
+
+// deletePath 按点分路径删除字段；段名带 "[]" 表示遍历数组元素。
+func deletePath(v any, segs []string) {
+	if len(segs) == 0 {
+		return
+	}
+	cur, ok := v.(map[string]any)
+	if !ok {
+		return
+	}
+	name := strings.TrimSuffix(segs[0], "[]")
+	child, exists := cur[name]
+	if !exists {
+		return
+	}
+	if strings.HasSuffix(segs[0], "[]") {
+		if arr, ok := child.([]any); ok {
+			for _, item := range arr {
+				deletePath(item, segs[1:])
+			}
+		}
+		return
+	}
+	if len(segs) == 1 {
+		delete(cur, name)
+		return
+	}
+	deletePath(child, segs[1:])
 }
 
 // postsFixtureDir 与 Python 测试 tests/test_posts_http_api.py 共享的
@@ -76,6 +118,20 @@ func seedWriteFixture(t *testing.T, contentDir string) {
 	write("post/hello.md", "---\ntitle: Hello\ndate: 2026-01-01\ndraft: false\n---\n\nHello body。\n")
 	write("post/dual.md", "---\ntitle: Dual\n---\n---\ninner\n---\nreal body\n")
 	write("post/lock.md", "锁定基准\n")
+}
+
+// seedArticleFixture 复刻 tests/test_article_http_api.py 的 seed。
+func seedArticleFixture(t *testing.T, contentDir string) {
+	t.Helper()
+	seedWriteFixture(t, contentDir)
+	write := func(rel, content string) {
+		path := filepath.Join(contentDir, rel)
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("post/draft.md", "---\ntitle: 草稿文章\ndraft: true\ntags:\n  - go\n---\n\n草稿正文\n")
+	write("post/draft2.md", "---\ntitle: 第二草稿\ndraft: true\n---\n\n第二草稿\n")
 }
 
 // seedGitRepo 复刻 tests/test_git_http_api.py 的仓库序列（固定
@@ -150,7 +206,7 @@ func normalizeEnvFields(body map[string]any, key string) {
 		return
 	}
 	for _, field := range envFieldIgnores[key] {
-		delete(body, field)
+		deletePath(body, strings.Split(field, "."))
 	}
 }
 
@@ -178,10 +234,18 @@ func TestContractReplay(t *testing.T) {
 	}
 	gitTS := newTestServerFull(t, filepath.Join(gitRepo, "content"), gitSvc)
 
+	// article 样本：独立 content 目录（file 批次样本会改写共享文件）
+	articleContentDir := t.TempDir()
+	seedArticleFixture(t, articleContentDir)
+	articleTS := newTestServerFull(t, articleContentDir, nil)
+
 	serverFor := func(path, source string) *httptest.Server {
 		// git 测试里的 file/save 样本必须落在 git repo 的 contentDir
 		if strings.HasPrefix(source, "tests/test_git_http_api.py") {
 			return gitTS
+		}
+		if strings.HasPrefix(source, "tests/test_article_http_api.py") {
+			return articleTS
 		}
 		if strings.HasPrefix(path, "/api/posts") {
 			if postsTS == nil {
