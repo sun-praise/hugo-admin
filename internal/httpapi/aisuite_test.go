@@ -218,7 +218,10 @@ func TestArticleImport(t *testing.T) {
 	fw, _ = mw.CreateFormFile("file", "x.txt")
 	fw.Write([]byte("text"))
 	mw.Close()
-	resp2, _ := client.Post(ts.URL+"/api/article/import", mw.FormDataContentType(), &buf)
+	resp2, err2 := client.Post(ts.URL+"/api/article/import", mw.FormDataContentType(), &buf)
+	if err2 != nil {
+		t.Fatal(err2)
+	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode != 400 {
 		t.Fatalf("bad type = %d", resp2.StatusCode)

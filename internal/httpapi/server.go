@@ -151,6 +151,12 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/frontmatter/generate", s.handleFMGenerate)
 	m.HandleFunc("POST /api/image/generate-cover", s.handleImageGenCover)
 	m.HandleFunc("POST /api/article/import", s.handleArticleImport)
+	m.HandleFunc("POST /api/project/init", s.handleProjectInit)
+	m.HandleFunc("GET /api/project/active", s.handleProjectActive)
+	m.HandleFunc("POST /api/project/active/reset", s.handleProjectActiveReset)
+	m.HandleFunc("POST /api/project/clean-layouts", s.handleProjectCleanLayouts)
+	m.HandleFunc("POST /api/cache/refresh", s.handleCacheRefresh)
+	m.HandleFunc("GET /api/cache/stats", s.handleCacheStats)
 	m.HandleFunc("GET /admin-ui/", s.handleStatic)
 	m.HandleFunc("/", s.handleSPA)
 }

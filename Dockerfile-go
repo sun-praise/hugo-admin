@@ -1,0 +1,57 @@
+# Hugo Admin (Go) Dockerfile — 单二进制运行时
+# 构建：docker build -f Dockerfile.go -t hugo-admin-go .
+
+# ============ Stage 1: 前端构建 ============
+FROM node:22-slim AS frontend-build
+WORKDIR /build
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY frontend/ ./
+RUN pnpm run build && ls -la /admin-ui
+
+# ============ Stage 2: Go 构建 ============
+FROM golang:1.24-slim AS go-build
+WORKDIR /src
+# 先拷依赖清单利用层缓存
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd/ internal/ proto/ ./
+COPY cmd ./cmd
+COPY internal ./internal
+COPY proto ./proto
+# 版本注入：读取 __version__.py
+COPY __version__.py ./
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/hugo-admin ./cmd/hugo-admin
+
+# ============ Stage 3: 运行时 ============
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 安装 HugoExtended（对齐 Python 版 Dockerfile）
+ARG HUGO_VERSION=0.163.3
+RUN curl -L "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.tar.gz" -o hugo.tar.gz \
+    && tar -xzf hugo.tar.gz -C /usr/local/bin/ \
+    && rm hugo.tar.gz \
+    && chmod +x /usr/local/bin/hugo \
+    && hugo version | grep -i extended
+
+WORKDIR /app
+COPY --from=go-build /out/hugo-admin /usr/local/bin/hugo-admin
+COPY --from=frontend-build /admin-ui /app/admin-ui
+COPY __version__.py /app/__version__.py
+
+# 运行时数据目录（auth.json/active_project.txt）
+RUN mkdir -p /app/data /app/content /app/public
+
+EXPOSE 5050 1313
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:5050/api/version || exit 1
+
+CMD ["hugo-admin"]
