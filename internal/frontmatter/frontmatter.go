@@ -38,22 +38,25 @@ type Document struct {
 // Parse 解析整篇文档；无 frontmatter 时 Metadata 为空 map、Content 为原文。
 // 行为对齐 frontmatter.loads：frontmatter 块后恰好一个空行被剥离。
 func Parse(data []byte) (*Document, error) {
-	// Hugo 容忍 BOM 开头的 frontmatter，探测分隔线前先剥掉
+	// Hugo 容忍 BOM；这里进一步容忍分隔线前的空白行，与写侧探测
+	// （hasTOMLLeading）和 StripLeadingFrontmatter 口径一致，
+	// 保证此类文件的 read→save 往返不丢块
 	text := strings.TrimPrefix(string(data), "\uFEFF")
 	meta := map[string]any{}
 
+	trimmed := strings.TrimLeft(text, " \t\r\n")
 	delim := yamlDelimiter
 	isTOML := false
-	if strings.HasPrefix(text, tomlDelimiter) {
+	if strings.HasPrefix(trimmed, tomlDelimiter) {
 		delim = tomlDelimiter
 		isTOML = true
 	}
-	if !strings.HasPrefix(text, delim) {
+	if !strings.HasPrefix(trimmed, delim) {
 		return &Document{Metadata: meta, Content: text}, nil
 	}
 
-	// 跳过首行分隔线
-	rest := text[len(delim):]
+	// 跳过首行分隔线（含其前的 BOM/空白行）
+	rest := trimmed[len(delim):]
 	rest = strings.TrimLeft(rest, "\r")
 	rest = strings.TrimPrefix(rest, "\n")
 

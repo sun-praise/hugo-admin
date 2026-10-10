@@ -224,7 +224,10 @@ func TestDumpTOMLFiltersNestedNil(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 	doc.Metadata["desc"] = nil
-	params, _ := doc.Metadata["params"].(map[string]any)
+	params, ok := doc.Metadata["params"].(map[string]any)
+	if !ok {
+		t.Fatalf("params = %#v（类型断言失败应显式报错）", doc.Metadata["params"])
+	}
 	params["banner"] = nil
 	dumped := doc.Dump()
 	if !strings.HasPrefix(string(dumped), "+++\n") {
@@ -256,5 +259,24 @@ func TestDumpTOMLAllNil(t *testing.T) {
 	doc2, err := Parse(dumped)
 	if err != nil || !doc2.TOML || len(doc2.Metadata) != 0 {
 		t.Fatalf("re-parse: %v %#v", err, doc2)
+	}
+}
+
+func TestParseTOMLArrayOfTables(t *testing.T) {
+	// [[array of tables]]：钉住 go-toml 解码形态并确认归一化路径可达
+	doc, err := Parse([]byte("+++\ntitle = \"T\"\n[[items]]\nname = \"a\"\nwhen = 2019-03-05\n\n[[items]]\nname = \"b\"\nwhen = 2020-01-02\n+++\n正文\n"))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	items, ok := doc.Metadata["items"].([]any)
+	if !ok || len(items) != 2 {
+		t.Fatalf("items = %#v", doc.Metadata["items"])
+	}
+	first, ok := items[0].(map[string]any)
+	if !ok || first["name"] != "a" {
+		t.Fatalf("items[0] = %#v", items[0])
+	}
+	if _, ok := first["when"].(time.Time); !ok {
+		t.Fatalf("数组表内日期未归一化: %T", first["when"])
 	}
 }

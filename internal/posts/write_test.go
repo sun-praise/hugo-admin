@@ -350,3 +350,92 @@ func TestSaveFileTOMLLeadingBlankLines(t *testing.T) {
 		t.Fatalf("应保留 +++ 格式: %q", data)
 	}
 }
+
+func TestReadFileWithFrontmatterNestedNormalize(t *testing.T) {
+	// 嵌套表/数组内的 TOML 日期 → RFC3339 字符串（normalizeEditorValue 递归）
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "post", "nested.md"),
+		"+++\ntitle = \"N\"\ndates = [2019-03-05, 2020-01-02]\n[extra]\nwhen = 2021-06-30\n+++\n\n正文\n")
+	_, _, fm, _ := ReadFileWithFrontmatter(dir, "post/nested.md")
+	list, ok := fm["dates"].([]any)
+	if !ok || len(list) != 2 {
+		t.Fatalf("dates = %#v", fm["dates"])
+	}
+	for i, want := range []string{"2019-03-05", "2020-01-02"} {
+		s, ok := list[i].(string)
+		if !ok {
+			t.Fatalf("dates[%d] 类型 = %T", i, list[i])
+		}
+		if _, err := time.Parse(time.RFC3339, s); err != nil {
+			t.Fatalf("dates[%d] = %q 非 RFC3339: %v", i, s, err)
+		}
+		if !strings.HasPrefix(s, want) {
+			t.Fatalf("dates[%d] = %q, want %q*", i, s, want)
+		}
+	}
+	extra, ok := fm["extra"].(map[string]any)
+	if !ok {
+		t.Fatalf("extra = %#v", fm["extra"])
+	}
+	when, ok := extra["when"].(string)
+	if !ok || !strings.HasPrefix(when, "2021-06-30") {
+		t.Fatalf("extra.when = %#v", extra["when"])
+	}
+}
+
+// 回归：降级文档 + 非空 fmData 保存时同样不得丢开头的 +++ 块
+func TestSaveFileDegradedTOMLWithFM(t *testing.T) {
+	dir := t.TempDir()
+	original := "+++\n这是正文开头的一行\n+++\n继续正文\n"
+	writeFile(t, filepath.Join(dir, "post", "deg.md"), original)
+
+	// 编辑器读回
+	ok, _, _, _ := ReadFileWithFrontmatter(dir, "post/deg.md")
+	if !ok {
+		t.Fatal("read 失败")
+	}
+	// 用户在元数据面板加了 title 后保存
+	ok, _, _ = SaveFile(dir, "post/deg.md", original, map[string]any{"title": "加了字段"}, nil)
+	if !ok {
+		t.Fatal("save 失败")
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "post", "deg.md"))
+	text := string(data)
+	if !strings.Contains(text, "这是正文开头的一行") || !strings.Contains(text, "继续正文") {
+		t.Fatalf("原正文丢失: %q", text)
+	}
+	doc, err := frontmatter.Parse(data)
+	if err != nil {
+		t.Fatalf("re-parse: %v (%q)", err, text)
+	}
+	if doc.Metadata["title"] != "加了字段" {
+		t.Fatalf("title = %#v", doc.Metadata["title"])
+	}
+}
+
+// 回归：分隔线前有空行的 +++ 文件读侧也应识别（与写侧口径一致），
+// read→save 往返不丢块
+func TestReadSaveRoundTripBlankLineTOML(t *testing.T) {
+	dir := t.TempDir()
+	original := "\n\n+++\ntitle = \"B\"\n+++\n\n正文\n"
+	writeFile(t, filepath.Join(dir, "post", "blank.md"), original)
+
+	_, body, fm, _ := ReadFileWithFrontmatter(dir, "post/blank.md")
+	if fm["title"] != "B" {
+		t.Fatalf("fm = %#v（空行前缀的 +++ 应被识别）", fm)
+	}
+	if body != "正文\n" {
+		t.Fatalf("body = %q", body)
+	}
+
+	ok, _, _ := SaveFile(dir, "post/blank.md", "\n\n+++\ntitle = \"B\"\n+++\n\n正文\n",
+		map[string]any{"title": "B"}, nil)
+	if !ok {
+		t.Fatal("save 失败")
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "post", "blank.md"))
+	doc, err := frontmatter.Parse(data)
+	if err != nil || doc.Metadata["title"] != "B" || !doc.TOML {
+		t.Fatalf("round trip: %v %#v (%q)", err, doc.Metadata, data)
+	}
+}

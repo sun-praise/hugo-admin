@@ -132,10 +132,16 @@ func parseForCache(contentDir, path string) *cacheMeta {
 	date := ""
 	switch d := doc.Metadata["date"].(type) {
 	case string:
-		date = d
+		// 可解析的字符串日期与 GetPosts 同口径（解析后按本地时区
+		// 展示），避免 UTC 以西时缓存比列表差一天；解析失败保留原串
+		if ts := parseCacheDate(d); !ts.IsZero() {
+			date = ts.Local().Format("2006-01-02")
+		} else {
+			date = d
+		}
 	case time.Time:
 		// TOML/YAML 原生日期（已归一化为 time.Time），展示口径与
-		// GetPosts 一致（本地时区），避免 UTC 以西时缓存比列表早一天
+		// GetPosts 一致（本地时区）
 		date = d.Local().Format("2006-01-02")
 	}
 	var tags, cats []string
@@ -182,4 +188,21 @@ func (s *Service) SearchPosts(query string) []map[string]any {
 		out = append(out, map[string]any{"path": r.RelativePath, "title": r.Title})
 	}
 	return out
+}
+
+// parseCacheDate 与 posts.parseDate 同款布局解析字符串日期，
+// 供缓存 date 与文章列表保持同一展示口径。
+func parseCacheDate(s string) time.Time {
+	s = strings.ReplaceAll(s, "Z", "+00:00")
+	for _, layout := range []string{
+		time.RFC3339,
+		"2006-01-02 15:04:05-07:00",
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+	} {
+		if ts, err := time.Parse(layout, s); err == nil {
+			return ts
+		}
+	}
+	return time.Time{}
 }

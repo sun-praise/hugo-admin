@@ -153,3 +153,23 @@ func TestPublishArticleTOML(t *testing.T) {
 		t.Fatalf("metadata 丢失: %q", text)
 	}
 }
+
+func TestPublishArticleDegradedTOML(t *testing.T) {
+	// 形似 +++ 的降级文档：明确报错，不误报"已发布"，文件不动
+	dir := t.TempDir()
+	path := filepath.Join(dir, "post", "deg.md")
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	original := "+++\n这是正文开头的一行\n+++\n继续正文\n"
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ok, msg, _ := PublishArticle(dir, "post/deg.md")
+	if ok || msg != "发布失败: 文件没有合法的 frontmatter" {
+		t.Fatalf("publish = %v %q", ok, msg)
+	}
+	data, _ := os.ReadFile(path)
+	if string(data) != original {
+		t.Fatalf("降级文档被改动:\n got %q\nwant %q", data, original)
+	}
+}

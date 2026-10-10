@@ -188,9 +188,19 @@ func SaveFile(contentDir, filePath, content string, fmData map[string]any, expec
 			Metadata: fmData,
 			Content:  StripLeadingFrontmatter(content),
 		}
-		// 覆盖已有 +++ 文件时保留 TOML 格式；新文件从正文首行分隔线判断，
-		// 避免把 +++ 改写成 ---
-		doc.TOML = tomlFrontmatterOnDisk(abs) || (!fileExists(abs) && hasTOMLLeading(content))
+		if existing, err := os.ReadFile(abs); err == nil {
+			if d, perr := frontmatter.Parse(existing); perr == nil && d.Degraded {
+				// 磁盘是降级文档：content 即原文正文，不剥块，
+				// 否则新增任一 fm 字段保存就会丢掉开头的 +++ 块
+				doc.Content = content
+			} else {
+				// 覆盖已有 +++ 文件时保留 TOML 格式
+				doc.TOML = hasTOMLLeading(string(existing))
+			}
+		} else if hasTOMLLeading(content) {
+			// 新文件：按正文首行分隔线判断格式，避免 +++ 写成 ---
+			doc.TOML = true
+		}
 		fileContent = string(doc.Dump())
 	} else {
 		fileContent = content
@@ -262,34 +272,12 @@ func SlugifyTitle(title string) string {
 	return slug
 }
 
-// StripLeadingFrontmatter 对齐 _strip_leading_frontmatter：反复剥除
-// 开头连续的 '---' 块与正文前空行，防止保存拼接出双重 frontmatter。
 // hasTOMLLeading 判断文本是否以 +++ frontmatter 开头（容忍 BOM 与
 // 分隔线前的空白行）。
 func hasTOMLLeading(content string) bool {
 	s := strings.TrimPrefix(content, "\uFEFF")
 	s = strings.TrimLeft(s, " \t\r\n")
 	return strings.HasPrefix(s, "+++")
-}
-
-// tomlFrontmatterOnDisk 只读文件头部一小段判断是否 +++ frontmatter
-// （容忍 BOM / 前导空白），避免为判断格式整读大文件。
-func tomlFrontmatterOnDisk(abs string) bool {
-	f, err := os.Open(abs)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-	// BOM + 数行空白的量级；超出该窗口的极端缩进按 YAML 处理（仅影响
-	// 新写 frontmatter 的格式选择，无数据丢失）
-	buf := make([]byte, 64)
-	n, _ := f.Read(buf)
-	return hasTOMLLeading(string(buf[:n]))
-}
-
-func fileExists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
 }
 
 // StripLeadingFrontmatter 剥离正文开头的 frontmatter 块（--- 与 +++，

@@ -24,8 +24,10 @@ func TestParseForCacheTOML(t *testing.T) {
 	if meta.title != "Emoji Support" {
 		t.Fatalf("title = %q", meta.title)
 	}
-	if meta.date != "2019-03-05" {
-		t.Fatalf("date = %q", meta.date)
+	// 字符串日期与列表同口径：解析后按本地时区展示（时区无关断言）
+	want := time.Date(2019, 3, 5, 0, 0, 0, 0, time.UTC).Local().Format("2006-01-02")
+	if meta.date != want {
+		t.Fatalf("date = %q, want %q", meta.date, want)
 	}
 	if len(meta.tags) != 1 || meta.tags[0] != "emoji" {
 		t.Fatalf("tags = %#v", meta.tags)
