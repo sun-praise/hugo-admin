@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	toml "github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 
 	"github.com/svtter/hugo-admin/internal/frontmatter"
@@ -20,6 +21,17 @@ import (
 // （对齐 Python 的 isinstance 检查）。
 func unmarshalYAMLOrEmpty(s string, out *map[string]any) error {
 	if err := yaml.Unmarshal([]byte(s), out); err != nil || *out == nil {
+		*out = map[string]any{}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// unmarshalTOMLOrEmpty 解析 TOML 到 map；失败时回退空 map（同上）。
+func unmarshalTOMLOrEmpty(s string, out *map[string]any) error {
+	if err := toml.Unmarshal([]byte(s), out); err != nil || *out == nil {
 		*out = map[string]any{}
 		if err != nil {
 			return err
@@ -121,12 +133,23 @@ func ReadFileWithFrontmatter(contentDir, filePath string) (bool, string, map[str
 	lines := strings.Split(text, "\n")
 	metadata := map[string]any{}
 	body := text
-	if len(lines) > 0 && strings.TrimSpace(lines[0]) == "---" {
+	delim := ""
+	switch strings.TrimSpace(lines[0]) {
+	case "---":
+		delim = "---"
+	case "+++":
+		delim = "+++"
+	}
+	if delim != "" {
 		for i := 1; i < len(lines); i++ {
-			if strings.TrimSpace(lines[i]) == "---" {
+			if strings.TrimSpace(lines[i]) == delim {
 				fmText := strings.Join(lines[1:i], "\n")
 				body = strings.Join(lines[i+1:], "\n")
-				_ = unmarshalYAMLOrEmpty(fmText, &metadata)
+				if delim == "+++" {
+					_ = unmarshalTOMLOrEmpty(fmText, &metadata)
+				} else {
+					_ = unmarshalYAMLOrEmpty(fmText, &metadata)
+				}
 				break
 			}
 		}
@@ -177,6 +200,10 @@ func SaveFile(contentDir, filePath, content string, fmData map[string]any, expec
 		doc := &frontmatter.Document{
 			Metadata: fmData,
 			Content:  StripLeadingFrontmatter(content),
+		}
+		// 覆盖已有 +++ 文件时保留 TOML 格式，避免改写成 ---
+		if existing, err := os.ReadFile(abs); err == nil {
+			doc.TOML = strings.HasPrefix(string(existing), "+++")
 		}
 		fileContent = string(doc.Dump())
 	} else {
@@ -257,13 +284,19 @@ func StripLeadingFrontmatter(content string) string {
 	}
 	for {
 		trimmed := strings.TrimLeft(content, " \t\r\n")
-		if !strings.HasPrefix(trimmed, "---") {
+		delim := ""
+		if strings.HasPrefix(trimmed, "---") {
+			delim = "---"
+		} else if strings.HasPrefix(trimmed, "+++") {
+			delim = "+++"
+		}
+		if delim == "" {
 			break
 		}
 		lines := strings.Split(content, "\n")
 		first := -1
 		for i, ln := range lines {
-			if strings.TrimSpace(ln) == "---" {
+			if strings.TrimSpace(ln) == delim {
 				first = i
 				break
 			}
@@ -273,7 +306,7 @@ func StripLeadingFrontmatter(content string) string {
 		}
 		closed := false
 		for i := first + 1; i < len(lines); i++ {
-			if strings.TrimSpace(lines[i]) == "---" {
+			if strings.TrimSpace(lines[i]) == delim {
 				body := lines[i+1:]
 				for len(body) > 0 && strings.TrimSpace(body[0]) == "" {
 					body = body[1:]

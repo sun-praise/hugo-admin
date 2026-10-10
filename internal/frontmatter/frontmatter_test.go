@@ -3,6 +3,7 @@ package frontmatter
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseWithFrontmatter(t *testing.T) {
@@ -57,6 +58,64 @@ func TestDumpRoundTrip(t *testing.T) {
 	want := "---\nnum: 42\ntitle: Round\n---\n\n内容"
 	if string(dumped) != want {
 		t.Fatalf("dump = %q, want %q", dumped, want)
+	}
+	doc2, err := Parse(dumped)
+	if err != nil {
+		t.Fatalf("re-parse: %v (%q)", err, dumped)
+	}
+	if doc2.Metadata["title"] != "Round" || doc2.Content != "内容" {
+		t.Fatalf("round trip 失败: %#v / %q", doc2.Metadata, doc2.Content)
+	}
+}
+
+func TestParseTOML(t *testing.T) {
+	// Fried-Rice exampleSite 风格：+++ + 引号日期 + 多行数组
+	doc, err := Parse([]byte("+++\nauthor = \"Hugo Authors\"\ntitle = \"Emoji Support\"\ndate = \"2019-03-05\"\ncategories = [\n    \"Test\"\n]\ntags = [\n    \"emoji\",\n]\nimage = \"cover.jpg\"\n+++\n\nEmoji 内容\n"))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if doc.Metadata["title"] != "Emoji Support" {
+		t.Fatalf("title = %v", doc.Metadata["title"])
+	}
+	cats, _ := doc.Metadata["categories"].([]any)
+	if len(cats) != 1 || cats[0] != "Test" {
+		t.Fatalf("categories = %#v", doc.Metadata["categories"])
+	}
+	tags, _ := doc.Metadata["tags"].([]any)
+	if len(tags) != 1 || tags[0] != "emoji" {
+		t.Fatalf("tags = %#v", doc.Metadata["tags"])
+	}
+	if doc.Content != "Emoji 内容\n" {
+		t.Fatalf("content = %q", doc.Content)
+	}
+	if !doc.TOML {
+		t.Fatal("应标记为 TOML 文档")
+	}
+}
+
+func TestParseTOMLNativeDate(t *testing.T) {
+	// TOML 原生日期（无引号）解成 time.Time，与 YAML 原生日期同路
+	doc, err := Parse([]byte("+++\ntitle = \"x\"\ndate = 2019-03-05\n+++\nbody\n"))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	ts, ok := doc.Metadata["date"].(time.Time)
+	if !ok {
+		t.Fatalf("date 类型 = %T", doc.Metadata["date"])
+	}
+	if ts.Year() != 2019 || ts.Month() != time.March || ts.Day() != 5 {
+		t.Fatalf("date = %v", ts)
+	}
+}
+
+func TestDumpTOMLRoundTrip(t *testing.T) {
+	doc, err := Parse([]byte("+++\ntitle = \"Round\"\ndate = \"2019-03-05\"\n+++\n内容\n"))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	dumped := doc.Dump()
+	if !strings.HasPrefix(string(dumped), "+++\n") {
+		t.Fatalf("dump 应保留 +++ 格式: %q", dumped)
 	}
 	doc2, err := Parse(dumped)
 	if err != nil {

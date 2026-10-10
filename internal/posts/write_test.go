@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/svtter/hugo-admin/internal/frontmatter"
 )
 
 func writeFile(t *testing.T, path, content string) {
@@ -76,6 +78,18 @@ func TestReadFileWithFrontmatter(t *testing.T) {
 	if len(fm) != 0 || body != "内容\n" {
 		t.Fatalf("非 dict fm=%#v body=%q", fm, body)
 	}
+
+	// TOML frontmatter（+++）
+	writeFile(t, filepath.Join(dir, "post", "d.md"),
+		"+++\ntitle = \"D\"\ndate = \"2019-03-05\"\ntags = [\"emoji\"]\n+++\n\nTOML 正文\n")
+	_, body, fm, _ = ReadFileWithFrontmatter(dir, "post/d.md")
+	if fm["title"] != "D" || body != "TOML 正文\n" {
+		t.Fatalf("toml fm=%#v body=%q", fm, body)
+	}
+	tags, _ := fm["tags"].([]any)
+	if len(tags) != 1 || tags[0] != "emoji" {
+		t.Fatalf("toml tags=%#v", fm["tags"])
+	}
 }
 
 func TestSaveFilePlain(t *testing.T) {
@@ -113,6 +127,34 @@ func TestSaveFileWithFrontmatter(t *testing.T) {
 		t.Fatalf("正文错误: %q", text)
 	}
 	_ = mtime
+}
+
+func TestSaveFilePreservesTOML(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "post", "toml.md"),
+		"+++\ntitle = \"旧\"\ntags = [\"a\"]\n+++\n\n旧正文\n")
+
+	ok, _, _ := SaveFile(dir, "post/toml.md", "+++\ntitle = \"旧\"\n+++\n\n新正文\n",
+		map[string]any{"title": "新", "tags": []any{"a", "b"}}, nil)
+	if !ok {
+		t.Fatal("save 失败")
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "post", "toml.md"))
+	text := string(data)
+	if !strings.HasPrefix(text, "+++\n") {
+		t.Fatalf("应保留 +++ 格式: %q", text)
+	}
+	// 按 Parse 验证内容（不依赖 go-toml 的引号风格）
+	doc, err := frontmatter.Parse(data)
+	if err != nil {
+		t.Fatalf("re-parse: %v (%q)", err, text)
+	}
+	if doc.Metadata["title"] != "新" || !doc.TOML {
+		t.Fatalf("metadata = %#v", doc.Metadata)
+	}
+	if doc.Content != "新正文" {
+		t.Fatalf("正文 = %q（前导 +++ 块应被剥离）", doc.Content)
+	}
 }
 
 func TestSaveFileOptimisticLock(t *testing.T) {
