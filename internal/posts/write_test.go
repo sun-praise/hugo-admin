@@ -411,6 +411,20 @@ func TestSaveFileDegradedTOMLWithFM(t *testing.T) {
 	if doc.Metadata["title"] != "加了字段" {
 		t.Fatalf("title = %#v", doc.Metadata["title"])
 	}
+
+	// read-after-save：第二轮读回时文档已是「合法 YAML fm + 正文残留
+	// +++ 块」，按既有双重 frontmatter 剥离语义，开头伪块被剥除
+	// （与非法 YAML 同款取舍），其余正文保留——钉住该行为防止静默变化
+	ok, body2, fm2, _ := ReadFileWithFrontmatter(dir, "post/deg.md")
+	if !ok || fm2["title"] != "加了字段" {
+		t.Fatalf("second read: %v %#v", ok, fm2)
+	}
+	if strings.Contains(body2, "这是正文开头的一行") {
+		t.Fatalf("伪块应按既有语义剥除: %q", body2)
+	}
+	if !strings.Contains(body2, "继续正文") {
+		t.Fatalf("其余正文丢失: %q", body2)
+	}
 }
 
 // 回归：分隔线前有空行的 +++ 文件读侧也应识别（与写侧口径一致），

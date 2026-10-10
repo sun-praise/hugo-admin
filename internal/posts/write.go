@@ -112,7 +112,10 @@ func ReadFileWithFrontmatter(contentDir, filePath string) (bool, string, map[str
 			// 丢掉开头的 +++ 块
 			body = doc.Content
 		} else {
-			// 双重 frontmatter 剥离（既有语义）
+			// 双重 frontmatter 剥离（既有语义）。取舍：降级文档一旦带
+			// fm 字段保存过，文件变为「合法 frontmatter + 正文残留 +++
+			// 块」，此处按该既有语义剥除开头伪块（与非法 YAML 同款，
+			// 见 TestSaveFileDegradedTOMLWithFM 的 read-after-save 断言）
 			body = StripLeadingFrontmatter(doc.Content)
 		}
 	} else {
