@@ -1,13 +1,20 @@
 # Hugo Admin
 
-[![Tests](https://github.com/Svtter/hugo-admin/workflows/Tests/badge.svg)](https://github.com/Svtter/hugo-admin/actions)
-[![License](https://img.shields.io/github/license/Svtter/hugo-admin)](https://github.com/Svtter/hugo-admin/blob/main/LICENSE)
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
-[![Documentation](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://sun-praise.github.io/hugo-admin/)
+[![License](https://img.shields.io/github/license/Svtter/hugo-admin)](LICENSE)
+[![Go](https://img.shields.io/badge/go-1.24%2B-00ADD8)](https://go.dev/)
 [![Hugo](https://img.shields.io/badge/hugo-compatible-ff4088)](https://gohugo.io/)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Documentation](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://sun-praise.github.io/hugo-admin/)
 
 [中文](README.zh-CN.md) | English
+
+> **Version Notice**
+>
+> - **`main` (v3)** — Active development. Backend fully rewritten in **Go**
+>   (single binary, gRPC plugins, SSE realtime). This is the branch you want.
+> - **`v2`** — The previous Python/Flask implementation, kept in
+>   **maintenance mode** (security fixes only, no new features). The full
+>   Python history lives there; see the
+>   [v2 → v3 migration notes](#v2--v3-migration) below.
 
 ## Screenshot
 
@@ -17,187 +24,98 @@
 
 - **📊 Dashboard**: Overview of blog statistics and quick actions
 - **📝 Post Management**: Browse, search, and filter posts by category and tags
-- **✏️ Markdown Editor**: Online editing with auto-save and keyboard shortcuts
-- **🚀 Hugo Server Control**: Start/stop Hugo dev server with real-time logs
+- **✏️ Markdown Editor**: Online editing with optimistic locking, clipboard image paste, AI frontmatter suggestions, TTS generation
+- **🚀 Hugo Server Control**: Start/stop Hugo dev server with real-time logs (SSE)
 - **🔍 Advanced Search**: Full-text search with category and tag filtering
-- **⚡ Real-time Updates**: WebSocket-based live log streaming
-- **💾 Cache System**: SQLite-based caching for fast post retrieval
+- **⚡ Real-time Updates**: SSE-based live event streaming
 - **🔐 Password Login**: Single-admin authentication gates every API and the realtime channel
-- **🔌 Plugin System**: Extend hugo-admin with gRPC-based plugins — see the [plugin system design](openspec/changes/add-plugin-system/design.md) and [`proto/plugin.proto`](proto/plugin.proto)
+- **🔌 Plugin System**: Extend hugo-admin with gRPC-based plugins — see [`proto/plugin.proto`](proto/plugin.proto)
+- **🤖 AI Assistant**: Blog-aware chat, inline rewrite, article import with AI-enriched frontmatter and cover generation
+- **📧 Email Push**: Push latest posts to subscribers via listmonk
+- **🎨 Theme Management**: Discover, install, preview, and activate Hugo themes
 
-## Tech Stack
+## Tech Stack (v3)
 
-- **Backend**: Flask + Flask-SocketIO
-- **Frontend**: Tailwind CSS + Alpine.js
-- **Real-time Communication**: WebSocket (Socket.IO)
-- **Process Management**: psutil
-- **Database**: SQLite (for caching)
+- **Backend**: Go 1.24+ — standard library `net/http`, `modernc.org/sqlite` (CGO-free), `grpc-go`, `trpc-agent-go`
+- **Frontend**: React + TypeScript + Vite + Tailwind CSS
+- **Realtime**: Server-Sent Events (`/api/events`), automatic fallback to Socket.IO when connecting to a v2 backend
+- **Storage**: SQLite (shared schema with v2), YAML frontmatter files
+- **Plugins**: gRPC subprocesses with Fernet-encrypted config (key shared with v2)
 
-## Installation
-### Docker (Recommended)
-Pull the image from GHCR and run with Docker Compose:
+## Quick Start
+
 ```bash
-# Clone the repository
-git clone https://github.com/Svtter/hugo-admin.git
-cd hugo-admin
-# Start the service
-docker compose up -d
+# Build frontend
+cd frontend && pnpm install && pnpm build && cd ..
+
+# Build & run (defaults: port 5050, auth store data/auth.json)
+go build -o hugo-admin ./cmd/hugo-admin
+./hugo-admin
+
+# Or via environment:
+AUTH_STORE=/path/to/auth.json \
+HUGO_ROOT=/path/to/blog \
+CONTENT_DIR=/path/to/blog/content \
+PORT=8961 ./hugo-admin
 ```
-Open your browser and navigate to `http://127.0.0.1:5050`.
-See [docker-compose.yml](docker-compose.yml) for volume mounts and environment variables. Adjust the volume paths to match your Hugo site layout.
-### Manual Setup
-#### Requirements
-- Python 3.9+
-- Hugo (installed and in PATH)
-#### Steps
-1. Clone the repository:
+
+### Docker
+
 ```bash
-git clone https://github.com/Svtter/hugo-admin.git
-cd hugo-admin
-```
-2. Install dependencies:
-```bash
-pip install .
-```
-3. Configure the application:
-```bash
-cp config.py config_local.py
-# Edit config_local.py to set your Hugo root directory
-```
-4. Run the application:
-```bash
-python app.py
-```
-5. Open your browser and navigate to `http://127.0.0.1:5050`
-
-## Configuration
-
-Edit `config.py` or create `config_local.py` to customize:
-
-```python
-# Hugo root directory (parent of content/)
-HUGO_ROOT = '/path/to/your/hugo/site'
-
-# Content directory
-CONTENT_DIR = HUGO_ROOT + '/content'
-
-# Hugo server settings
-HUGO_SERVER_PORT = 1313
-HUGO_SERVER_HOST = '127.0.0.1'
+docker build -f Dockerfile-go -t hugo-admin-go .
+docker run -p 5050:5050 -v ~/.hugo-admin:/root/.hugo-admin -v /path/to/blog:/blog \
+  -e HUGO_ROOT=/blog hugo-admin-go
 ```
 
-## Usage
+### Configuration
 
-### Dashboard
-- View blog statistics (post count, tags, categories)
-- Check Hugo server status
-- Quick access to common operations
-- Recent posts overview
+| Env | Default | Description |
+|-----|---------|-------------|
+| `PORT` | `5050` | HTTP listen port |
+| `SECRET_KEY` | dev default | Session signing key (same semantics as v2) |
+| `AUTH_STORE` | `data/auth.json` | Credential file (werkzeug-compatible hashes) |
+| `HUGO_ROOT` | cwd | Hugo site root |
+| `CONTENT_DIR` | `<HUGO_ROOT>/content` | Content directory |
+| `AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` | — | AI provider config |
+| `OPENROUTER_API_KEY` | — | Cover image generation |
 
-### Post Management
-- Browse all posts with pagination
-- Search posts by title, content, tags, or categories
-- Filter by specific category or tag
-- Click any post to edit
+## v2 → v3 Migration
 
-### Editor
-- Edit Markdown files with syntax highlighting
-- Auto-save on changes
-- Keyboard shortcut: `Ctrl+S` / `Cmd+S` to save
-- Real-time save status indicator
+The v3 backend is a line-by-line behavioral port of v2, verified by a
+**105-sample API contract suite** (`contracts/api_samples.jsonl`) that gets
+replayed against the Go implementation in CI. Key compatibility guarantees:
 
-### Server Control
-- Start Hugo server (with or without drafts)
-- Stop running server
-- View server status (PID, uptime, CPU, memory)
-- Real-time log streaming
+- **Session cookies are interchangeable** — a browser logged into v2 is
+  logged into v3, and vice versa (same itsdangerous HMAC scheme).
+- **`auth.json` credentials are shared** — werkzeug scrypt/pbkdf2 hashes
+  verified by both implementations.
+- **SQLite is shared** — push history and chat sessions written by one
+  implementation are readable by the other (`~/.hugo-admin/` Fernet key
+  likewise shared for plugin config).
+- **The frontend runs against either backend** — the realtime layer prefers
+  SSE (v3) and falls back to Socket.IO (v2) automatically.
+
+Known behavioral differences (documented in commit messages):
+
+- Changing the Hugo root in Settings requires a service restart in v3
+  (v2 hot-swapped service instances).
+- `save_file` YAML output uses yaml.v3 (double-quoted strings, indented
+  block lists) vs PyYAML — semantically equivalent, Hugo parses both.
+- The posts cache is a direct filesystem scan (no SQLite cache layer);
+  `/api/cache/stats` reports live counts.
 
 ## Development
 
-### Running Tests
-
 ```bash
-# Install dev dependencies
-pip install -r requirements-dev.txt
+go build ./... && go vet ./...
+go test ./... -count=1              # 10 packages, includes contract replay
 
-# Run all tests
-pytest
+# Record new API contract samples (requires a v2 checkout for the pytest recorder):
+# RECORD_CONTRACT=1 CONTRACT_OUT=contracts/api_samples.jsonl pytest tests/
 
-# Run with coverage
-pytest --cov=. --cov-report=html
+cd frontend && pnpm build           # rebuild admin-ui
 ```
-
-### Project Structure
-
-```
-hugo-admin/
-├── app.py                 # Flask application
-├── config.py              # Configuration
-├── pyproject.toml         # Dependencies and project metadata
-├── Dockerfile             # Docker image build
-├── docker-compose.yml     # Docker Compose configuration
-├── pytest.ini             # Pytest configuration
-├── services/              # Business logic
-├── routes/                # Flask Blueprints (API routes)
-├── frontend/              # React + Vite SPA
-├── tests/                 # Test suite
-```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## Security
-
-- **Login required**: every `/api/*` endpoint and the SocketIO realtime channel are gated behind a password-authenticated session; unauthenticated requests get `401`.
-- On first start a default `admin`/`admin` account is created — set `ADMIN_USERNAME`/`ADMIN_PASSWORD` (or change the password in-app) before exposing the service.
-- Passwords are stored only as salted hashes (`werkzeug.security`); credentials live in `data/auth.json` and are never committed. A corrupt/unreadable credential file fails closed (startup aborts) rather than silently resetting the admin.
-- File operations are restricted to the `content` directory, with path-traversal protection.
-- Set a strong `SECRET_KEY` in production and keep the service on a trusted network or behind a reverse proxy.
-
-## Roadmap
-
-- [x] Basic framework
-- [x] Hugo server control
-- [x] Post browsing and search
-- [x] Markdown editor
-- [x] Markdown preview
-- [x] SQLite caching system
-- [x] Test suite with CI/CD
-- [x] Image upload and management
-- [x] Docker support
-- [x] Git operations interface
-- [x] Password-based admin login
-- [ ] Batch operations
-- [ ] Multi-user support
-
-## Documentation
-
-Full documentation (deployment, usage, development, changelog) is available at:
-
-**https://sun-praise.github.io/hugo-admin/**
-
-Topics include:
-
-- [Docker deployment](https://sun-praise.github.io/hugo-admin/docker/)
-- [Quick start](https://sun-praise.github.io/hugo-admin/QUICKSTART/)
-- [Cache system](https://sun-praise.github.io/hugo-admin/CACHE_USAGE/)
-- [GitHub setup](https://sun-praise.github.io/hugo-admin/GITHUB_SETUP/)
-- [Frontmatter refactor](https://sun-praise.github.io/hugo-admin/FRONTMATTER_REFACTOR/)
-- [Plugin system](openspec/changes/add-plugin-system/design.md) — gRPC-based plugin architecture, capabilities, and how to write your own
-
-Built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/); source lives in [`docs/`](docs/), auto-deployed via [`.github/workflows/pages.yml`](.github/workflows/pages.yml).
 
 ## License
 
-Apache License 2.0 - see [LICENSE](LICENSE) file for details
-
-## Acknowledgments
-
-Built with ❤️ for the Hugo community.
+Apache-2.0 — see [LICENSE](LICENSE)

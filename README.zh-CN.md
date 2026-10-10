@@ -1,5 +1,13 @@
 # Hugo Admin
 
+> **版本说明**
+>
+> - **`main`（v3）**——活跃开发分支。后端已完全用 **Go** 重写
+>   （单二进制、gRPC 插件、SSE 实时推送）。
+> - **`v2`**——此前的 Python/Flask 实现，**维护模式**保留
+>   （仅安全修复，不再新增功能）。完整 Python 历史在该分支。
+
+
 [![Tests](https://github.com/Svtter/hugo-admin/workflows/Tests/badge.svg)](https://github.com/Svtter/hugo-admin/actions)
 [![License](https://img.shields.io/github/license/Svtter/hugo-admin)](https://github.com/Svtter/hugo-admin/blob/main/LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
