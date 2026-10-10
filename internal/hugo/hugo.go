@@ -36,6 +36,9 @@ type Manager struct {
 	isRunning bool
 	startedAt time.Time
 	logs      []map[string]any
+	// exited 在 monitorLogs 完成收尸（cmd.Wait 返回）后关闭，
+	// 供 Stop 等待进程退出、processAlive 判断进程已死。访问需持有 m.mu。
+	exited chan struct{}
 }
 
 func NewManager(hugoRoot, serverURL string, broker *realtime.Broker) *Manager {
@@ -88,7 +91,9 @@ func (m *Manager) Start(debug bool, themeOverride string) (bool, string) {
 	m.logs = nil
 	m.addLog(fmt.Sprintf("Hugo 服务器已启动 (PID: %d)", m.pid), "SUCCESS")
 
-	go m.monitorLogs(stdout)
+	m.exited = make(chan struct{})
+	// cmd/exited 以参数传入（Start 持锁期间创建），monitorLogs 不跨 goroutine 读 m.cmd
+	go m.monitorLogs(stdout, cmd, m.exited)
 	return true, fmt.Sprintf("Hugo 服务器已启动 (PID: %d)", m.pid)
 }
 
@@ -101,15 +106,16 @@ func (m *Manager) Stop() (bool, string) {
 		return false, "Hugo 服务器未运行"
 	}
 
+	// monitorLogs 负责唯一的 cmd.Wait()（stdout EOF 后收尸），
+	// 这里经 exited 等待退出：SIGTERM 优雅停止，5 秒后 SIGKILL
 	if m.cmd.Process != nil {
+		exited := m.exited
 		_ = m.cmd.Process.Signal(syscall.SIGTERM)
-		done := make(chan struct{})
-		go func() { _ = m.cmd.Wait(); close(done) }()
 		select {
-		case <-done:
+		case <-exited:
 		case <-time.After(5 * time.Second):
 			_ = m.cmd.Process.Kill()
-			<-done
+			<-exited
 		}
 	}
 
@@ -164,14 +170,19 @@ func (m *Manager) processAlive() bool {
 	if m.cmd == nil || m.cmd.Process == nil || m.pid == 0 {
 		return false
 	}
-	// 已 Wait 过（monitorLogs 收尾或 Stop）→ 必定退出
-	if m.cmd.ProcessState != nil {
+	// exited 已关闭 → monitorLogs 已 Wait 收尸，进程必定退出
+	// （不再裸读 cmd.ProcessState：它与 Wait 的写入无同步）
+	select {
+	case <-m.exited:
 		return false
+	default:
 	}
 	return syscall.Kill(m.pid, 0) == nil
 }
 
-func (m *Manager) monitorLogs(stdout io.Reader) {
+// monitorLogs 消费 hugo stdout 追加日志；stdout EOF 即进程退出：
+// Wait 回收僵尸并关闭 exited，下一次 Status/Start 据此自动纠正为未运行。
+func (m *Manager) monitorLogs(stdout io.Reader, cmd *exec.Cmd, exited chan struct{}) {
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -181,9 +192,8 @@ func (m *Manager) monitorLogs(stdout io.Reader) {
 			m.mu.Unlock()
 		}
 	}
-	// stdout EOF 即进程退出：Wait 回收僵尸并设置 ProcessState，
-	// 下一次 Status/Start 据此自动纠正为未运行
-	_ = m.cmd.Wait()
+	_ = cmd.Wait()
+	close(exited)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.isRunning {
