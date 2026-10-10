@@ -115,6 +115,7 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/ai/chat", s.handleAIChat)
 	m.HandleFunc("POST /api/ai/rewrite", s.handleAIRewrite)
 	m.HandleFunc("POST /api/ai/inline-edit", s.handleInlineEdit)
+	m.HandleFunc("POST /api/ai/assist/{task}", s.handleAssist)
 	m.HandleFunc("POST /api/image/upload", s.handleImageUpload)
 	m.HandleFunc("POST /api/image/list", s.handleImageList)
 	m.HandleFunc("GET /api/plugins", s.handlePluginList)
