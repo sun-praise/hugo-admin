@@ -114,6 +114,45 @@ func TestLogsBroadcastViaSSE(t *testing.T) {
 	t.Fatal("未收到 server_log 推送")
 }
 
+// TestStopDuringLogStream 回归 #159：Stop 若在等待进程退出期间持有 m.mu，
+// 会与 monitorLogs 的日志写入互相等待而死锁（曾以 go test 10m 超时暴露）。
+func TestStopDuringLogStream(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "hugo")
+	// 高频输出：确保 Stop 时 monitorLogs 正活跃在写日志的路径上
+	if err := os.WriteFile(script, []byte("#!/bin/sh\ni=0\nwhile true; do echo \"line $i\"; i=$((i+1)); done\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m := NewManager(t.TempDir(), "", nil)
+	m.command = script
+
+	if ok, _ := m.Start(false, ""); !ok {
+		t.Fatal("start 失败")
+	}
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(m.RecentLogs(100)) >= 5 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if len(m.RecentLogs(100)) < 5 {
+		t.Fatal("日志未流入")
+	}
+
+	done := make(chan struct{})
+	go func() {
+		m.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(8 * time.Second):
+		t.Fatal("Stop 死锁：等待进程退出期间不应持有 m.mu")
+	}
+}
+
 func TestProcessExitAutoCorrectsStatus(t *testing.T) {
 	// 假 hugo 立即退出
 	dir := t.TempDir()
