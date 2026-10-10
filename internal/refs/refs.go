@@ -134,8 +134,9 @@ func parseForCache(contentDir, path string) *cacheMeta {
 	case string:
 		date = d
 	case time.Time:
-		// TOML/YAML 原生日期（已归一化为 time.Time）
-		date = d.Format("2006-01-02")
+		// TOML/YAML 原生日期（已归一化为 time.Time），展示口径与
+		// GetPosts 一致（本地时区），避免 UTC 以西时缓存比列表早一天
+		date = d.Local().Format("2006-01-02")
 	}
 	var tags, cats []string
 	if list, ok := doc.Metadata["tags"].([]any); ok {

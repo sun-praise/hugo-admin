@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // 回归：TOML（+++）文章的 date 已归一化为 time.Time，
@@ -43,7 +44,9 @@ func TestParseForCacheTOMLNativeDate(t *testing.T) {
 	if meta == nil {
 		t.Fatal("meta 为 nil")
 	}
-	if meta.date != "2018-06-01" {
-		t.Fatalf("date = %q", meta.date)
+	// 与 GetPosts 同口径：UTC 零点按本地时区展示（时区无关断言）
+	want := time.Date(2018, 6, 1, 0, 0, 0, 0, time.UTC).Local().Format("2006-01-02")
+	if meta.date != want {
+		t.Fatalf("date = %q, want %q", meta.date, want)
 	}
 }

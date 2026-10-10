@@ -217,3 +217,44 @@ func TestParseDumpTOMLLocalTime(t *testing.T) {
 		t.Fatalf("LocalTime round trip = %v", doc2.Metadata["start"])
 	}
 }
+
+func TestDumpTOMLFiltersNestedNil(t *testing.T) {
+	doc, err := Parse([]byte("+++\ntitle = \"T\"\n[params]\ncover = \"c.jpg\"\n+++\n正文\n"))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	doc.Metadata["desc"] = nil
+	params, _ := doc.Metadata["params"].(map[string]any)
+	params["banner"] = nil
+	dumped := doc.Dump()
+	if !strings.HasPrefix(string(dumped), "+++\n") {
+		t.Fatalf("嵌套 nil 应被剔除而非降级: %q", dumped)
+	}
+	if strings.Contains(string(dumped), "desc") || strings.Contains(string(dumped), "banner") {
+		t.Fatalf("nil 字段残留: %q", dumped)
+	}
+	if !strings.Contains(string(dumped), "cover") {
+		t.Fatalf("非 nil 嵌套字段应保留: %q", dumped)
+	}
+	doc2, err := Parse(dumped)
+	if err != nil || doc2.Metadata["title"] != "T" {
+		t.Fatalf("re-parse: %v %#v", err, doc2.Metadata)
+	}
+}
+
+func TestDumpTOMLAllNil(t *testing.T) {
+	doc, err := Parse([]byte("+++\ntitle = \"T\"\n+++\n正文\n"))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	doc.Metadata["title"] = nil
+	dumped := doc.Dump()
+	// 全 nil：保留空 +++ 块的 TOML 形态，不丢格式标记
+	if !strings.HasPrefix(string(dumped), "+++\n") {
+		t.Fatalf("应保留空 +++ 块: %q", dumped)
+	}
+	doc2, err := Parse(dumped)
+	if err != nil || !doc2.TOML || len(doc2.Metadata) != 0 {
+		t.Fatalf("re-parse: %v %#v", err, doc2)
+	}
+}

@@ -292,3 +292,61 @@ func TestStripLeadingFrontmatter(t *testing.T) {
 		}
 	}
 }
+
+// 回归：形似 +++ 但非法的文档读回时不得剥块——否则编辑保存一次
+// 就静默丢掉开头的 +++ 块（评审指出的行为回退）。
+func TestReadSaveRoundTripDegradedTOML(t *testing.T) {
+	dir := t.TempDir()
+	original := "+++\n这是正文开头的一行\n+++\n继续正文\n"
+	writeFile(t, filepath.Join(dir, "post", "deg.md"), original)
+
+	ok, body, fm, _ := ReadFileWithFrontmatter(dir, "post/deg.md")
+	if !ok {
+		t.Fatal("read 失败")
+	}
+	if len(fm) != 0 {
+		t.Fatalf("降级文档 fm 应为空: %#v", fm)
+	}
+	if body != original {
+		t.Fatalf("降级文档正文被剥块:\n got %q\nwant %q", body, original)
+	}
+
+	// fmData 为空时 SaveFile 原样写回，不丢块
+	ok, _, _ = SaveFile(dir, "post/deg.md", body, nil, nil)
+	if !ok {
+		t.Fatal("save 失败")
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "post", "deg.md"))
+	if string(data) != original {
+		t.Fatalf("round trip 丢内容:\n got %q\nwant %q", data, original)
+	}
+}
+
+func TestParseSupportsBOM(t *testing.T) {
+	// BOM + +++：Parse 应识别 frontmatter（对齐 Hugo）
+	doc, err := frontmatter.Parse([]byte("\uFEFF+++\ntitle = \"B\"\n+++\n\n正文\n"))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if doc.Metadata["title"] != "B" || !doc.TOML {
+		t.Fatalf("doc = %#v", doc.Metadata)
+	}
+	if doc.Content != "正文\n" {
+		t.Fatalf("content = %q", doc.Content)
+	}
+}
+
+func TestSaveFileTOMLLeadingBlankLines(t *testing.T) {
+	// 分隔线前有空行的 +++ 文件：按 TOML 保留（避免改写成 ---）
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "post", "blank.md"), "\n\n+++\ntitle = \"旧\"\n+++\n\n旧\n")
+	ok, _, _ := SaveFile(dir, "post/blank.md", "\n\n+++\ntitle = \"旧\"\n+++\n\n新\n",
+		map[string]any{"title": "新"}, nil)
+	if !ok {
+		t.Fatal("save 失败")
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "post", "blank.md"))
+	if !strings.Contains(string(data), "+++") || strings.Contains(string(data), "---") {
+		t.Fatalf("应保留 +++ 格式: %q", data)
+	}
+}

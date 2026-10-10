@@ -107,31 +107,53 @@ func ReadFileWithFrontmatter(contentDir, filePath string) (bool, string, map[str
 	body := string(data)
 	if doc, err := frontmatter.Parse(data); err == nil {
 		metadata = doc.Metadata
-		body = doc.Content
+		if doc.Degraded {
+			// 降级文档原文即正文：不剥块，否则编辑保存一次会静默
+			// 丢掉开头的 +++ 块
+			body = doc.Content
+		} else {
+			// 双重 frontmatter 剥离（既有语义）
+			body = StripLeadingFrontmatter(doc.Content)
+		}
 	} else {
-		// 非法 YAML frontmatter：回退空 dict + 全文为正文（对齐旧实现的
-		// 解析失败回退；TOML 侧 Parse 内部已自行降级，不会走到这里）
+		// 非法 YAML frontmatter：回退空 dict，剥掉坏块（既有行为）
 		metadata = map[string]any{}
-		body = string(data)
+		body = StripLeadingFrontmatter(string(data))
 	}
-	body = StripLeadingFrontmatter(body)
 
 	// normalized：非基础类型值转字符串（对齐 Python 实现）。
 	// time.Time 转 RFC3339（parseDate 可直接再解析，等价 Python 的
 	// str(datetime) "2006-01-02 15:04:05" 往返）；int64 是 go-toml 的
-	// 整数类型，保留数值避免 weight = 5 被串化
+	// 整数类型，保留数值避免 weight = 5 被串化。递归处理嵌套 map 与
+	// 数组（如 TOML 日期数组）
 	normalized := make(map[string]any, len(metadata))
 	for k, v := range metadata {
-		switch t := v.(type) {
-		case string, int, int64, float64, bool, []any, nil:
-			normalized[k] = v
-		case time.Time:
-			normalized[k] = t.Format(time.RFC3339)
-		default:
-			normalized[k] = fmt.Sprintf("%v", v)
-		}
+		normalized[k] = normalizeEditorValue(v)
 	}
 	return true, body, normalized, mtime
+}
+
+func normalizeEditorValue(v any) any {
+	switch t := v.(type) {
+	case string, int, int64, float64, bool, nil:
+		return v
+	case time.Time:
+		return t.Format(time.RFC3339)
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		for k, val := range t {
+			out[k] = normalizeEditorValue(val)
+		}
+		return out
+	case []any:
+		out := make([]any, len(t))
+		for i, val := range t {
+			out[i] = normalizeEditorValue(val)
+		}
+		return out
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 // SaveFile 对齐 save_file。expectedMtime 非 nil 时做乐观锁校验，
@@ -242,20 +264,25 @@ func SlugifyTitle(title string) string {
 
 // StripLeadingFrontmatter 对齐 _strip_leading_frontmatter：反复剥除
 // 开头连续的 '---' 块与正文前空行，防止保存拼接出双重 frontmatter。
-// hasTOMLLeading 判断文本是否以 +++ frontmatter 开头（容忍 BOM）。
+// hasTOMLLeading 判断文本是否以 +++ frontmatter 开头（容忍 BOM 与
+// 分隔线前的空白行）。
 func hasTOMLLeading(content string) bool {
-	return strings.HasPrefix(strings.TrimPrefix(content, "\uFEFF"), "+++")
+	s := strings.TrimPrefix(content, "\uFEFF")
+	s = strings.TrimLeft(s, " \t\r\n")
+	return strings.HasPrefix(s, "+++")
 }
 
-// tomlFrontmatterOnDisk 只读文件头部几个字节判断是否 +++ frontmatter
-// （容忍 BOM），避免为判断格式整读大文件。
+// tomlFrontmatterOnDisk 只读文件头部一小段判断是否 +++ frontmatter
+// （容忍 BOM / 前导空白），避免为判断格式整读大文件。
 func tomlFrontmatterOnDisk(abs string) bool {
 	f, err := os.Open(abs)
 	if err != nil {
 		return false
 	}
 	defer f.Close()
-	buf := make([]byte, 8) // BOM(3) + "+++"(3) 足够判断
+	// BOM + 数行空白的量级；超出该窗口的极端缩进按 YAML 处理（仅影响
+	// 新写 frontmatter 的格式选择，无数据丢失）
+	buf := make([]byte, 64)
 	n, _ := f.Read(buf)
 	return hasTOMLLeading(string(buf[:n]))
 }
@@ -265,6 +292,8 @@ func fileExists(p string) bool {
 	return err == nil
 }
 
+// StripLeadingFrontmatter 剥离正文开头的 frontmatter 块（--- 与 +++，
+// 可多层），无块时仅去掉前导换行。
 func StripLeadingFrontmatter(content string) string {
 	if content == "" {
 		return content

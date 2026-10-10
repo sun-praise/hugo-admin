@@ -25,16 +25,21 @@ const (
 // Document 是一篇带 frontmatter 的 Markdown 文档。
 // TOML 为 true 时 Dump 用 +++/TOML 序列化（读入保留原格式，
 // 避免编辑保存后把 +++ 文件改写成 ---）。
+// Degraded 为 true 表示原文以 +++ 开头但块内容不是合法 TOML，
+// 已整体降级为正文（Metadata 为空、Content 为原文）；调用方应跳过
+// 二次剥块等隐含"存在 frontmatter"的后处理，否则编辑保存会丢块。
 type Document struct {
 	Metadata map[string]any
 	Content  string
 	TOML     bool
+	Degraded bool
 }
 
 // Parse 解析整篇文档；无 frontmatter 时 Metadata 为空 map、Content 为原文。
 // 行为对齐 frontmatter.loads：frontmatter 块后恰好一个空行被剥离。
 func Parse(data []byte) (*Document, error) {
-	text := string(data)
+	// Hugo 容忍 BOM 开头的 frontmatter，探测分隔线前先剥掉
+	text := strings.TrimPrefix(string(data), "\uFEFF")
 	meta := map[string]any{}
 
 	delim := yamlDelimiter
@@ -67,7 +72,7 @@ func Parse(data []byte) (*Document, error) {
 			// 对齐 Python v2（python-frontmatter 默认只认 ---）：
 			// 形似 +++ 但非合法 frontmatter 的文件整体视为正文，
 			// 不让整篇文章从列表里消失
-			return &Document{Metadata: map[string]any{}, Content: text}, nil
+			return &Document{Metadata: map[string]any{}, Content: text, Degraded: true}, nil
 		}
 		normalizeTOMLDates(meta)
 		return &Document{Metadata: meta, Content: content, TOML: true}, nil
@@ -141,11 +146,9 @@ func (d *Document) Dump() []byte {
 	body := strings.TrimSpace(d.Content)
 	if d.TOML {
 		// JSON null 字段（/api/file/save 透传的 nil）无法被 TOML 编码，
-		// 剔除后再序列化，避免触发下面的 YAML 静默降级
+		// 递归剔除（含嵌套表与数组内元素）后再序列化，避免触发下面的
+		// YAML 静默降级
 		filtered := filterNil(d.Metadata)
-		if len(filtered) == 0 {
-			return []byte(body)
-		}
 		var buf bytes.Buffer
 		if err := toml.NewEncoder(&buf).Encode(filtered); err == nil {
 			return []byte(tomlDelimiter + "\n" + strings.TrimSpace(buf.String()) + "\n" + tomlDelimiter + "\n\n" + body)
@@ -160,13 +163,27 @@ func (d *Document) Dump() []byte {
 	return []byte(yamlDelimiter + "\n" + yamlStr + "\n" + yamlDelimiter + "\n\n" + body)
 }
 
-// filterNil 返回剔除 nil 值后的浅拷贝（TOML 无法编码 null）。
-func filterNil(m map[string]any) map[string]any {
-	out := make(map[string]any, len(m))
-	for k, v := range m {
-		if v != nil {
-			out[k] = v
+// filterNil 返回剔除 nil 后的拷贝：map 丢弃 nil 值的键，数组丢弃 nil
+// 元素（TOML 无法编码 null）。即使结果为空也保留空表语义。
+func filterNil(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		for k, val := range t {
+			if val != nil {
+				out[k] = filterNil(val)
+			}
 		}
+		return out
+	case []any:
+		out := make([]any, 0, len(t))
+		for _, val := range t {
+			if val != nil {
+				out = append(out, filterNil(val))
+			}
+		}
+		return out
+	default:
+		return v
 	}
-	return out
 }
