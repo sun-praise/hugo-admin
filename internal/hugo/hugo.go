@@ -100,25 +100,35 @@ func (m *Manager) Start(debug bool, themeOverride string) (bool, string) {
 // Stop 对齐 stop()：SIGTERM 优雅停止，5 秒后 SIGKILL。
 func (m *Manager) Stop() (bool, string) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	if !m.isRunning || m.cmd == nil {
+		m.mu.Unlock()
 		return false, "Hugo 服务器未运行"
 	}
+	cmd := m.cmd
+	exited := m.exited
+	m.mu.Unlock()
 
 	// monitorLogs 负责唯一的 cmd.Wait()（stdout EOF 后收尸），
-	// 这里经 exited 等待退出：SIGTERM 优雅停止，5 秒后 SIGKILL
-	if m.cmd.Process != nil {
-		exited := m.exited
-		_ = m.cmd.Process.Signal(syscall.SIGTERM)
+	// 这里经 exited 等待退出：SIGTERM 优雅停止，5 秒后 SIGKILL。
+	// 等待期间不得持有 m.mu：monitorLogs 要先拿锁写日志、收尸后才能关 exited，
+	// 持锁等待会与之互相等待而死锁。
+	if cmd.Process != nil {
+		_ = cmd.Process.Signal(syscall.SIGTERM)
 		select {
 		case <-exited:
 		case <-time.After(5 * time.Second):
-			_ = m.cmd.Process.Kill()
+			_ = cmd.Process.Kill()
 			<-exited
 		}
 	}
 
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// 等待期间可能已被并发处理（自动退出纠正、重复 Stop、重启了新实例），
+	// 只清理仍属于本次 Stop 的那台服务器
+	if m.cmd != cmd {
+		return true, "Hugo 服务器已停止"
+	}
 	m.addLog("Hugo 服务器已停止", "INFO")
 	m.isRunning = false
 	m.cmd = nil
