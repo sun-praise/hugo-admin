@@ -148,6 +148,9 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/references/scan", s.handleRefsScan)
 	m.HandleFunc("GET /api/references/backlinks", s.handleRefsBacklinks)
 	m.HandleFunc("GET /api/posts/search", s.handlePostsSearch)
+	m.HandleFunc("POST /api/frontmatter/generate", s.handleFMGenerate)
+	m.HandleFunc("POST /api/image/generate-cover", s.handleImageGenCover)
+	m.HandleFunc("POST /api/article/import", s.handleArticleImport)
 	m.HandleFunc("GET /admin-ui/", s.handleStatic)
 	m.HandleFunc("/", s.handleSPA)
 }
