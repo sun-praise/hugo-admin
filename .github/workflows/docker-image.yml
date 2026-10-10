@@ -63,6 +63,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          # Python 版 Dockerfile 随 Python 实现移除而失效，镜像改为 Go 单二进制版
+          file: Dockerfile-go
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
