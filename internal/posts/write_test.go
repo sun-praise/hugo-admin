@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/svtter/hugo-admin/internal/frontmatter"
 )
 
 func writeFile(t *testing.T, path, content string) {
@@ -76,6 +79,32 @@ func TestReadFileWithFrontmatter(t *testing.T) {
 	if len(fm) != 0 || body != "内容\n" {
 		t.Fatalf("非 dict fm=%#v body=%q", fm, body)
 	}
+
+	// TOML frontmatter（+++）
+	writeFile(t, filepath.Join(dir, "post", "d.md"),
+		"+++\ntitle = \"D\"\ndate = \"2019-03-05\"\ntags = [\"emoji\"]\n+++\n\nTOML 正文\n")
+	_, body, fm, _ = ReadFileWithFrontmatter(dir, "post/d.md")
+	if fm["title"] != "D" || body != "TOML 正文\n" {
+		t.Fatalf("toml fm=%#v body=%q", fm, body)
+	}
+	tags, _ := fm["tags"].([]any)
+	if len(tags) != 1 || tags[0] != "emoji" {
+		t.Fatalf("toml tags=%#v", fm["tags"])
+	}
+
+	// TOML 原生日期/整数：time.Time → RFC3339（parseDate 可再解析），
+	// int64（go-toml 整数）保留数值
+	writeFile(t, filepath.Join(dir, "post", "e.md"),
+		"+++\ntitle = \"E\"\ndate = 2019-03-05\nweight = 10\n+++\n\n正文\n")
+	_, _, fm, _ = ReadFileWithFrontmatter(dir, "post/e.md")
+	if ds, ok := fm["date"].(string); !ok {
+		t.Fatalf("date 应转字符串: %#v", fm["date"])
+	} else if _, err := time.Parse(time.RFC3339, ds); err != nil {
+		t.Fatalf("date 应为 RFC3339，得到 %q: %v", ds, err)
+	}
+	if w, ok := fm["weight"].(int64); !ok || w != 10 {
+		t.Fatalf("weight 应保留 int64: %#v", fm["weight"])
+	}
 }
 
 func TestSaveFilePlain(t *testing.T) {
@@ -113,6 +142,60 @@ func TestSaveFileWithFrontmatter(t *testing.T) {
 		t.Fatalf("正文错误: %q", text)
 	}
 	_ = mtime
+}
+
+func TestSaveFilePreservesTOML(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "post", "toml.md"),
+		"+++\ntitle = \"旧\"\ntags = [\"a\"]\n+++\n\n旧正文\n")
+
+	ok, _, _ := SaveFile(dir, "post/toml.md", "+++\ntitle = \"旧\"\n+++\n\n新正文\n",
+		map[string]any{"title": "新", "tags": []any{"a", "b"}}, nil)
+	if !ok {
+		t.Fatal("save 失败")
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "post", "toml.md"))
+	text := string(data)
+	if !strings.HasPrefix(text, "+++\n") {
+		t.Fatalf("应保留 +++ 格式: %q", text)
+	}
+	// 按 Parse 验证内容（不依赖 go-toml 的引号风格）
+	doc, err := frontmatter.Parse(data)
+	if err != nil {
+		t.Fatalf("re-parse: %v (%q)", err, text)
+	}
+	if doc.Metadata["title"] != "新" || !doc.TOML {
+		t.Fatalf("metadata = %#v", doc.Metadata)
+	}
+	if doc.Content != "新正文" {
+		t.Fatalf("正文 = %q（前导 +++ 块应被剥离）", doc.Content)
+	}
+}
+
+func TestSaveFileTOMLEdgeCases(t *testing.T) {
+	// BOM 前缀的 +++ 文件也应被识别为 TOML
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "post", "bom.md"), "\uFEFF+++\ntitle = \"旧\"\n+++\n\n旧\n")
+	ok, _, _ := SaveFile(dir, "post/bom.md", "+++\ntitle = \"旧\"\n+++\n\n新\n",
+		map[string]any{"title": "新"}, nil)
+	if !ok {
+		t.Fatal("save 失败")
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "post", "bom.md"))
+	if !strings.HasPrefix(string(data), "+++\n") {
+		t.Fatalf("BOM 文件应保留 +++: %q", data)
+	}
+
+	// 新文件：内容以 +++ 开头时按 TOML 写，而非默认 YAML
+	ok, _, _ = SaveFile(dir, "post/new.md", "+++\ntitle = \"x\"\n+++\n\n新文件正文\n",
+		map[string]any{"title": "x", "weight": 10}, nil)
+	if !ok {
+		t.Fatal("save 失败")
+	}
+	data, _ = os.ReadFile(filepath.Join(dir, "post", "new.md"))
+	if !strings.HasPrefix(string(data), "+++\n") {
+		t.Fatalf("新文件应按内容识别为 +++: %q", data)
+	}
 }
 
 func TestSaveFileOptimisticLock(t *testing.T) {
@@ -195,10 +278,178 @@ func TestStripLeadingFrontmatter(t *testing.T) {
 		{"---\na: 1\n---\n---\nb: 2\n---\n\n双层后的正文", "双层后的正文"},
 		{"---\n未闭合", "---\n未闭合"},
 		{"直接正文", "直接正文"},
+		// +++ TOML 同款语义
+		{"+++\na = 1\n+++\n\n正文", "正文"},
+		{"+++\na = 1\n+++\n+++\nb = 2\n+++\n\n双层后的正文", "双层后的正文"},
+		{"+++\n未闭合", "+++\n未闭合"},
+		{"---\na: 1\n---\n+++\nb = 2\n+++\n\nYAML 后跟 TOML 块", "YAML 后跟 TOML 块"},
+		{"\n\n---\na: 1\n---\n\n前导空行正文", "前导空行正文"},
+		{"\n\n+++\na = 1\n+++\n\n前导空行正文", "前导空行正文"},
 	}
 	for _, c := range cases {
 		if got := StripLeadingFrontmatter(c.in); got != c.want {
 			t.Errorf("strip(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+// 回归：形似 +++ 但非法的文档读回时不得剥块——否则编辑保存一次
+// 就静默丢掉开头的 +++ 块（评审指出的行为回退）。
+func TestReadSaveRoundTripDegradedTOML(t *testing.T) {
+	dir := t.TempDir()
+	original := "+++\n这是正文开头的一行\n+++\n继续正文\n"
+	writeFile(t, filepath.Join(dir, "post", "deg.md"), original)
+
+	ok, body, fm, _ := ReadFileWithFrontmatter(dir, "post/deg.md")
+	if !ok {
+		t.Fatal("read 失败")
+	}
+	if len(fm) != 0 {
+		t.Fatalf("降级文档 fm 应为空: %#v", fm)
+	}
+	if body != original {
+		t.Fatalf("降级文档正文被剥块:\n got %q\nwant %q", body, original)
+	}
+
+	// fmData 为空时 SaveFile 原样写回，不丢块
+	ok, _, _ = SaveFile(dir, "post/deg.md", body, nil, nil)
+	if !ok {
+		t.Fatal("save 失败")
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "post", "deg.md"))
+	if string(data) != original {
+		t.Fatalf("round trip 丢内容:\n got %q\nwant %q", data, original)
+	}
+}
+
+func TestParseSupportsBOM(t *testing.T) {
+	// BOM + +++：Parse 应识别 frontmatter（对齐 Hugo）
+	doc, err := frontmatter.Parse([]byte("\uFEFF+++\ntitle = \"B\"\n+++\n\n正文\n"))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if doc.Metadata["title"] != "B" || !doc.TOML {
+		t.Fatalf("doc = %#v", doc.Metadata)
+	}
+	if doc.Content != "正文\n" {
+		t.Fatalf("content = %q", doc.Content)
+	}
+}
+
+func TestSaveFileTOMLLeadingBlankLines(t *testing.T) {
+	// 分隔线前有空行的 +++ 文件：按 TOML 保留（避免改写成 ---）
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "post", "blank.md"), "\n\n+++\ntitle = \"旧\"\n+++\n\n旧\n")
+	ok, _, _ := SaveFile(dir, "post/blank.md", "\n\n+++\ntitle = \"旧\"\n+++\n\n新\n",
+		map[string]any{"title": "新"}, nil)
+	if !ok {
+		t.Fatal("save 失败")
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "post", "blank.md"))
+	if !strings.Contains(string(data), "+++") || strings.Contains(string(data), "---") {
+		t.Fatalf("应保留 +++ 格式: %q", data)
+	}
+}
+
+func TestReadFileWithFrontmatterNestedNormalize(t *testing.T) {
+	// 嵌套表/数组内的 TOML 日期 → RFC3339 字符串（normalizeEditorValue 递归）
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "post", "nested.md"),
+		"+++\ntitle = \"N\"\ndates = [2019-03-05, 2020-01-02]\n[extra]\nwhen = 2021-06-30\n+++\n\n正文\n")
+	_, _, fm, _ := ReadFileWithFrontmatter(dir, "post/nested.md")
+	list, ok := fm["dates"].([]any)
+	if !ok || len(list) != 2 {
+		t.Fatalf("dates = %#v", fm["dates"])
+	}
+	for i, want := range []string{"2019-03-05", "2020-01-02"} {
+		s, ok := list[i].(string)
+		if !ok {
+			t.Fatalf("dates[%d] 类型 = %T", i, list[i])
+		}
+		if _, err := time.Parse(time.RFC3339, s); err != nil {
+			t.Fatalf("dates[%d] = %q 非 RFC3339: %v", i, s, err)
+		}
+		if !strings.HasPrefix(s, want) {
+			t.Fatalf("dates[%d] = %q, want %q*", i, s, want)
+		}
+	}
+	extra, ok := fm["extra"].(map[string]any)
+	if !ok {
+		t.Fatalf("extra = %#v", fm["extra"])
+	}
+	when, ok := extra["when"].(string)
+	if !ok || !strings.HasPrefix(when, "2021-06-30") {
+		t.Fatalf("extra.when = %#v", extra["when"])
+	}
+}
+
+// 回归：降级文档 + 非空 fmData 保存时同样不得丢开头的 +++ 块
+func TestSaveFileDegradedTOMLWithFM(t *testing.T) {
+	dir := t.TempDir()
+	original := "+++\n这是正文开头的一行\n+++\n继续正文\n"
+	writeFile(t, filepath.Join(dir, "post", "deg.md"), original)
+
+	// 编辑器读回
+	ok, _, _, _ := ReadFileWithFrontmatter(dir, "post/deg.md")
+	if !ok {
+		t.Fatal("read 失败")
+	}
+	// 用户在元数据面板加了 title 后保存
+	ok, _, _ = SaveFile(dir, "post/deg.md", original, map[string]any{"title": "加了字段"}, nil)
+	if !ok {
+		t.Fatal("save 失败")
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "post", "deg.md"))
+	text := string(data)
+	if !strings.Contains(text, "这是正文开头的一行") || !strings.Contains(text, "继续正文") {
+		t.Fatalf("原正文丢失: %q", text)
+	}
+	doc, err := frontmatter.Parse(data)
+	if err != nil {
+		t.Fatalf("re-parse: %v (%q)", err, text)
+	}
+	if doc.Metadata["title"] != "加了字段" {
+		t.Fatalf("title = %#v", doc.Metadata["title"])
+	}
+
+	// read-after-save：第二轮读回时文档已是「合法 YAML fm + 正文残留
+	// +++ 块」，按既有双重 frontmatter 剥离语义，开头伪块被剥除
+	// （与非法 YAML 同款取舍），其余正文保留——钉住该行为防止静默变化
+	ok, body2, fm2, _ := ReadFileWithFrontmatter(dir, "post/deg.md")
+	if !ok || fm2["title"] != "加了字段" {
+		t.Fatalf("second read: %v %#v", ok, fm2)
+	}
+	if strings.Contains(body2, "这是正文开头的一行") {
+		t.Fatalf("伪块应按既有语义剥除: %q", body2)
+	}
+	if !strings.Contains(body2, "继续正文") {
+		t.Fatalf("其余正文丢失: %q", body2)
+	}
+}
+
+// 回归：分隔线前有空行的 +++ 文件读侧也应识别（与写侧口径一致），
+// read→save 往返不丢块
+func TestReadSaveRoundTripBlankLineTOML(t *testing.T) {
+	dir := t.TempDir()
+	original := "\n\n+++\ntitle = \"B\"\n+++\n\n正文\n"
+	writeFile(t, filepath.Join(dir, "post", "blank.md"), original)
+
+	_, body, fm, _ := ReadFileWithFrontmatter(dir, "post/blank.md")
+	if fm["title"] != "B" {
+		t.Fatalf("fm = %#v（空行前缀的 +++ 应被识别）", fm)
+	}
+	if body != "正文\n" {
+		t.Fatalf("body = %q", body)
+	}
+
+	ok, _, _ := SaveFile(dir, "post/blank.md", "\n\n+++\ntitle = \"B\"\n+++\n\n正文\n",
+		map[string]any{"title": "B"}, nil)
+	if !ok {
+		t.Fatal("save 失败")
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "post", "blank.md"))
+	doc, err := frontmatter.Parse(data)
+	if err != nil || doc.Metadata["title"] != "B" || !doc.TOML {
+		t.Fatalf("round trip: %v %#v (%q)", err, doc.Metadata, data)
 	}
 }

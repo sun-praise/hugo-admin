@@ -282,3 +282,71 @@ func TestParseDateFormats(t *testing.T) {
 		}
 	}
 }
+
+func TestGetPostsTOMLFrontmatter(t *testing.T) {
+	// 回归：+++ TOML frontmatter 此前被当正文，列表里 title/date/tags 全空
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "post"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tomlPost := "+++\nauthor = \"Hugo Authors\"\ntitle = \"Emoji Support\"\ndate = \"2019-03-05\"\ncategories = [\n    \"Test\"\n]\ntags = [\n    \"emoji\",\n]\n+++\n\nEmoji 内容\n"
+	if err := os.WriteFile(filepath.Join(dir, "post", "emoji-support.md"), []byte(tomlPost), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "post", "yaml.md"),
+		[]byte("---\ntitle: Yaml\ndate: 2026-01-01\n---\n正文\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	data := GetPosts(dir, "", "", "", 1, 20)
+	if data.Total != 2 {
+		t.Fatalf("total = %d", data.Total)
+	}
+	var emojiIdx = -1
+	for i := range data.Posts {
+		if data.Posts[i].Title == "Emoji Support" {
+			emojiIdx = i
+		}
+	}
+	if emojiIdx < 0 {
+		t.Fatalf("TOML 文章缺失: %+v", data.Posts)
+	}
+	emoji := data.Posts[emojiIdx]
+	// 列表日期 = UTC 零点按本地时区展示（既有语义）；显式镜像该规则，
+	// 避免测试在 UTC 以西的时区误报
+	wantDate := time.Date(2019, 3, 5, 0, 0, 0, 0, time.UTC).Local().Format("2006-01-02")
+	if emoji.Date != wantDate {
+		t.Fatalf("date = %q, want %q", emoji.Date, wantDate)
+	}
+	if len(emoji.Tags) != 1 || emoji.Tags[0] != "emoji" {
+		t.Fatalf("tags = %#v", emoji.Tags)
+	}
+	if len(emoji.Categories) != 1 || emoji.Categories[0] != "Test" {
+		t.Fatalf("categories = %#v", emoji.Categories)
+	}
+	if emoji.Excerpt == "" {
+		t.Fatalf("excerpt 为空: %+v", emoji)
+	}
+	// TOML 原生日期（无引号）同样解出日期
+	if err := os.WriteFile(filepath.Join(dir, "post", "native.md"),
+		[]byte("+++\ntitle = \"Native\"\ndate = 2018-06-01\n+++\n正文\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	data = GetPosts(dir, "", "", "", 1, 20)
+	if data.Total != 3 {
+		t.Fatalf("total = %d, want 3", data.Total)
+	}
+	found := false
+	for _, p := range data.Posts {
+		if p.Title == "Native" {
+			found = true
+			want := time.Date(2018, 6, 1, 0, 0, 0, 0, time.UTC).Local().Format("2006-01-02")
+			if p.Date != want {
+				t.Fatalf("原生 date = %q, want %q", p.Date, want)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("Native 文章缺失: %+v", data.Posts)
+	}
+}

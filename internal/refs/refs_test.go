@@ -1,0 +1,54 @@
+package refs
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+// 回归：TOML（+++）文章的 date 已归一化为 time.Time，
+// parseForCache 需按 time.Time 分支取值，否则 DB 缓存 date 恒空。
+func TestParseForCacheTOML(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "post", "emoji.md")
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	if err := os.WriteFile(path,
+		[]byte("+++\ntitle = \"Emoji Support\"\ndate = \"2019-03-05\"\ntags = [\"emoji\"]\n+++\n\n正文\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	meta := parseForCache(dir, path)
+	if meta == nil {
+		t.Fatal("meta 为 nil")
+	}
+	if meta.title != "Emoji Support" {
+		t.Fatalf("title = %q", meta.title)
+	}
+	// 字符串日期与列表同口径：解析后按本地时区展示（时区无关断言）
+	want := time.Date(2019, 3, 5, 0, 0, 0, 0, time.UTC).Local().Format("2006-01-02")
+	if meta.date != want {
+		t.Fatalf("date = %q, want %q", meta.date, want)
+	}
+	if len(meta.tags) != 1 || meta.tags[0] != "emoji" {
+		t.Fatalf("tags = %#v", meta.tags)
+	}
+}
+
+func TestParseForCacheTOMLNativeDate(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "post", "native.md")
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	if err := os.WriteFile(path,
+		[]byte("+++\ntitle = \"Native\"\ndate = 2018-06-01\n+++\n正文\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	meta := parseForCache(dir, path)
+	if meta == nil {
+		t.Fatal("meta 为 nil")
+	}
+	// 与 GetPosts 同口径：UTC 零点按本地时区展示（时区无关断言）
+	want := time.Date(2018, 6, 1, 0, 0, 0, 0, time.UTC).Local().Format("2006-01-02")
+	if meta.date != want {
+		t.Fatalf("date = %q, want %q", meta.date, want)
+	}
+}
