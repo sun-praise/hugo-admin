@@ -13,6 +13,7 @@ from claude_agent_sdk import (
     create_sdk_mcp_server,
     tool,
 )
+from claude_agent_sdk.types import StreamEvent
 
 from services.git_service import GitService
 from services.hugo_service import HugoServerManager
@@ -20,6 +21,11 @@ from services.post_service import PostService
 
 # Inline edit rewrite path
 INLINE_EDIT_TIMEOUT_S = 10.0
+
+# One-shot streaming path (selection assist). Timeout here is an idle
+# timeout between stream items, not a total budget: a long review with a
+# large context is legitimate as long as tokens keep arriving.
+QUICK_STREAM_IDLE_TIMEOUT_S = 45.0
 
 
 class InlineEditEmptyResultError(RuntimeError):
@@ -244,6 +250,89 @@ class AIService:
             },
             system_prompt=system_prompt,
         )
+
+    def _build_quick_stream_options(
+        self,
+        system_prompt: str,
+    ) -> ClaudeAgentOptions:
+        """Build one-off ClaudeAgentOptions for the streaming assist path.
+
+        Same shape as the quick-rewrite options (tools disabled, configured
+        model) but with partial messages enabled so the SDK surfaces
+        ``StreamEvent`` text deltas while the model generates.
+        """
+        if not self.enabled:
+            raise RuntimeError("AI service is not configured")
+        return ClaudeAgentOptions(
+            model=self.model_name,
+            allowed_tools=[],
+            include_partial_messages=True,
+            env={
+                "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+                "ANTHROPIC_AUTH_TOKEN": os.environ.get("ANTHROPIC_AUTH_TOKEN", ""),
+                "ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_AUTH_TOKEN", ""),
+                "ANTHROPIC_MODEL": self.model_name,
+            },
+            system_prompt=system_prompt,
+        )
+
+    async def quick_stream(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        idle_timeout_s: float = QUICK_STREAM_IDLE_TIMEOUT_S,
+    ) -> AsyncGenerator[str, None]:
+        """Run a single streaming no-tools LLM call, yielding text deltas.
+
+        Deltas come from ``StreamEvent`` content_block_delta messages. Some
+        Anthropic-compatible providers do not emit partial deltas; in that
+        case the final ``AssistantMessage`` text is yielded once as a
+        fallback. Raises :class:`InlineEditTimeoutError` when no item arrives
+        within ``idle_timeout_s`` and :class:`InlineEditEmptyResultError`
+        when the call finishes without any text.
+        """
+        if not self.enabled:
+            raise RuntimeError("AI service is not configured")
+
+        options = self._build_quick_stream_options(system_prompt)
+
+        emitted = False
+        final_text = ""
+        async with ClaudeSDKClient(options=options) as client:
+            await client.query(user_prompt)
+            aiter = client.receive_response().__aiter__()
+            while True:
+                try:
+                    msg = await asyncio.wait_for(
+                        aiter.__anext__(), timeout=idle_timeout_s
+                    )
+                except StopAsyncIteration:
+                    break
+                except asyncio.TimeoutError as e:
+                    raise InlineEditTimeoutError(
+                        f"quick_stream stalled for over {idle_timeout_s}s"
+                    ) from e
+
+                if isinstance(msg, StreamEvent):
+                    event = msg.event or {}
+                    if event.get("type") != "content_block_delta":
+                        continue
+                    delta = event.get("delta") or {}
+                    if delta.get("type") == "text_delta" and delta.get("text"):
+                        emitted = True
+                        yield delta["text"]
+                elif isinstance(msg, AssistantMessage):
+                    for block in msg.content:
+                        if isinstance(block, TextBlock) and block.text:
+                            final_text += block.text
+
+        if emitted:
+            return
+        stripped = final_text.strip()
+        if stripped:
+            yield stripped
+        else:
+            raise InlineEditEmptyResultError("quick_stream returned empty text")
 
     async def quick_rewrite(
         self,
