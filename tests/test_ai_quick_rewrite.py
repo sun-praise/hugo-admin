@@ -23,6 +23,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from claude_agent_sdk import AssistantMessage, TextBlock
+from claude_agent_sdk.types import StreamEvent
 
 from services.ai_service import (
     AIService,
@@ -168,3 +169,107 @@ class TestBuildQuickRewriteOptions:
         svc = _make_service(enabled=False)
         with pytest.raises(RuntimeError):
             svc._build_quick_rewrite_options("system prompt")
+
+
+# ---------------------------------------------------------------------------
+# quick_stream
+# ---------------------------------------------------------------------------
+
+
+def _stream_delta(text: str) -> StreamEvent:
+    event = MagicMock(spec=StreamEvent)
+    event.event = {
+        "type": "content_block_delta",
+        "delta": {"type": "text_delta", "text": text},
+    }
+    return event
+
+
+def _non_text_stream_event() -> StreamEvent:
+    event = MagicMock(spec=StreamEvent)
+    event.event = {
+        "type": "content_block_delta",
+        "delta": {"type": "input_json_delta", "partial_json": "..."},
+    }
+    return event
+
+
+async def _collect(agen):
+    return [chunk async for chunk in agen]
+
+
+class TestQuickStream:
+    def test_yields_text_deltas(self):
+        svc = _make_service()
+        with _patch_client(
+            svc, _StubAsyncIter([_stream_delta("hel"), _stream_delta("lo")])
+        ):
+            result = asyncio.run(_collect(svc.quick_stream("sys", "usr")))
+
+        assert result == ["hel", "lo"]
+
+    def test_falls_back_to_final_message_when_no_deltas(self):
+        svc = _make_service()
+        with _patch_client(svc, _StubAsyncIter([_assistant_message("full text")])):
+            result = asyncio.run(_collect(svc.quick_stream("sys", "usr")))
+
+        assert result == ["full text"]
+
+    def test_does_not_duplicate_deltas_and_final_message(self):
+        svc = _make_service()
+        items = [
+            _stream_delta("par"),
+            _stream_delta("tial"),
+            _assistant_message("partial + final"),
+        ]
+        with _patch_client(svc, _StubAsyncIter(items)):
+            result = asyncio.run(_collect(svc.quick_stream("sys", "usr")))
+
+        assert result == ["par", "tial"]
+
+    def test_ignores_non_text_deltas(self):
+        svc = _make_service()
+        items = [_non_text_stream_event(), _assistant_message("fallback")]
+        with _patch_client(svc, _StubAsyncIter(items)):
+            result = asyncio.run(_collect(svc.quick_stream("sys", "usr")))
+
+        assert result == ["fallback"]
+
+    def test_raises_on_empty_result(self):
+        svc = _make_service()
+        with _patch_client(svc, _StubAsyncIter([])):
+            with pytest.raises(InlineEditEmptyResultError):
+                asyncio.run(_collect(svc.quick_stream("sys", "usr")))
+
+    def test_raises_on_idle_timeout(self):
+        svc = _make_service()
+
+        async def _slow_iter():
+            await asyncio.sleep(0.5)
+            yield _stream_delta("never")
+
+        with _patch_client(svc, _slow_iter()):
+            with pytest.raises(InlineEditTimeoutError):
+                asyncio.run(
+                    _collect(svc.quick_stream("sys", "usr", idle_timeout_s=0.1))
+                )
+
+    def test_raises_when_disabled(self):
+        svc = _make_service(enabled=False)
+        with pytest.raises(RuntimeError):
+            asyncio.run(_collect(svc.quick_stream("sys", "usr")))
+
+
+class TestBuildQuickStreamOptions:
+    def test_enables_partial_messages_and_disables_tools(self):
+        svc = _make_service()
+        opts = svc._build_quick_stream_options("system prompt")
+        assert opts.allowed_tools == []
+        assert opts.include_partial_messages is True
+        assert opts.system_prompt == "system prompt"
+        assert opts.model == "test-model"
+
+    def test_raises_when_disabled(self):
+        svc = _make_service(enabled=False)
+        with pytest.raises(RuntimeError):
+            svc._build_quick_stream_options("system prompt")

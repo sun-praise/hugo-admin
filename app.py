@@ -16,6 +16,7 @@ from models.database import Database
 from routes import (
     install_auth_guard,
     register_ai_routes,
+    register_assist_routes,
     register_auth_routes,
     register_config_routes,
     register_email_routes,
@@ -249,6 +250,7 @@ ai_main_bp, fm_bp = register_ai_routes(get_ai_service)
 app.register_blueprint(ai_main_bp)
 app.register_blueprint(fm_bp)
 app.register_blueprint(register_inline_edit_routes(get_ai_service))
+app.register_blueprint(register_assist_routes(get_ai_service))
 app.register_blueprint(register_plugin_routes(plugin_manager, socketio))
 app.register_blueprint(register_auth_routes(registry))
 app.register_blueprint(register_project_init_routes(app, registry))

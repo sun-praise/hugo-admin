@@ -19,6 +19,7 @@ import {
   Sparkles,
   Wand2,
   Headphones,
+  PanelRight,
 } from 'lucide-react';
 import { get, post } from '../utils/api';
 import {
@@ -31,12 +32,32 @@ import type { Mermaid } from 'mermaid';
 import type { FileData, ImageItem, Backlink, Frontmatter } from '../types';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useSocket } from '../hooks/useSocket';
+import { AssistPanel, type EditorSelection } from '../components/AssistPanel/AssistPanel';
+import { useAssist } from '../components/AssistPanel/useAssist';
 import { InlineEditOverlay } from '../components/InlineEdit/Overlay';
+import {
+  DEFAULT_TASK_CONFIG,
+  type AssistTask,
+  type AssistTaskConfig,
+} from '../components/AssistPanel/types';
+import type { ReplaceRecord } from '../utils/selectionReplace';
+import {
+  rangeMatches,
+  replaceTextareaRange,
+  undoTextareaReplace,
+} from '../utils/selectionReplace';
 import { ConflictModal } from '../components/ConflictModal';
 
 // Mermaid is heavy (~800KB); load it lazily and only when the preview
 // actually contains a ```mermaid block. Initialised once per session.
 let mermaidPromise: Promise<Mermaid> | null = null;
+
+// 选区辅助触发阈值与上下文半径（与后端 /api/ai/assist 的上限对齐）
+const ASSIST_DEBOUNCE_MS = 500;
+const ASSIST_MIN_SELECTION = 2;
+const ASSIST_MAX_SELECTION = 5000;
+const ASSIST_CONTEXT_RADIUS = 600;
+
 function loadMermaid(): Promise<Mermaid> {
   if (!mermaidPromise) {
     mermaidPromise = import('mermaid')
@@ -114,6 +135,62 @@ export default function Editor() {
   const [ttsProgress, setTtsProgress] = useState<{ stage: string; percent: number; message: string } | null>(null);
   const [ttsVoice, setTtsVoice] = useState('');
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
+
+  // 选区 AI 辅助面板
+  const {
+    tasks: assistTasks,
+    assist,
+    retry: retryAssist,
+    regenerate: regenerateAssist,
+    reset: resetAssist,
+    setEnabled: setAssistEnabled,
+    disableTask: disableAssistTask,
+  } = useAssist();
+  const [assistSelection, setAssistSelection] = useState<EditorSelection | null>(null);
+  const [assistOpen, setAssistOpen] = useState(false);
+  const [assistTaskConfig, setAssistTaskConfig] = useState<AssistTaskConfig>(() => {
+    try {
+      const saved = localStorage.getItem('assist-task-config');
+      if (saved) {
+        return { ...DEFAULT_TASK_CONFIG, ...(JSON.parse(saved) as Partial<AssistTaskConfig>) };
+      }
+    } catch {
+      // 损坏的配置回退到默认值
+    }
+    return DEFAULT_TASK_CONFIG;
+  });
+  const assistTimerRef = useRef<number | null>(null);
+  const lastAssistKeyRef = useRef<string | null>(null);
+  const undoStackRef = useRef<ReplaceRecord[]>([]);
+  const [undoCount, setUndoCount] = useState(0);
+  const contentRef = useRef(content);
+  useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
+
+  // 任务开关配置同步到 useAssist（决定 assist 实际运行哪些任务）
+  useEffect(() => {
+    setAssistEnabled(assistTaskConfig);
+  }, [assistTaskConfig, setAssistEnabled]);
+
+  const toggleAssistTask = useCallback(
+    (task: AssistTask, enabled: boolean) => {
+      const next = { ...assistTaskConfig, [task]: enabled };
+      setAssistTaskConfig(next);
+      try {
+        localStorage.setItem('assist-task-config', JSON.stringify(next));
+      } catch {
+        // localStorage 不可用时仅本次会话生效
+      }
+      if (enabled) {
+        // 当前选区存在且该任务尚无结果时，启用即补发
+        if (assistTasks[task].status === 'idle') retryAssist(task);
+      } else {
+        disableAssistTask(task);
+      }
+    },
+    [assistTaskConfig, assistTasks, retryAssist, disableAssistTask],
+  );
 
   useEffect(() => {
     if (frontmatter.title) {
@@ -328,6 +405,117 @@ export default function Editor() {
       textarea.setSelectionRange(start + cursorOffset, start + cursorOffset);
     });
   }, [content]);
+
+  // ---- 选区 AI 辅助 ----
+
+  const onAssistSelectionSettled = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const length = end - start;
+    if (length < ASSIST_MIN_SELECTION || length > ASSIST_MAX_SELECTION) return;
+    const text = ta.value.substring(start, end);
+    if (!text.trim()) return;
+
+    // 选区未变时不重发请求（方向键/点击都会触发 select 事件）
+    const key = `${start}:${end}:${text}`;
+    if (lastAssistKeyRef.current === key) return;
+    lastAssistKeyRef.current = key;
+
+    const contextBefore = ta.value.substring(Math.max(0, start - ASSIST_CONTEXT_RADIUS), start);
+    const contextAfter = ta.value.substring(end, Math.min(ta.value.length, end + ASSIST_CONTEXT_RADIUS));
+
+    setAssistSelection({ start, end, text, contextBefore, contextAfter });
+    setAssistOpen(true);
+    assist({ text, contextBefore, contextAfter }, ta.value);
+  }, [assist]);
+
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const schedule = () => {
+      if (assistTimerRef.current !== null) window.clearTimeout(assistTimerRef.current);
+      assistTimerRef.current = window.setTimeout(() => {
+        assistTimerRef.current = null;
+        onAssistSelectionSettled();
+      }, ASSIST_DEBOUNCE_MS);
+    };
+    const events: (keyof HTMLElementEventMap)[] = ['select', 'keyup', 'mouseup'];
+    events.forEach((e) => ta.addEventListener(e, schedule));
+    return () => {
+      if (assistTimerRef.current !== null) {
+        window.clearTimeout(assistTimerRef.current);
+        assistTimerRef.current = null;
+      }
+      events.forEach((e) => ta.removeEventListener(e, schedule));
+    };
+  }, [onAssistSelectionSettled]);
+
+  const closeAssistPanel = useCallback(() => {
+    setAssistOpen(false);
+    // 重置去重 key，用户重新选中同一段文字时面板会再次弹出
+    lastAssistKeyRef.current = null;
+    resetAssist();
+  }, [resetAssist]);
+
+  const toggleAssistPanel = useCallback(() => {
+    setAssistOpen((prev) => {
+      if (prev) {
+        lastAssistKeyRef.current = null;
+        resetAssist();
+        return false;
+      }
+      // 允许重新选中同一段文字时再次触发（可能命中缓存，无额外请求）
+      lastAssistKeyRef.current = null;
+      return true;
+    });
+  }, [resetAssist]);
+
+  const applyAssistReplacement = useCallback(
+    (start: number, end: number, newText: string, expectedOld?: string): ReplaceRecord | null => {
+      const ta = textareaRef.current;
+      if (!ta) return null;
+      if (expectedOld !== undefined && ta.value.substring(start, end) !== expectedOld) {
+        showNotification('选区已变化，未应用替换', 'warning');
+        return null;
+      }
+      const record = replaceTextareaRange(ta, start, end, newText);
+      if (!record) return null;
+      setContent(
+        contentRef.current.substring(0, start) + newText + contentRef.current.substring(end),
+      );
+      undoStackRef.current.push(record);
+      setUndoCount(undoStackRef.current.length);
+      return record;
+    },
+    [],
+  );
+
+  const undoAssistApply = useCallback((): ReplaceRecord | null => {
+    const ta = textareaRef.current;
+    const stack = undoStackRef.current;
+    while (stack.length > 0) {
+      const record = stack[stack.length - 1];
+      stack.pop();
+      if (!ta || !rangeMatches(ta, record.start, record.end, record.newText)) {
+        // 该记录已被原生撤销或后续编辑覆盖，跳过
+        continue;
+      }
+      undoTextareaReplace(ta, record);
+      setContent(
+        contentRef.current.substring(0, record.start) +
+          record.oldText +
+          contentRef.current.substring(record.end),
+      );
+      setUndoCount(stack.length);
+      return record;
+    }
+    setUndoCount(0);
+    return null;
+  }, []);
+
+  // ---- 快速编辑（浮动 ✨ 弹窗，与选区辅助面板并存） ----
 
   function applyInlineEdit(revisedText: string, anchorStart: number, anchorEnd: number) {
     const textarea = textareaRef.current;
@@ -648,6 +836,13 @@ export default function Editor() {
 
   const loadFile = useCallback(async () => {
     if (!currentFile) return;
+    // 切换文件时复位选区辅助状态（中止在途请求、清空撤销栈）
+    setAssistSelection(null);
+    setAssistOpen(false);
+    undoStackRef.current = [];
+    setUndoCount(0);
+    lastAssistKeyRef.current = null;
+    resetAssist();
     setLoading(true);
     try {
       const data = await post<FileData & { success: boolean; message?: string; mtime?: number }>('/api/file/read-with-frontmatter', { path: currentFile });
@@ -678,7 +873,7 @@ export default function Editor() {
     } finally {
       setLoading(false);
     }
-  }, [currentFile, checkPublishStatus]);
+  }, [currentFile, checkPublishStatus, resetAssist]);
 
   // Keep callback refs current without writing during render.
   useEffect(() => {
@@ -1012,6 +1207,14 @@ export default function Editor() {
           <button onClick={() => insertMarkdown('table')} className="toolbar-btn" title="表格">
             <Table className="w-4 h-4" />
           </button>
+          <span className="border-l border-stone-300 mx-1" />
+          <button
+            onClick={toggleAssistPanel}
+            title={assistOpen ? '收起选区辅助面板' : '选区 AI 辅助（选中文字自动生成翻译/润色/评价）'}
+            className={`toolbar-btn ${assistOpen ? 'text-blue-600' : ''}`}
+          >
+            <PanelRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -1211,6 +1414,22 @@ export default function Editor() {
           </div>
         </>
       )}
+
+      {/* 选区 AI 辅助面板 */}
+      <AssistPanel
+        open={assistOpen}
+        selection={assistSelection}
+        tasks={assistTasks}
+        content={content}
+        onRetry={retryAssist}
+        onRegenerate={regenerateAssist}
+        onClose={closeAssistPanel}
+        onApplyReplacement={applyAssistReplacement}
+        undoCount={undoCount}
+        onUndo={undoAssistApply}
+        taskConfig={assistTaskConfig}
+        onToggleTask={toggleAssistTask}
+      />
 
       {/* 加载状态 */}
       {loading && (
