@@ -8,37 +8,11 @@ import (
 	"strings"
 	"time"
 
-	toml "github.com/pelletier/go-toml/v2"
-	"gopkg.in/yaml.v3"
-
 	"github.com/svtter/hugo-admin/internal/frontmatter"
 )
 
 // 写域：对齐 services/post_service.py 的 read_file /
 // read_file_with_frontmatter / save_file / create_post。
-
-// unmarshalYAMLOrEmpty 解析 YAML 到 map；失败或非 dict 时回退空 map
-// （对齐 Python 的 isinstance 检查）。
-func unmarshalYAMLOrEmpty(s string, out *map[string]any) error {
-	if err := yaml.Unmarshal([]byte(s), out); err != nil || *out == nil {
-		*out = map[string]any{}
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// unmarshalTOMLOrEmpty 解析 TOML 到 map；失败时回退空 map（同上）。
-func unmarshalTOMLOrEmpty(s string, out *map[string]any) error {
-	if err := toml.Unmarshal([]byte(s), out); err != nil || *out == nil {
-		*out = map[string]any{}
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 // ConflictInfo 是 save 乐观锁冲突时的负载（HTTP 409）。
 type ConflictInfo struct {
@@ -110,8 +84,8 @@ func ReadFile(contentDir, filePath string) (bool, string, float64) {
 	return true, string(data), mtime
 }
 
-// ReadFileWithFrontmatter 对齐 read_file_with_frontmatter：按行找
-// 首对 '---' 切分，YAML 解析失败回退空 dict，正文再剥重复 frontmatter。
+// ReadFileWithFrontmatter 对齐 read_file_with_frontmatter：经
+// frontmatter.Parse 切分（---/+++ 双格式），正文再剥重复 frontmatter。
 func ReadFileWithFrontmatter(contentDir, filePath string) (bool, string, map[string]any, float64) {
 	abs := joinContent(contentDir, filePath)
 	if !isSafePath(contentDir, abs) {
@@ -129,39 +103,30 @@ func ReadFileWithFrontmatter(contentDir, filePath string) (bool, string, map[str
 		return false, fmt.Sprintf("读取文件失败: %v", err), map[string]any{}, 0
 	}
 
-	text := string(data)
-	lines := strings.Split(text, "\n")
 	metadata := map[string]any{}
-	body := text
-	delim := ""
-	switch strings.TrimSpace(lines[0]) {
-	case "---":
-		delim = "---"
-	case "+++":
-		delim = "+++"
-	}
-	if delim != "" {
-		for i := 1; i < len(lines); i++ {
-			if strings.TrimSpace(lines[i]) == delim {
-				fmText := strings.Join(lines[1:i], "\n")
-				body = strings.Join(lines[i+1:], "\n")
-				if delim == "+++" {
-					_ = unmarshalTOMLOrEmpty(fmText, &metadata)
-				} else {
-					_ = unmarshalYAMLOrEmpty(fmText, &metadata)
-				}
-				break
-			}
-		}
+	body := string(data)
+	if doc, err := frontmatter.Parse(data); err == nil {
+		metadata = doc.Metadata
+		body = doc.Content
+	} else {
+		// 非法 YAML frontmatter：回退空 dict + 全文为正文（对齐旧实现的
+		// 解析失败回退；TOML 侧 Parse 内部已自行降级，不会走到这里）
+		metadata = map[string]any{}
+		body = string(data)
 	}
 	body = StripLeadingFrontmatter(body)
 
-	// normalized：非基础类型值转字符串（对齐 Python 实现）
+	// normalized：非基础类型值转字符串（对齐 Python 实现）。
+	// time.Time 转 RFC3339（parseDate 可直接再解析，等价 Python 的
+	// str(datetime) "2006-01-02 15:04:05" 往返）；int64 是 go-toml 的
+	// 整数类型，保留数值避免 weight = 5 被串化
 	normalized := make(map[string]any, len(metadata))
 	for k, v := range metadata {
-		switch v.(type) {
-		case string, int, float64, bool, []any, nil:
+		switch t := v.(type) {
+		case string, int, int64, float64, bool, []any, nil:
 			normalized[k] = v
+		case time.Time:
+			normalized[k] = t.Format(time.RFC3339)
 		default:
 			normalized[k] = fmt.Sprintf("%v", v)
 		}
@@ -201,10 +166,9 @@ func SaveFile(contentDir, filePath, content string, fmData map[string]any, expec
 			Metadata: fmData,
 			Content:  StripLeadingFrontmatter(content),
 		}
-		// 覆盖已有 +++ 文件时保留 TOML 格式，避免改写成 ---
-		if existing, err := os.ReadFile(abs); err == nil {
-			doc.TOML = strings.HasPrefix(string(existing), "+++")
-		}
+		// 覆盖已有 +++ 文件时保留 TOML 格式；新文件从正文首行分隔线判断，
+		// 避免把 +++ 改写成 ---
+		doc.TOML = tomlFrontmatterOnDisk(abs) || (!fileExists(abs) && hasTOMLLeading(content))
 		fileContent = string(doc.Dump())
 	} else {
 		fileContent = content
@@ -278,6 +242,29 @@ func SlugifyTitle(title string) string {
 
 // StripLeadingFrontmatter 对齐 _strip_leading_frontmatter：反复剥除
 // 开头连续的 '---' 块与正文前空行，防止保存拼接出双重 frontmatter。
+// hasTOMLLeading 判断文本是否以 +++ frontmatter 开头（容忍 BOM）。
+func hasTOMLLeading(content string) bool {
+	return strings.HasPrefix(strings.TrimPrefix(content, "\uFEFF"), "+++")
+}
+
+// tomlFrontmatterOnDisk 只读文件头部几个字节判断是否 +++ frontmatter
+// （容忍 BOM），避免为判断格式整读大文件。
+func tomlFrontmatterOnDisk(abs string) bool {
+	f, err := os.Open(abs)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	buf := make([]byte, 8) // BOM(3) + "+++"(3) 足够判断
+	n, _ := f.Read(buf)
+	return hasTOMLLeading(string(buf[:n]))
+}
+
+func fileExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
+}
+
 func StripLeadingFrontmatter(content string) string {
 	if content == "" {
 		return content

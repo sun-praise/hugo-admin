@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/svtter/hugo-admin/internal/db"
 	"github.com/svtter/hugo-admin/internal/frontmatter"
@@ -129,8 +130,12 @@ func parseForCache(contentDir, path string) *cacheMeta {
 	desc, _ := doc.Metadata["description"].(string)
 	cover, _ := doc.Metadata["cover"].(string)
 	date := ""
-	if ds, ok := doc.Metadata["date"].(string); ok {
-		date = ds
+	switch d := doc.Metadata["date"].(type) {
+	case string:
+		date = d
+	case time.Time:
+		// TOML/YAML 原生日期（已归一化为 time.Time）
+		date = d.Format("2006-01-02")
 	}
 	var tags, cats []string
 	if list, ok := doc.Metadata["tags"].([]any); ok {

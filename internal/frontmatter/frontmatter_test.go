@@ -1,6 +1,7 @@
 package frontmatter
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -123,5 +124,96 @@ func TestDumpTOMLRoundTrip(t *testing.T) {
 	}
 	if doc2.Metadata["title"] != "Round" || doc2.Content != "内容" {
 		t.Fatalf("round trip 失败: %#v / %q", doc2.Metadata, doc2.Content)
+	}
+}
+
+func TestParseTOMLUnclosed(t *testing.T) {
+	// 无闭合 +++：整体视为正文
+	text := "+++\ntitle = \"x\"\n"
+	doc, err := Parse([]byte(text))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(doc.Metadata) != 0 || doc.Content != text || doc.TOML {
+		t.Fatalf("未闭合应视为正文: %#v", doc)
+	}
+}
+
+func TestParseTOMLInvalidDegrades(t *testing.T) {
+	// 形似 frontmatter（首行 +++，后文另有 +++ 行）但块内容非合法 TOML：
+	// 对齐 Python v2，整体降级为正文，不让文章从列表消失
+	text := "+++\n这是正文开头的一行\n+++\n继续正文\n"
+	doc, err := Parse([]byte(text))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(doc.Metadata) != 0 || doc.Content != text {
+		t.Fatalf("应降级为纯正文: meta=%#v content=%q", doc.Metadata, doc.Content)
+	}
+	if doc.TOML {
+		t.Fatal("不应标记为 TOML 文档")
+	}
+}
+
+func TestParseTOMLNestedDates(t *testing.T) {
+	doc, err := Parse([]byte("+++\ndate = 2019-03-05\n[extra]\nwhen = 2020-01-02\nlist = [2021-06-30]\n+++\n正文\n"))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if _, ok := doc.Metadata["date"].(time.Time); !ok {
+		t.Fatalf("date 类型 = %T", doc.Metadata["date"])
+	}
+	extra, _ := doc.Metadata["extra"].(map[string]any)
+	if extra == nil {
+		t.Fatalf("extra = %#v", doc.Metadata["extra"])
+	}
+	if _, ok := extra["when"].(time.Time); !ok {
+		t.Fatalf("嵌套 when 类型 = %T", extra["when"])
+	}
+	list, _ := extra["list"].([]any)
+	if len(list) != 1 {
+		t.Fatalf("list = %#v", extra["list"])
+	}
+	if _, ok := list[0].(time.Time); !ok {
+		t.Fatalf("数组内日期类型 = %T", list[0])
+	}
+}
+
+func TestDumpTOMLFiltersNil(t *testing.T) {
+	// /api/file/save 可能透传 JSON null；TOML 无法编码 nil，应剔除而非降级为 ---
+	doc, err := Parse([]byte("+++\ntitle = \"T\"\ncategories = [\"a\"]\n+++\n正文\n"))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	doc.Metadata["cover"] = nil
+	dumped := doc.Dump()
+	if !strings.HasPrefix(string(dumped), "+++\n") {
+		t.Fatalf("应保持 +++: %q", dumped)
+	}
+	if strings.Contains(string(dumped), "cover") {
+		t.Fatalf("nil 字段应被剔除: %q", dumped)
+	}
+	doc2, err := Parse(dumped)
+	if err != nil || doc2.Metadata["title"] != "T" {
+		t.Fatalf("re-parse: %v %#v", err, doc2.Metadata)
+	}
+}
+
+func TestParseDumpTOMLLocalTime(t *testing.T) {
+	// 无日期语义的 LocalTime 原样保留，round trip 不丢
+	doc, err := Parse([]byte("+++\ntitle = \"T\"\nstart = 09:30:00\n+++\n正文\n"))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	dumped := doc.Dump()
+	if !strings.HasPrefix(string(dumped), "+++\n") {
+		t.Fatalf("dump 应保持 +++: %q", dumped)
+	}
+	doc2, err := Parse(dumped)
+	if err != nil {
+		t.Fatalf("re-parse: %v (%q)", err, dumped)
+	}
+	if s := fmt.Sprintf("%v", doc2.Metadata["start"]); !strings.HasPrefix(s, "09:30:00") {
+		t.Fatalf("LocalTime round trip = %v", doc2.Metadata["start"])
 	}
 }

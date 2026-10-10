@@ -312,8 +312,11 @@ func TestGetPostsTOMLFrontmatter(t *testing.T) {
 		t.Fatalf("TOML 文章缺失: %+v", data.Posts)
 	}
 	emoji := data.Posts[emojiIdx]
-	if emoji.Date != "2019-03-05" {
-		t.Fatalf("date = %v", emoji.Date)
+	// 列表日期 = UTC 零点按本地时区展示（既有语义）；显式镜像该规则，
+	// 避免测试在 UTC 以西的时区误报
+	wantDate := time.Date(2019, 3, 5, 0, 0, 0, 0, time.UTC).Local().Format("2006-01-02")
+	if emoji.Date != wantDate {
+		t.Fatalf("date = %q, want %q", emoji.Date, wantDate)
 	}
 	if len(emoji.Tags) != 1 || emoji.Tags[0] != "emoji" {
 		t.Fatalf("tags = %#v", emoji.Tags)
@@ -330,9 +333,20 @@ func TestGetPostsTOMLFrontmatter(t *testing.T) {
 		t.Fatal(err)
 	}
 	data = GetPosts(dir, "", "", "", 1, 20)
+	if data.Total != 3 {
+		t.Fatalf("total = %d, want 3", data.Total)
+	}
+	found := false
 	for _, p := range data.Posts {
-		if p.Title == "Native" && p.Date != "2018-06-01" {
-			t.Fatalf("原生 date = %v", p.Date)
+		if p.Title == "Native" {
+			found = true
+			want := time.Date(2018, 6, 1, 0, 0, 0, 0, time.UTC).Local().Format("2006-01-02")
+			if p.Date != want {
+				t.Fatalf("原生 date = %q, want %q", p.Date, want)
+			}
 		}
+	}
+	if !found {
+		t.Fatalf("Native 文章缺失: %+v", data.Posts)
 	}
 }

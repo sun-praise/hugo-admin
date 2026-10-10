@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/svtter/hugo-admin/internal/frontmatter"
 )
@@ -90,6 +91,20 @@ func TestReadFileWithFrontmatter(t *testing.T) {
 	if len(tags) != 1 || tags[0] != "emoji" {
 		t.Fatalf("toml tags=%#v", fm["tags"])
 	}
+
+	// TOML 原生日期/整数：time.Time → RFC3339（parseDate 可再解析），
+	// int64（go-toml 整数）保留数值
+	writeFile(t, filepath.Join(dir, "post", "e.md"),
+		"+++\ntitle = \"E\"\ndate = 2019-03-05\nweight = 10\n+++\n\n正文\n")
+	_, _, fm, _ = ReadFileWithFrontmatter(dir, "post/e.md")
+	if ds, ok := fm["date"].(string); !ok {
+		t.Fatalf("date 应转字符串: %#v", fm["date"])
+	} else if _, err := time.Parse(time.RFC3339, ds); err != nil {
+		t.Fatalf("date 应为 RFC3339，得到 %q: %v", ds, err)
+	}
+	if w, ok := fm["weight"].(int64); !ok || w != 10 {
+		t.Fatalf("weight 应保留 int64: %#v", fm["weight"])
+	}
 }
 
 func TestSaveFilePlain(t *testing.T) {
@@ -154,6 +169,32 @@ func TestSaveFilePreservesTOML(t *testing.T) {
 	}
 	if doc.Content != "新正文" {
 		t.Fatalf("正文 = %q（前导 +++ 块应被剥离）", doc.Content)
+	}
+}
+
+func TestSaveFileTOMLEdgeCases(t *testing.T) {
+	// BOM 前缀的 +++ 文件也应被识别为 TOML
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "post", "bom.md"), "\uFEFF+++\ntitle = \"旧\"\n+++\n\n旧\n")
+	ok, _, _ := SaveFile(dir, "post/bom.md", "+++\ntitle = \"旧\"\n+++\n\n新\n",
+		map[string]any{"title": "新"}, nil)
+	if !ok {
+		t.Fatal("save 失败")
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "post", "bom.md"))
+	if !strings.HasPrefix(string(data), "+++\n") {
+		t.Fatalf("BOM 文件应保留 +++: %q", data)
+	}
+
+	// 新文件：内容以 +++ 开头时按 TOML 写，而非默认 YAML
+	ok, _, _ = SaveFile(dir, "post/new.md", "+++\ntitle = \"x\"\n+++\n\n新文件正文\n",
+		map[string]any{"title": "x", "weight": 10}, nil)
+	if !ok {
+		t.Fatal("save 失败")
+	}
+	data, _ = os.ReadFile(filepath.Join(dir, "post", "new.md"))
+	if !strings.HasPrefix(string(data), "+++\n") {
+		t.Fatalf("新文件应按内容识别为 +++: %q", data)
 	}
 }
 
@@ -237,6 +278,13 @@ func TestStripLeadingFrontmatter(t *testing.T) {
 		{"---\na: 1\n---\n---\nb: 2\n---\n\n双层后的正文", "双层后的正文"},
 		{"---\n未闭合", "---\n未闭合"},
 		{"直接正文", "直接正文"},
+		// +++ TOML 同款语义
+		{"+++\na = 1\n+++\n\n正文", "正文"},
+		{"+++\na = 1\n+++\n+++\nb = 2\n+++\n\n双层后的正文", "双层后的正文"},
+		{"+++\n未闭合", "+++\n未闭合"},
+		{"---\na: 1\n---\n+++\nb = 2\n+++\n\nYAML 后跟 TOML 块", "YAML 后跟 TOML 块"},
+		{"\n\n---\na: 1\n---\n\n前导空行正文", "前导空行正文"},
+		{"\n\n+++\na = 1\n+++\n\n前导空行正文", "前导空行正文"},
 	}
 	for _, c := range cases {
 		if got := StripLeadingFrontmatter(c.in); got != c.want {

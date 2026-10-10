@@ -64,7 +64,10 @@ func Parse(data []byte) (*Document, error) {
 
 	if isTOML {
 		if err := toml.Unmarshal([]byte(block), &meta); err != nil {
-			return nil, err
+			// 对齐 Python v2（python-frontmatter 默认只认 ---）：
+			// 形似 +++ 但非合法 frontmatter 的文件整体视为正文，
+			// 不让整篇文章从列表里消失
+			return &Document{Metadata: map[string]any{}, Content: text}, nil
 		}
 		normalizeTOMLDates(meta)
 		return &Document{Metadata: meta, Content: content, TOML: true}, nil
@@ -99,8 +102,9 @@ func cutLine(s string) (line, rest string) {
 	return s, ""
 }
 
-// normalizeTOMLDates 把 go-toml 的 LocalDate/LocalDateTime/LocalTime
-// 归一化成 time.Time（UTC 零点），让消费方与 YAML 原生日期走同一路径。
+// normalizeTOMLDates 把 go-toml 的 LocalDate/LocalDateTime 归一化成
+// time.Time（UTC 零点，与 yaml.v3 原生日期一致），让消费方走同一路径；
+// LocalTime（无日期语义）原样保留，Dump 时由 go-toml 编码回原值。
 func normalizeTOMLDates(m map[string]any) {
 	for k, v := range m {
 		m[k] = normalizeTOMLValue(v)
@@ -113,8 +117,6 @@ func normalizeTOMLValue(v any) any {
 		return t.AsTime(time.UTC)
 	case toml.LocalDateTime:
 		return t.AsTime(time.UTC)
-	case toml.LocalTime:
-		return time.Time{} // 无日期语义，占位为零值（Hugo 场景极少见）
 	case map[string]any:
 		normalizeTOMLDates(t)
 		return t
@@ -138,8 +140,14 @@ func (d *Document) Dump() []byte {
 	}
 	body := strings.TrimSpace(d.Content)
 	if d.TOML {
+		// JSON null 字段（/api/file/save 透传的 nil）无法被 TOML 编码，
+		// 剔除后再序列化，避免触发下面的 YAML 静默降级
+		filtered := filterNil(d.Metadata)
+		if len(filtered) == 0 {
+			return []byte(body)
+		}
 		var buf bytes.Buffer
-		if err := toml.NewEncoder(&buf).Encode(d.Metadata); err == nil {
+		if err := toml.NewEncoder(&buf).Encode(filtered); err == nil {
 			return []byte(tomlDelimiter + "\n" + strings.TrimSpace(buf.String()) + "\n" + tomlDelimiter + "\n\n" + body)
 		}
 	}
@@ -150,4 +158,15 @@ func (d *Document) Dump() []byte {
 	enc.Close()
 	yamlStr := strings.TrimSpace(buf.String())
 	return []byte(yamlDelimiter + "\n" + yamlStr + "\n" + yamlDelimiter + "\n\n" + body)
+}
+
+// filterNil 返回剔除 nil 值后的浅拷贝（TOML 无法编码 null）。
+func filterNil(m map[string]any) map[string]any {
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		if v != nil {
+			out[k] = v
+		}
+	}
+	return out
 }
