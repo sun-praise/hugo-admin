@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import ConfigEditor from '../components/ConfigEditor';
+import { toast } from '../utils/toast';
 import {
   get,
   put,
@@ -115,10 +116,10 @@ export default function SettingsPage() {
       if (!res.success) {
         throw new Error(res.message || '清除失败');
       }
-      showNotification('已清除持久化的活跃项目', 'success');
+      toast('已清除持久化的活跃项目');
       await fetchActiveProject();
     } catch (error) {
-      showNotification((error as Error).message, 'error');
+      toast((error as Error).message);
     }
   }
 
@@ -135,9 +136,9 @@ export default function SettingsPage() {
       if (!res.success) {
         throw new Error(res.message || '清理失败');
       }
-      showNotification(res.message || '已清理占位 layouts', 'success');
+      toast(res.message || '已清理占位 layouts');
     } catch (error) {
-      showNotification((error as Error).message, 'error');
+      toast((error as Error).message);
     }
   }
 
@@ -153,7 +154,7 @@ export default function SettingsPage() {
       }
     } catch (error) {
       if ((error as Error).message !== '未找到 Hugo 配置文件') {
-        showNotification((error as Error).message, 'error');
+        toast((error as Error).message);
       }
     } finally {
       setConfigLoading(false);
@@ -169,7 +170,7 @@ export default function SettingsPage() {
         setConfigContent(data.content);
       }
     } catch (error) {
-      showNotification((error as Error).message, 'error');
+      toast((error as Error).message);
     } finally {
       setConfigLoading(false);
     }
@@ -183,9 +184,9 @@ export default function SettingsPage() {
       if (!data.success) {
         throw new Error(data.message || '保存失败');
       }
-      showNotification(data.message || '配置已保存', 'success');
+      toast(data.message || '配置已保存');
     } catch (error) {
-      showNotification((error as Error).message, 'error');
+      toast((error as Error).message);
     } finally {
       setConfigSaving(false);
     }
@@ -262,11 +263,11 @@ export default function SettingsPage() {
       if (!result.success) {
         throw new Error(result.message || '安装失败');
       }
-      showNotification(`已安装默认主题: ${theme.name}`, 'success');
+      toast(`已安装默认主题: ${theme.name}`);
       await fetchThemes();
     } catch (error) {
       setErrorMessage((error as Error).message);
-      showNotification((error as Error).message, 'error');
+      toast((error as Error).message);
     } finally {
       setInstallLoading(false);
     }
@@ -283,7 +284,7 @@ export default function SettingsPage() {
       if (!data.success) {
         throw new Error(data.message || '初始化失败');
       }
-      showNotification(`站点已创建: ${data.path}`, 'success');
+      toast(`站点已创建: ${data.path}`);
       setInitResult({
         path: data.path || '',
         config_format: data.config_format || '',
@@ -296,7 +297,7 @@ export default function SettingsPage() {
       await fetchActiveProject();
     } catch (error) {
       setErrorMessage((error as Error).message);
-      showNotification((error as Error).message, 'error');
+      toast((error as Error).message);
     } finally {
       setInitLoading(false);
     }
@@ -316,7 +317,7 @@ export default function SettingsPage() {
       if (!data.success) {
         throw new Error(data.message || '安装失败');
       }
-      showNotification(`主题 ${data.theme?.name} 安装成功`, 'success');
+      toast(`主题 ${data.theme?.name} 安装成功`);
       setInstallUrl('');
       setInstallName('');
       await fetchThemes();
@@ -336,7 +337,7 @@ export default function SettingsPage() {
       }
       setActiveTheme(name);
       setForm((prev) => ({ ...prev, theme: { name } }));
-      showNotification(`已激活主题: ${name}`, 'success');
+      toast(`已激活主题: ${name}`);
     } catch (error) {
       setErrorMessage((error as Error).message);
     }
@@ -350,7 +351,7 @@ export default function SettingsPage() {
         throw new Error(data.message || '预览失败');
       }
       setPreviewThemeName(name);
-      showNotification(`正在预览主题: ${name}`, 'success');
+      toast(`正在预览主题: ${name}`);
     } catch (error) {
       setErrorMessage((error as Error).message);
     }
@@ -389,7 +390,7 @@ export default function SettingsPage() {
       if (!data.success) {
         throw new Error(data.message || '保存设置失败');
       }
-      showNotification('设置保存成功', 'success');
+      toast('设置保存成功');
       setApiKeyInput('');
       setListmonkApiKeyInput('');
       await fetchSettings();
@@ -398,16 +399,6 @@ export default function SettingsPage() {
     } finally {
       setSaving(false);
     }
-  }
-
-  function showNotification(message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 fade-in ${
-      type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-    } text-white`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 3000);
   }
 
   const tabs: { key: TabKey; label: string }[] = [

@@ -20,6 +20,7 @@ import {
   Wand2,
   Headphones,
 } from 'lucide-react';
+import { toast } from '../utils/toast';
 import { get, post } from '../utils/api';
 import {
   generateArticleTTS,
@@ -345,18 +346,18 @@ export default function Editor() {
   }
 
   function handleInlineEditDrift() {
-    showNotification('选区已变化，已取消', 'warning');
+    toast('选区已变化，已取消');
   }
 
   async function discardAndReload() {
     setConflictRemoteContent(null);
     await loadFile();
-    showNotification('已加载最新版本', 'info');
+    toast('已加载最新版本');
   }
 
   const saveFile = useCallback(async (force = false) => {
     if (!currentFile) {
-      showNotification('未选择文件', 'error');
+      toast('未选择文件');
       return;
     }
     setSaving(true);
@@ -386,12 +387,12 @@ export default function Editor() {
         setOriginalFrontmatter(JSON.parse(JSON.stringify(frontmatter)));
         setFileMtime(data.mtime ?? null);
         setConflictRemoteContent(null);
-        showNotification('保存成功', 'success');
+        toast('保存成功');
       } else {
-        showNotification('保存失败: ' + data.message, 'error');
+        toast('保存失败: ' + data.message);
       }
     } catch {
-      showNotification('保存失败', 'error');
+      toast('保存失败');
     } finally {
       setSaving(false);
     }
@@ -399,11 +400,11 @@ export default function Editor() {
 
   async function publishArticle() {
     if (!currentFile) {
-      showNotification('未选择文件', 'error');
+      toast('未选择文件');
       return;
     }
     if (isPublished) {
-      showNotification('文章已发布', 'info');
+      toast('文章已发布');
       return;
     }
     if (!confirm('确定要发布这篇文章吗？发布后将无法撤销草稿状态。')) return;
@@ -411,14 +412,14 @@ export default function Editor() {
     try {
       const data = await post<{ success: boolean; message?: string }>('/api/article/publish', { file_path: currentFile });
       if (data.success) {
-        showNotification('发布成功', 'success');
+        toast('发布成功');
         setIsPublished(true);
         await loadFile();
       } else {
-        showNotification('发布失败: ' + data.message, 'error');
+        toast('发布失败: ' + data.message);
       }
     } catch {
-      showNotification('发布失败', 'error');
+      toast('发布失败');
     } finally {
       setPublishing(false);
     }
@@ -444,19 +445,19 @@ export default function Editor() {
       const response = await fetch('/api/image/upload', { method: 'POST', body: formData });
       const data = await response.json();
       if (data.success) {
-        showNotification('图片上传成功', 'success');
+        toast('图片上传成功');
         await loadImages();
       } else {
-        showNotification('上传失败: ' + data.message, 'error');
+        toast('上传失败: ' + data.message);
       }
     } catch {
-      showNotification('上传失败', 'error');
+      toast('上传失败');
     }
   }
 
   async function generateCoverImage() {
     if (!currentFile) {
-      showNotification('未选择文件', 'error');
+      toast('未选择文件');
       return;
     }
     setGeneratingCover(true);
@@ -470,13 +471,13 @@ export default function Editor() {
       if (data.success && data.url) {
         setFmEdit({ ...fmEdit, cover: data.url, image: data.url });
         setFrontmatter({ ...frontmatter, cover: data.url, image: data.url });
-        showNotification('封面图片已生成', 'success');
+        toast('封面图片已生成');
         await loadImages();
       } else {
-        showNotification('生成失败: ' + (data.message || '未知错误'), 'error');
+        toast('生成失败: ' + (data.message || '未知错误'));
       }
     } catch {
-      showNotification('生成封面失败', 'error');
+      toast('生成封面失败');
     } finally {
       setGeneratingCover(false);
     }
@@ -484,11 +485,11 @@ export default function Editor() {
 
   async function generateSpeech() {
     if (!currentFile) {
-      showNotification('未选择文件', 'error');
+      toast('未选择文件');
       return;
     }
     if (!content.trim()) {
-      showNotification('文章内容为空', 'error');
+      toast('文章内容为空');
       return;
     }
     setGeneratingTts(true);
@@ -501,13 +502,13 @@ export default function Editor() {
       if (!data.success) {
         setGeneratingTts(false);
         setTtsProgress(null);
-        showNotification('语音生成失败: ' + (data.message || '未知错误'), 'error');
+        toast('语音生成失败: ' + (data.message || '未知错误'));
       }
       // pending=true 时进度与结果由 Socket.IO 事件驱动
     } catch {
       setGeneratingTts(false);
       setTtsProgress(null);
-      showNotification('语音生成请求失败', 'error');
+      toast('语音生成请求失败');
     }
   }
 
@@ -531,18 +532,18 @@ export default function Editor() {
         });
         // 后端已保存文件，刷新 fileMtime 避免下次手动保存触发假冲突
         if (data.mtime) setFileMtime(data.mtime);
-        showNotification('已删除语音', 'success');
+        toast('已删除语音');
       } else {
-        showNotification('删除失败: ' + (data.message || '未知错误'), 'error');
+        toast('删除失败: ' + (data.message || '未知错误'));
       }
     } catch {
-      showNotification('删除语音失败', 'error');
+      toast('删除语音失败');
     }
   }
 
   async function generateFrontmatterFromAI() {
     if (!currentFile || !content.trim()) {
-      showNotification('文章内容为空', 'error');
+      toast('文章内容为空');
       return;
     }
     setGeneratingFm(true);
@@ -560,13 +561,13 @@ export default function Editor() {
         if (Array.isArray(fm.tags)) newFm.tags = fm.tags as string[];
         if (Array.isArray(fm.categories)) newFm.categories = fm.categories as string[];
         setFrontmatter(newFm);
-        showNotification('Frontmatter 已生成，点击保存生效', 'success');
+        toast('Frontmatter 已生成，点击保存生效');
       } else {
-        showNotification('生成失败: ' + (data.message || '未知错误'), 'error');
+        toast('生成失败: ' + (data.message || '未知错误'));
       }
     } catch (error) {
       console.error('Failed to generate frontmatter:', error);
-      showNotification('生成 frontmatter 失败', 'error');
+      toast('生成 frontmatter 失败');
     } finally {
       setGeneratingFm(false);
     }
@@ -574,7 +575,7 @@ export default function Editor() {
 
   function copyImageUrl(url: string) {
     navigator.clipboard.writeText(url);
-    showNotification('图片链接已复制', 'success');
+    toast('图片链接已复制');
   }
 
   async function searchRefs() {
@@ -636,16 +637,6 @@ export default function Editor() {
     }
   }
 
-  function showNotification(message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 fade-in ${
-      type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-    } text-white`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 3000);
-  }
-
   const loadFile = useCallback(async () => {
     if (!currentFile) return;
     setLoading(true);
@@ -670,11 +661,11 @@ export default function Editor() {
           setOriginalFrontmatter({});
           await checkPublishStatus();
         } else {
-          showNotification('加载文件失败', 'error');
+          toast('加载文件失败');
         }
       }
     } catch {
-      showNotification('加载文件失败', 'error');
+      toast('加载文件失败');
     } finally {
       setLoading(false);
     }
@@ -743,18 +734,18 @@ export default function Editor() {
         }));
         // 后端已保存文件，刷新 fileMtime 避免下次手动保存触发假冲突
         if (d.mtime) setFileMtime(d.mtime);
-        showNotification('语音播报已生成', 'success');
+        toast('语音播报已生成');
       }
     };
     const onFailed = (d: { message?: string }) => {
       setGeneratingTts(false);
       setTtsProgress(null);
-      showNotification('语音生成失败: ' + (d.message || '未知错误'), 'error');
+      toast('语音生成失败: ' + (d.message || '未知错误'));
     };
     const onConflict = (d: { message?: string }) => {
       setGeneratingTts(false);
       setTtsProgress(null);
-      showNotification(d.message || '文章已被修改，请保存后重试', 'warning');
+      toast(d.message || '文章已被修改，请保存后重试');
     };
     socket.on('tts.progress', onProgress);
     socket.on('tts.done', onDone);
@@ -843,7 +834,7 @@ export default function Editor() {
         <FileCode className="w-16 h-16 text-[#9ca3a8] mx-auto mb-4" />
         <h3 className="text-lg font-medium text-[#3f3f46] mb-2">未选择文件</h3>
         <p className="text-[#52525b] mb-4">请从文章列表中选择一个文件进行编辑</p>
-        <Link to="/posts" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+        <Link to="/posts" className="px-4 py-2 bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors">
           浏览文章
         </Link>
       </div>
@@ -886,10 +877,10 @@ export default function Editor() {
               </button>
             )}
             <span className="border-l border-[#d4d4d8] mx-1 h-6" />
-            <button onClick={() => saveFile()} disabled={saving || !hasChanges} title={saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <button onClick={() => saveFile()} disabled={saving || !hasChanges} title={saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'} className="p-2 bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               <Save className="w-5 h-5" />
             </button>
-            <button onClick={publishArticle} disabled={publishing || !currentFile || isPublished} title={publishing ? '发布中...' : isPublished ? '已发布' : '发布'} className={`p-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isPublished ? 'bg-zinc-400 hover:bg-zinc-500' : 'bg-green-600 hover:bg-green-700'}`}>
+            <button onClick={publishArticle} disabled={publishing || !currentFile || isPublished} title={publishing ? '发布中...' : isPublished ? '已发布' : '发布'} className={`p-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isPublished ? 'bg-[#9ca3a8] cursor-not-allowed' : 'bg-zinc-900 hover:bg-[#2e2e33]'}`}>
               <Upload className="w-5 h-5" />
             </button>
           </div>
@@ -946,7 +937,7 @@ export default function Editor() {
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-zinc-900">图片管理</h3>
-              <label className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg cursor-pointer transition-colors">
+              <label className="px-4 py-2 bg-zinc-900 hover:bg-[#2e2e33] text-white rounded-lg cursor-pointer transition-colors">
                 <input type="file" onChange={uploadImage} accept="image/*" className="hidden" />
                 上传图片
               </label>
@@ -960,7 +951,7 @@ export default function Editor() {
                   <div key={image.name} className="relative group">
                     <img src={imgSrc} alt={image.name} className="w-full h-32 object-cover rounded border border-[#e4e4e7]" />
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center z-10">
-                      <button onClick={() => copyImageUrl(image.url)} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded shadow-lg">
+                      <button onClick={() => copyImageUrl(image.url)} className="px-3 py-1 bg-zinc-900 hover:bg-[#2e2e33] text-white text-sm rounded shadow-lg">
                         复制链接
                       </button>
                     </div>
@@ -1144,7 +1135,7 @@ export default function Editor() {
             </div>
             <div className="p-4 border-t flex justify-end space-x-2">
               <button onClick={() => setShowFrontmatterDrawer(false)} className="px-4 py-2 border border-[#e4e4e7] rounded-lg text-[#3f3f46] hover:bg-[#f4f4f5]">取消</button>
-              <button onClick={applyFrontmatter} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">应用</button>
+              <button onClick={applyFrontmatter} className="px-4 py-2 bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33]">应用</button>
             </div>
           </div>
         </>

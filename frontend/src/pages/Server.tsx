@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Bug, Square, ExternalLink, Trash2 } from 'lucide-react';
+import { toast } from '../utils/toast';
 import { get, post } from '../utils/api';
 import { useEvents } from '../hooks/useEvents';
 import type { ServerStatus, LogEntry } from '../types';
@@ -73,13 +74,13 @@ export default function ServerPage() {
     try {
       const data = await post<{ success: boolean; status?: ServerStatus; message?: string }>('/api/server/start', { debug });
       if (data.success && data.status) {
-        showNotification('服务器启动成功', 'success');
+        toast('服务器启动成功');
         setStatus(data.status);
       } else {
-        showNotification('启动失败: ' + data.message, 'error');
+        toast('启动失败: ' + data.message);
       }
     } catch {
-      showNotification('启动失败', 'error');
+      toast('启动失败');
     } finally {
       setLoading(false);
     }
@@ -90,13 +91,13 @@ export default function ServerPage() {
     try {
       const data = await post<{ success: boolean; status?: ServerStatus; message?: string }>('/api/server/stop');
       if (data.success && data.status) {
-        showNotification('服务器已停止', 'success');
+        toast('服务器已停止');
         setStatus(data.status);
       } else {
-        showNotification('停止失败: ' + data.message, 'error');
+        toast('停止失败: ' + data.message);
       }
     } catch {
-      showNotification('停止失败', 'error');
+      toast('停止失败');
     } finally {
       setLoading(false);
     }
@@ -104,16 +105,6 @@ export default function ServerPage() {
 
   function clearLogs() {
     setLogs([]);
-  }
-
-  function showNotification(message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 fade-in ${
-      type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-    } text-white`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 3000);
   }
 
   const logLevelColors: Record<string, string> = {
@@ -201,7 +192,7 @@ export default function ServerPage() {
                   href={hugoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block w-full px-6 py-3 bg-purple-600 text-white text-center rounded-lg hover:bg-purple-700 transition-colors"
+                  className="block w-full px-6 py-3 bg-zinc-900 text-white text-center rounded-lg hover:bg-[#2e2e33] transition-colors"
                 >
                   <span className="flex items-center justify-center">
                     <ExternalLink className="w-5 h-5 mr-2" />

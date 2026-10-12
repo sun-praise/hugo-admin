@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, RefreshCw, Plus, Upload, FileUp, Tag, FolderOpen, Calendar, Clock, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { toast } from '../utils/toast';
 import { get, post, uploadMarkdown } from '../utils/api';
 import { useEvents } from '../hooks/useEvents';
 import type { Post, PostsResponse, Tag as TagType, Category } from '../types';
@@ -99,9 +100,9 @@ export default function Posts() {
     try {
       await post('/api/cache/refresh');
       await loadPosts();
-      showNotification('缓存刷新成功', 'success');
+      toast('缓存刷新成功');
     } catch {
-      showNotification('刷新失败', 'error');
+      toast('刷新失败');
     } finally {
       setRefreshing(false);
     }
@@ -113,13 +114,13 @@ export default function Posts() {
     try {
       const data = await post<{ success: boolean; path?: string; message?: string }>('/api/post/create', { title });
       if (data.success && data.path) {
-        showNotification('文章创建成功', 'success');
+        toast('文章创建成功');
         setTimeout(() => navigate(`/editor/${data.path}`), 1000);
       } else {
-        showNotification('创建失败: ' + (data.message || ''), 'error');
+        toast('创建失败: ' + (data.message || ''));
       }
     } catch {
-      showNotification('创建失败', 'error');
+      toast('创建失败');
     }
   }
 
@@ -138,13 +139,13 @@ export default function Posts() {
     if (!socket) return;
     const onDone = (payload: { scope?: string; url?: string }) => {
       if (scope && payload.scope && payload.scope !== scope) return;
-      showNotification('封面已生成', 'success');
+      toast('封面已生成');
       socket.off('article_import.cover_done', onDone);
       socket.off('article_import.cover_failed', onFail);
     };
     const onFail = (payload: { scope?: string; message?: string }) => {
       if (scope && payload.scope && payload.scope !== scope) return;
-      showNotification('封面生成失败：' + (payload.message || ''), 'warning');
+      toast('封面生成失败：' + (payload.message || ''));
       socket.off('article_import.cover_done', onDone);
       socket.off('article_import.cover_failed', onFail);
     };
@@ -159,7 +160,7 @@ export default function Posts() {
     if (!file) return;
 
     if (!/\.(md|markdown)$/i.test(file.name)) {
-      showNotification('请选择 .md / .markdown 文件', 'error');
+      toast('请选择 .md / .markdown 文件');
       return;
     }
 
@@ -170,21 +171,21 @@ export default function Posts() {
         await loadPosts();
         const hasWarnings = (data.warnings?.length ?? 0) > 0;
         if (hasWarnings) {
-          showNotification('导入完成（部分步骤跳过）：' + (data.warnings ?? []).join('；'), 'warning');
+          toast('导入完成（部分步骤跳过）：' + (data.warnings ?? []).join('；'));
         }
         if (data.cover_pending) {
-          showNotification('文章已导入，封面后台生成中…', 'info');
+          toast('文章已导入，封面后台生成中…');
           subscribeCoverProgress(data.event_scope);
         } else if (!hasWarnings) {
-          showNotification('导入成功', 'success');
+          toast('导入成功');
         }
         const path = data.path;
         setTimeout(() => navigate(`/editor/${path}`), 1200);
       } else {
-        showNotification('导入失败: ' + (data.message || ''), 'error');
+        toast('导入失败: ' + (data.message || ''));
       }
     } catch {
-      showNotification('导入失败', 'error');
+      toast('导入失败');
     } finally {
       setImporting(false);
     }
@@ -216,28 +217,18 @@ export default function Posts() {
       const result = await post<{ success: boolean; results?: Array<{ path: string; success: boolean; message?: string }>; message?: string }>('/api/article/publish/bulk', { file_paths });
       if (result.success && result.results) {
         const successCount = result.results.filter((r) => r.success).length;
-        showNotification(`批量发布完成：${successCount}/${file_paths.length} 成功`, 'success');
+        toast(`批量发布完成：${successCount}/${file_paths.length} 成功`);
         await loadPosts();
         setSelectedPosts(new Set());
         setSelectAll(false);
       } else {
-        showNotification('批量发布失败: ' + result.message, 'error');
+        toast('批量发布失败: ' + result.message);
       }
     } catch {
-      showNotification('批量发布失败', 'error');
+      toast('批量发布失败');
     } finally {
       setBulkPublishing(false);
     }
-  }
-
-  function showNotification(message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 fade-in ${
-      type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-    } text-white`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 3000);
   }
 
   return (
@@ -332,7 +323,7 @@ export default function Posts() {
                   </button>
                   <button
                     onClick={createNewPost}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                    className="px-4 py-2 bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors flex items-center"
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     新建文章
@@ -358,7 +349,7 @@ export default function Posts() {
               <button
                 onClick={bulkPublish}
                 disabled={selectedPosts.size === 0 || bulkPublishing}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                className="px-4 py-2 bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
               >
                 <Upload className="w-4 h-4 mr-2" />
                 {bulkPublishing ? '批量发布中...' : `批量发布 (${selectedPosts.size})`}

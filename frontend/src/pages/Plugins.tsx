@@ -246,8 +246,8 @@ function PluginCard({
             disabled={toggling}
             className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg transition-colors ${
               plugin.enabled
-                ? 'bg-zinc-900 text-white hover:bg-[#2e2e33]'
-                : 'border border-[#e4e4e7] text-[#3f3f46] hover:bg-[#f4f4f5]'
+                ? 'border border-[#e4e4e7] text-[#3f3f46] hover:bg-[#f4f4f5]'
+                : 'bg-zinc-900 text-white hover:bg-[#2e2e33]'
             }`}
           >
             {toggling ? (
