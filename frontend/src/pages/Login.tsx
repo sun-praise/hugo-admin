@@ -73,7 +73,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={submitting || !username || !password}
-            className="w-full rounded-lg bg-zinc-900 px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#2e2e33] disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn btn-primary w-full"
           >
             {submitting ? '登录中…' : '登录'}
           </button>

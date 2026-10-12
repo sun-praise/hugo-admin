@@ -165,7 +165,7 @@ export default function Git() {
         <button
           onClick={refresh}
           disabled={activeLoading}
-          className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-[#e4e4e7] bg-white hover:bg-[#f4f4f5] transition-colors disabled:opacity-50"
+          className="btn btn-ghost"
         >
           <RefreshCw className={`w-4 h-4 ${activeLoading ? 'animate-spin' : ''}`} />
           刷新
@@ -304,7 +304,7 @@ function StatusView({
             <button
               onClick={onPush}
               disabled={pushing}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors disabled:opacity-50"
+              className="btn btn-primary"
             >
               <Upload className={`w-4 h-4 ${pushing ? 'animate-pulse' : ''}`} />
               {pushing ? '推送中...' : '推送'}
@@ -420,7 +420,7 @@ function CommitsView({
           <button
             onClick={onLoadMore}
             disabled={loading}
-            className="px-4 py-2 text-sm text-[#52525b] hover:text-zinc-900 hover:bg-[#f4f4f5] rounded-lg transition-colors disabled:opacity-50"
+            className="btn btn-ghost"
           >
             {loading ? '加载中...' : '加载更多'}
           </button>

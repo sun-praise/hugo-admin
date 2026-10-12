@@ -834,7 +834,7 @@ export default function Editor() {
         <FileCode className="w-16 h-16 text-[#9ca3a8] mx-auto mb-4" />
         <h3 className="text-lg font-medium text-[#3f3f46] mb-2">未选择文件</h3>
         <p className="text-[#52525b] mb-4">请从文章列表中选择一个文件进行编辑</p>
-        <Link to="/posts" className="px-4 py-2 bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors">
+        <Link to="/posts" className="btn btn-primary">
           浏览文章
         </Link>
       </div>
@@ -912,11 +912,11 @@ export default function Editor() {
                 <input type="range" min={0.5} max={2} step={0.1} value={ttsSpeed} onChange={(e) => setTtsSpeed(parseFloat(e.target.value))} disabled={generatingTts} className="w-28" />
                 <span className="font-mono w-8">{ttsSpeed.toFixed(1)}</span>
               </label>
-              <button onClick={generateSpeech} disabled={generatingTts || !currentFile} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <button onClick={generateSpeech} disabled={generatingTts || !currentFile} className="btn btn-primary">
                 {audioUrl ? '重新生成' : '生成语音'}
               </button>
               {audioUrl && !generatingTts && (
-                <button onClick={deleteSpeech} className="px-3 py-1 border border-[#e4e4e7] text-[#52525b] rounded-lg text-sm hover:bg-[#f4f4f5] transition-colors">删除</button>
+                <button onClick={deleteSpeech} className="btn btn-ghost">删除</button>
               )}
             </div>
             {generatingTts && (
@@ -937,7 +937,7 @@ export default function Editor() {
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-zinc-900">图片管理</h3>
-              <label className="px-4 py-2 bg-zinc-900 hover:bg-[#2e2e33] text-white rounded-lg cursor-pointer transition-colors">
+              <label className="btn btn-primary cursor-pointer">
                 <input type="file" onChange={uploadImage} accept="image/*" className="hidden" />
                 上传图片
               </label>
@@ -951,7 +951,7 @@ export default function Editor() {
                   <div key={image.name} className="relative group">
                     <img src={imgSrc} alt={image.name} className="w-full h-32 object-cover rounded border border-[#e4e4e7]" />
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center z-10">
-                      <button onClick={() => copyImageUrl(image.url)} className="px-3 py-1 bg-zinc-900 hover:bg-[#2e2e33] text-white text-sm rounded shadow-lg">
+                      <button onClick={() => copyImageUrl(image.url)} className="btn btn-primary btn-sm shadow-lg">
                         复制链接
                       </button>
                     </div>
@@ -1060,7 +1060,7 @@ export default function Editor() {
                       const url = fmEdit.image || fmEdit.cover || '';
                       navigator.clipboard.writeText(url);
                     }}
-                    className="absolute bottom-2 right-2 px-2 py-1 bg-black/60 text-white text-xs rounded hover:bg-black/80 transition-colors"
+                    className="absolute bottom-2 right-2 btn btn-sm btn-primary"
                   >
                     复制路径
                   </button>
@@ -1112,7 +1112,7 @@ export default function Editor() {
               <div className="border-t pt-4">
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-semibold text-[#52525b]">其他字段</label>
-                  <button onClick={() => setFmExtraFields([...fmExtraFields, { key: '', value: '' }])} className="text-sm text-blue-600 hover:text-blue-700">+ 添加字段</button>
+                  <button onClick={() => setFmExtraFields([...fmExtraFields, { key: '', value: '' }])} className="btn btn-ghost btn-sm">+ 添加字段</button>
                 </div>
                 {fmExtraFields.map((field, i) => (
                   <div key={i} className="flex items-center space-x-2 mb-2">
@@ -1134,8 +1134,8 @@ export default function Editor() {
               </div>
             </div>
             <div className="p-4 border-t flex justify-end space-x-2">
-              <button onClick={() => setShowFrontmatterDrawer(false)} className="px-4 py-2 border border-[#e4e4e7] rounded-lg text-[#3f3f46] hover:bg-[#f4f4f5]">取消</button>
-              <button onClick={applyFrontmatter} className="px-4 py-2 bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33]">应用</button>
+              <button onClick={() => setShowFrontmatterDrawer(false)} className="btn btn-ghost">取消</button>
+              <button onClick={applyFrontmatter} className="btn btn-primary">应用</button>
             </div>
           </div>
         </>
@@ -1174,7 +1174,7 @@ export default function Editor() {
               )}
             </div>
             <div className="p-3 border-t bg-[#f4f4f5] flex justify-end">
-              <button onClick={() => setShowRefModal(false)} className="px-4 py-2 text-[#52525b] hover:text-zinc-900">取消</button>
+              <button onClick={() => setShowRefModal(false)} className="btn btn-ghost">取消</button>
             </div>
           </div>
         </div>

@@ -123,7 +123,7 @@ export function Popup({
                 type="button"
                 disabled={loading}
                 onClick={() => void send(preset.instruction)}
-                className="h-6 rounded-md border border-[#e4e4e7] bg-[#f4f4f5] px-2 text-xs text-[#3f3f46] hover:bg-[#ebebeb] disabled:opacity-60"
+                className="btn btn-ghost btn-sm"
               >
                 {preset.label}
               </button>
@@ -135,7 +135,7 @@ export function Popup({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="rounded-md px-2 py-1 text-xs text-[#52525b] hover:bg-[#f4f4f5] disabled:opacity-60"
+              className="btn btn-ghost"
             >
               取消
             </button>
@@ -143,7 +143,7 @@ export function Popup({
               type="button"
               onClick={() => void send(instruction)}
               disabled={loading || instruction.trim().length === 0}
-              className="rounded-lg bg-zinc-900 px-2 py-1 text-xs text-white hover:bg-[#2e2e33] disabled:opacity-60 inline-flex items-center gap-1"
+              className="btn btn-primary"
             >
               {loading ? (
                 <>
@@ -177,14 +177,14 @@ export function Popup({
                 setResult(null);
                 setError(null);
               }}
-              className="rounded-md px-2 py-1 text-xs text-[#52525b] hover:bg-[#f4f4f5]"
+              className="btn btn-ghost"
             >
               取消
             </button>
             <button
               type="button"
               onClick={() => onAccept(result)}
-              className="rounded-lg bg-zinc-900 px-2 py-1 text-xs text-white hover:bg-[#2e2e33]"
+              className="btn btn-primary"
             >
               接受
             </button>

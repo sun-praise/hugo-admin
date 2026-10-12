@@ -160,7 +160,7 @@ export default function ServerPage() {
               <button
                 onClick={() => startServer(false)}
                 disabled={status.running || loading}
-                className={`w-full px-6 py-3 text-white rounded-lg transition-colors flex items-center justify-center ${
+                className={`w-full h-10 text-[14px] rounded-lg text-white flex items-center justify-center transition-colors ${
                   status.running || loading ? 'bg-[#9ca3a8] cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
                 }`}
               >
@@ -170,7 +170,7 @@ export default function ServerPage() {
               <button
                 onClick={() => startServer(true)}
                 disabled={status.running || loading}
-                className={`w-full px-6 py-3 text-white rounded-lg transition-colors flex items-center justify-center ${
+                className={`w-full h-10 text-[14px] rounded-lg text-white flex items-center justify-center transition-colors ${
                   status.running || loading ? 'bg-[#9ca3a8] cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                 }`}
               >
@@ -180,7 +180,7 @@ export default function ServerPage() {
               <button
                 onClick={stopServer}
                 disabled={!status.running || loading}
-                className={`w-full px-6 py-3 text-white rounded-lg transition-colors flex items-center justify-center ${
+                className={`w-full h-10 text-[14px] rounded-lg text-white flex items-center justify-center transition-colors ${
                   !status.running || loading ? 'bg-[#9ca3a8] cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
                 }`}
               >
@@ -192,7 +192,7 @@ export default function ServerPage() {
                   href={hugoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block w-full px-6 py-3 bg-zinc-900 text-white text-center rounded-lg hover:bg-[#2e2e33] transition-colors"
+                  className="btn btn-primary block w-full"
                 >
                   <span className="flex items-center justify-center">
                     <ExternalLink className="w-5 h-5 mr-2" />
@@ -210,9 +210,9 @@ export default function ServerPage() {
           <h3 className="text-white font-semibold">服务器日志</h3>
           <button
             onClick={clearLogs}
-            className="px-3 py-1 text-xs bg-[#3f3f46] text-white rounded hover:bg-[#52525b] transition-colors flex items-center"
+            className="btn btn-ghost btn-sm"
           >
-            <Trash2 className="w-3 h-3 mr-1" />
+            <Trash2 className="w-3 h-3" />
             清空日志
           </button>
         </div>

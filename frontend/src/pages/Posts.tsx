@@ -308,24 +308,24 @@ export default function Posts() {
                   <button
                     onClick={refreshCache}
                     disabled={refreshing}
-                    className="px-4 py-2 border border-[#e4e4e7] text-[#3f3f46] rounded-lg hover:bg-[#f4f4f5] transition-colors disabled:opacity-50 flex items-center"
+                    className="btn btn-ghost"
                   >
-                    <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
                     {refreshing ? '刷新中...' : '刷新缓存'}
                   </button>
                   <button
                     onClick={handleUploadClick}
                     disabled={importing}
-                    className="px-4 py-2 border border-[#e4e4e7] text-[#3f3f46] rounded-lg hover:bg-[#f4f4f5] transition-colors disabled:opacity-50 flex items-center"
+                    className="btn btn-ghost"
                   >
-                    <FileUp className={`w-4 h-4 mr-2 ${importing ? 'animate-spin' : ''}`} />
+                    <FileUp className={`w-4 h-4 ${importing ? 'animate-spin' : ''}`} />
                     {importing ? '导入中...' : '上传 Markdown'}
                   </button>
                   <button
                     onClick={createNewPost}
-                    className="px-4 py-2 bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors flex items-center"
+                    className="btn btn-primary"
                   >
-                    <Plus className="w-4 h-4 mr-2" />
+                    <Plus className="w-4 h-4" />
                     新建文章
                   </button>
                 </div>
@@ -349,9 +349,9 @@ export default function Posts() {
               <button
                 onClick={bulkPublish}
                 disabled={selectedPosts.size === 0 || bulkPublishing}
-                className="px-4 py-2 bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                className="btn btn-primary"
               >
-                <Upload className="w-4 h-4 mr-2" />
+                <Upload className="w-4 h-4" />
                 {bulkPublishing ? '批量发布中...' : `批量发布 (${selectedPosts.size})`}
               </button>
             </div>

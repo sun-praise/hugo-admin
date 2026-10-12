@@ -192,7 +192,7 @@ export default function Playground() {
           <button
             type="button"
             onClick={() => void runTTSDemo()}
-            className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs text-white hover:bg-[#2e2e33]"
+            className="btn btn-primary"
           >
             模拟 TTS 任务（广播进度）
           </button>
@@ -226,7 +226,7 @@ export default function Playground() {
             <button
               type="button"
               onClick={stopRewrite}
-              className="inline-flex items-center gap-1 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs text-white hover:bg-[#2e2e33]"
+              className="btn btn-primary"
             >
               <Square className="h-3 w-3" />
               停止
@@ -236,7 +236,7 @@ export default function Playground() {
               type="button"
               onClick={() => void rewrite()}
               disabled={!text.trim()}
-              className="inline-flex items-center gap-1 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs text-white hover:bg-[#2e2e33] disabled:opacity-60"
+              className="btn btn-primary"
             >
               AI 润色
             </button>

@@ -168,7 +168,7 @@ function InstalledTab({
       <div className="flex justify-end">
         <button
           onClick={onRefresh}
-          className="flex items-center gap-1.5 text-sm text-[#52525b] hover:text-zinc-900 transition-colors"
+          className="btn btn-ghost"
         >
           <RefreshCw className="w-3.5 h-3.5" />
           刷新
@@ -235,7 +235,7 @@ function PluginCard({
           {plugin.has_config && (
             <button
               onClick={() => setConfiguring(!configuring)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm border border-[#e4e4e7] text-[#3f3f46] rounded-lg hover:bg-[#f4f4f5] transition-colors"
+              className="btn btn-ghost btn-sm"
             >
               <Settings2 className="w-3.5 h-3.5" />
               配置
@@ -244,11 +244,7 @@ function PluginCard({
           <button
             onClick={toggleEnable}
             disabled={toggling}
-            className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg transition-colors ${
-              plugin.enabled
-                ? 'border border-[#e4e4e7] text-[#3f3f46] hover:bg-[#f4f4f5]'
-                : 'bg-zinc-900 text-white hover:bg-[#2e2e33]'
-            }`}
+            className={`btn btn-sm ${plugin.enabled ? 'btn-ghost' : 'btn-primary'}`}
           >
             {toggling ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -392,7 +388,7 @@ function ConfigPanel({ name }: { name: string }) {
         <button
           onClick={saveConfig}
           disabled={saving}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors"
+          className="btn btn-primary"
         >
           {saving ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />

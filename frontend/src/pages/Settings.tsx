@@ -575,7 +575,7 @@ export default function SettingsPage() {
                 <button
                   onClick={saveSettings}
                   disabled={saving || loading}
-                  className="px-6 py-2 bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn btn-primary"
                 >
                   {saving ? '保存中...' : '保存设置'}
                 </button>
@@ -607,13 +607,13 @@ export default function SettingsPage() {
                     <div className="flex flex-col gap-2 shrink-0">
                       <button
                         onClick={handleResetActiveProject}
-                        className="px-3 py-1.5 text-xs bg-[#f4f4f5] text-[#3f3f46] rounded hover:bg-[#ebebeb] transition-colors"
+                        className="btn btn-ghost btn-sm"
                       >
                         清除持久化
                       </button>
                       <button
                         onClick={handleCleanLayouts}
-                        className="px-3 py-1.5 text-xs bg-amber-50 text-amber-800 border border-amber-200 rounded hover:bg-amber-100 transition-colors"
+                        className="btn btn-ghost btn-sm"
                         title="删除站点根 layouts/，让 themes/ 接管（修复旧 init 留下的毛坯）"
                       >
                         清理占位 layouts
@@ -672,7 +672,7 @@ export default function SettingsPage() {
                   <button
                     type="submit"
                     disabled={initLoading || !initPath.trim()}
-                    className="px-6 py-2 bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="btn btn-primary"
                   >
                     {initLoading ? '初始化中...' : '创建站点'}
                   </button>
@@ -723,7 +723,7 @@ export default function SettingsPage() {
                               <button
                                 onClick={() => handleActivateTheme(t.name)}
                                 disabled={isActive || installLoading}
-                                className="px-3 py-1.5 text-sm bg-[#f4f4f5] text-[#3f3f46] rounded-lg hover:bg-[#ebebeb] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="btn btn-ghost btn-sm"
                               >
                                 {isActive ? '已启用' : '启用'}
                               </button>
@@ -731,7 +731,7 @@ export default function SettingsPage() {
                               <button
                                 onClick={() => handleInstallDefaultTheme(t)}
                                 disabled={installLoading}
-                                className="px-3 py-1.5 text-sm bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="btn btn-primary btn-sm"
                               >
                                 {installLoading ? '安装中...' : '一键安装'}
                               </button>
@@ -769,14 +769,14 @@ export default function SettingsPage() {
                           <div className="flex gap-2">
                             <button
                               onClick={() => handlePreviewTheme(theme.name)}
-                              className="px-3 py-1.5 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
+                              className="btn btn-ghost btn-sm"
                             >
                               预览
                             </button>
                             <button
                               onClick={() => handleActivateTheme(theme.name)}
                               disabled={activeTheme === theme.name}
-                              className="px-3 py-1.5 text-sm bg-[#f4f4f5] text-[#3f3f46] rounded-lg hover:bg-[#ebebeb] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="btn btn-ghost btn-sm"
                             >
                               启用
                             </button>
@@ -829,7 +829,7 @@ export default function SettingsPage() {
                       <button
                         type="submit"
                         disabled={installLoading || !installUrl.trim() || !installName.trim()}
-                        className="px-6 py-2 bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="btn btn-primary"
                       >
                         {installLoading ? '安装中...' : '安装主题'}
                       </button>
@@ -906,7 +906,7 @@ export default function SettingsPage() {
                           <button
                             onClick={handleSaveConfig}
                             disabled={configSaving || !configContent.trim()}
-                            className="px-4 py-1.5 text-sm bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="btn btn-primary"
                           >
                             {configSaving ? '保存中...' : '保存'}
                           </button>
