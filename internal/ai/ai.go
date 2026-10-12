@@ -26,6 +26,13 @@ const systemPrompt = "You are a helpful read-only AI assistant for a Hugo blog. 
 	"create, deploy, or manage the blog in any way. " +
 	"Always explain what you are doing before calling tools."
 
+// rewriteSystemPrompt 对齐 poc /api/ai/rewrite 的润色助手:
+// 带只读工具,调用过程对前端可见(playground 据此展示工具卡片)。
+const rewriteSystemPrompt = "你是 Hugo 博客的润色助手。用户会给你一段 Markdown 文本。" +
+	"你可以先用工具搜索/阅读站内文章作为风格或事实参考" +
+	"（调用前先简短说明要做什么），也可以直接润色。" +
+	"最终只输出润色后的 Markdown 文本本身，不要解释、前缀、后缀或代码块包裹。"
+
 // Deps 是工具的后端依赖（与 Python AIService.Deps 对应）。
 type Deps struct {
 	ContentDir string
@@ -34,12 +41,13 @@ type Deps struct {
 }
 
 type Service struct {
-	enabled bool
-	apiKey  string
-	baseURL string
-	model   string
-	deps    Deps
-	runner  runner.Runner
+	enabled       bool
+	apiKey        string
+	baseURL       string
+	model         string
+	deps          Deps
+	runner        runner.Runner
+	rewriteRunner runner.Runner
 }
 
 func New(apiKey, baseURL, modelName string, deps Deps) *Service {
@@ -58,6 +66,13 @@ func New(apiKey, baseURL, modelName string, deps Deps) *Service {
 		llmagent.WithGenerationConfig(model.GenerationConfig{Stream: true}),
 	)
 	s.runner = runner.NewRunner("hugo-admin", ag)
+	rw := llmagent.New("rewriter",
+		llmagent.WithModel(m),
+		llmagent.WithTools(readOnlyTools(deps)),
+		llmagent.WithInstruction(rewriteSystemPrompt),
+		llmagent.WithGenerationConfig(model.GenerationConfig{Stream: true}),
+	)
+	s.rewriteRunner = runner.NewRunner("hugo-admin", rw)
 	s.enabled = true
 	return s
 }
@@ -160,4 +175,18 @@ func (s *Service) QuickRewrite(ctx context.Context, sysPrompt, userPrompt string
 		return "", fmt.Errorf("quick_rewrite returned empty text")
 	}
 	return result, nil
+}
+
+// RewriteSSE 对齐 poc /api/ai/rewrite：带只读工具的流式润色。
+// 帧协议与 ChatSSE 一致（见 sse.go），工具调用/结果对前端可见。
+func (s *Service) RewriteSSE(ctx context.Context, text string) (<-chan string, error) {
+	if !s.enabled {
+		return nil, fmt.Errorf("AI service is not configured")
+	}
+	sessionID := time.Now().Format("20060102-150405.000000000")
+	events, err := s.rewriteRunner.Run(ctx, "web", sessionID, model.NewUserMessage(text))
+	if err != nil {
+		return nil, err
+	}
+	return agentFrames(events), nil
 }

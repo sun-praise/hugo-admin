@@ -185,3 +185,37 @@ func TestArticleTTSTextBypassesLock(t *testing.T) {
 		t.Fatalf("audio 应写回:\n%s", raw)
 	}
 }
+
+// /api/tts/demo：无需插件,触发后经 /api/events 收到 tts.progress → tts.done。
+func TestTTSDemoBroadcastsProgress(t *testing.T) {
+	ts := newTestServer(t)
+	client := ts.Client()
+	login(t, client, ts.URL)
+
+	resp, err := client.Get(ts.URL + "/api/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	status, body := doJSON(t, client, "POST", ts.URL+"/api/tts/demo", map[string]string{})
+	if status != 200 || body["success"] != true {
+		t.Fatalf("demo = %d %#v", status, body)
+	}
+	if body["event_scope"].(string) == "" {
+		t.Fatal("event_scope 不应为空")
+	}
+
+	var sseBuf strings.Builder
+	if !waitForSSEFrame(t, &sseBuf, resp, "event: tts.done") {
+		t.Fatalf("未收到 tts.done: %q", sseBuf.String())
+	}
+	frames := sseBuf.String()
+	if !strings.Contains(frames, "event: tts.progress") || !strings.Contains(frames, `"percent":100`) {
+		t.Fatalf("进度帧不完整: %q", frames)
+	}
+	scope := body["event_scope"].(string)
+	if !strings.Contains(frames, scope) {
+		t.Fatalf("帧应携带 scope %q: %q", scope, frames)
+	}
+}

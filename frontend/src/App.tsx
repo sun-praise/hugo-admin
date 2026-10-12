@@ -15,6 +15,7 @@ const Server = lazy(() => import('./pages/Server'));
 const Git = lazy(() => import('./pages/Git'));
 const Plugins = lazy(() => import('./pages/Plugins'));
 const Settings = lazy(() => import('./pages/Settings'));
+const Playground = lazy(() => import('./pages/Playground'));
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
             <Route path="git" element={<Git />} />
             <Route path="plugins" element={<Plugins />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="playground" element={<Playground />} />
           </Route>
         </Route>
       </Routes>
