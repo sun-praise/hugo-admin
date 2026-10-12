@@ -1,6 +1,6 @@
 # Hugo Admin
 
-[![License](https://img.shields.io/github/license/Svtter/hugo-admin)](LICENSE)
+[![License](https://img.shields.io/github/license/sun-praise/hugo-admin)](LICENSE)
 [![Go](https://img.shields.io/badge/go-1.24%2B-00ADD8)](https://go.dev/)
 [![Hugo](https://img.shields.io/badge/hugo-compatible-ff4088)](https://gohugo.io/)
 [![Documentation](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://sun-praise.github.io/hugo-admin/)
