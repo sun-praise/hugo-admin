@@ -28,16 +28,16 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-stone-100 px-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg">
+    <div className="flex min-h-screen items-center justify-center bg-[#f4f4f5] px-4">
+      <div className="w-full max-w-sm animate-rise rounded-[10px] border border-[#e4e4e7] bg-white p-8">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-stone-800">Hugo Blog</h1>
-          <p className="mt-1 text-sm text-stone-500">管理界面登录</p>
+          <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-zinc-900">Hugo Blog</h1>
+          <p className="mt-1 text-[13.5px] text-[#52525b]">管理界面登录</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700">
+            <label className="mb-1 block text-sm font-medium text-[#3f3f46]">
               用户名
             </label>
             <input
@@ -46,12 +46,12 @@ export default function Login() {
               onChange={(e) => setUsername(e.target.value)}
               autoFocus
               autoComplete="username"
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800 focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500"
+              className="w-full rounded-lg border border-[#e4e4e7] px-3 py-2 text-zinc-900 focus:border-[#d4d4d8] focus:outline-none focus:ring-1 focus:ring-[#d4d4d8]"
               placeholder="admin"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700">
+            <label className="mb-1 block text-sm font-medium text-[#3f3f46]">
               密码
             </label>
             <input
@@ -59,7 +59,7 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800 focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500"
+              className="w-full rounded-lg border border-[#e4e4e7] px-3 py-2 text-zinc-900 focus:border-[#d4d4d8] focus:outline-none focus:ring-1 focus:ring-[#d4d4d8]"
               placeholder="••••••"
             />
           </div>
@@ -73,7 +73,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={submitting || !username || !password}
-            className="w-full rounded-lg bg-stone-800 px-4 py-2.5 font-medium text-white transition-colors hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-lg bg-zinc-900 px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#2e2e33] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? '登录中…' : '登录'}
           </button>

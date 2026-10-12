@@ -89,16 +89,16 @@ export function Popup({
       aria-label="AI 改写"
       onKeyDown={handleKeyDown}
       onMouseDown={(e) => e.stopPropagation()}
-      className="fixed z-[60] flex w-80 flex-col gap-2 rounded-lg border border-stone-200 bg-white p-3 shadow-2xl"
+      className="fixed z-[60] flex w-80 flex-col gap-2 animate-rise rounded-[10px] border border-[#e4e4e7] bg-white p-3 shadow-2xl"
       style={{ top, left }}
     >
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-stone-700">快速改写</span>
+        <span className="text-sm font-medium text-[#3f3f46]">快速改写</span>
         <button
           type="button"
           aria-label="关闭"
           onClick={onClose}
-          className="rounded p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+          className="rounded p-1 text-[#9ca3a8] hover:bg-[#f4f4f5] hover:text-zinc-900"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -114,7 +114,7 @@ export function Popup({
             autoFocus
             rows={2}
             disabled={loading}
-            className="resize-none rounded-md border border-stone-200 bg-white px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-stone-400 disabled:opacity-60"
+            className="resize-none rounded-md border border-[#e4e4e7] bg-white px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-[#d4d4d8] disabled:opacity-60"
           />
           <div className="flex flex-wrap gap-1.5">
             {INLINE_EDIT_PRESETS.map((preset) => (
@@ -123,7 +123,7 @@ export function Popup({
                 type="button"
                 disabled={loading}
                 onClick={() => void send(preset.instruction)}
-                className="h-6 rounded-md border border-stone-200 bg-stone-50 px-2 text-xs text-stone-700 hover:bg-stone-100 disabled:opacity-60"
+                className="h-6 rounded-md border border-[#e4e4e7] bg-[#f4f4f5] px-2 text-xs text-[#3f3f46] hover:bg-[#ebebeb] disabled:opacity-60"
               >
                 {preset.label}
               </button>
@@ -135,7 +135,7 @@ export function Popup({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="rounded-md px-2 py-1 text-xs text-stone-600 hover:bg-stone-100 disabled:opacity-60"
+              className="rounded-md px-2 py-1 text-xs text-[#52525b] hover:bg-[#f4f4f5] disabled:opacity-60"
             >
               取消
             </button>
@@ -143,7 +143,7 @@ export function Popup({
               type="button"
               onClick={() => void send(instruction)}
               disabled={loading || instruction.trim().length === 0}
-              className="rounded-md bg-stone-900 px-2 py-1 text-xs text-white hover:bg-stone-700 disabled:opacity-60 inline-flex items-center gap-1"
+              className="rounded-lg bg-zinc-900 px-2 py-1 text-xs text-white hover:bg-[#2e2e33] disabled:opacity-60 inline-flex items-center gap-1"
             >
               {loading ? (
                 <>
@@ -158,14 +158,14 @@ export function Popup({
         </>
       ) : (
         <div className="flex flex-col gap-2">
-          <div className="rounded-md border border-stone-200 bg-stone-50 p-2">
-            <div className="mb-1 text-[11px] font-medium text-stone-500">原文</div>
-            <pre className="max-h-24 overflow-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-stone-600">
+          <div className="rounded-md border border-[#e4e4e7] bg-[#f4f4f5] p-2">
+            <div className="mb-1 text-[11px] font-medium text-[#52525b]">原文</div>
+            <pre className="max-h-24 overflow-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-[#52525b]">
               {selectedText}
             </pre>
           </div>
-          <div className="rounded-md border border-stone-300 bg-white p-2">
-            <div className="mb-1 text-[11px] font-medium text-stone-900">改写</div>
+          <div className="rounded-md border border-[#e4e4e7] bg-white p-2">
+            <div className="mb-1 text-[11px] font-medium text-zinc-900">改写</div>
             <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words text-xs leading-relaxed">
               {result}
             </pre>
@@ -177,14 +177,14 @@ export function Popup({
                 setResult(null);
                 setError(null);
               }}
-              className="rounded-md px-2 py-1 text-xs text-stone-600 hover:bg-stone-100"
+              className="rounded-md px-2 py-1 text-xs text-[#52525b] hover:bg-[#f4f4f5]"
             >
               取消
             </button>
             <button
               type="button"
               onClick={() => onAccept(result)}
-              className="rounded-md bg-stone-900 px-2 py-1 text-xs text-white hover:bg-stone-700"
+              className="rounded-lg bg-zinc-900 px-2 py-1 text-xs text-white hover:bg-[#2e2e33]"
             >
               接受
             </button>

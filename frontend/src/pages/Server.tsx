@@ -120,39 +120,42 @@ export default function ServerPage() {
     SUCCESS: 'text-green-400',
     ERROR: 'text-red-400',
     WARNING: 'text-yellow-400',
-    INFO: 'text-stone-300',
+    INFO: 'text-[#d4d4d8]',
   };
 
   return (
     <div>
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6 mb-6">
+      <div className="page-head">
+        <h1 className="m-0 text-[22px] font-semibold tracking-[-0.02em]">服务器控制</h1>
+      </div>
+      <div className="mt-6 rounded-[10px] border border-[#e4e4e7] bg-white p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <h3 className="text-lg font-medium mb-4">服务器状态</h3>
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
-                <span className="text-stone-700">运行状态:</span>
-                <span className={`font-semibold flex items-center ${status.running ? 'text-green-600' : 'text-stone-500'}`}>
-                  <span className={`w-2 h-2 rounded-full mr-2 ${status.running ? 'bg-green-500' : 'bg-stone-400'}`} />
+              <div className="flex items-center justify-between p-3 bg-[#f4f4f5] rounded-lg">
+                <span className="text-[#3f3f46]">运行状态:</span>
+                <span className={`font-semibold flex items-center ${status.running ? 'text-green-600' : 'text-[#52525b]'}`}>
+                  <span className={`dot-pulse mr-2 ${status.running ? '' : 'is-off'}`} aria-hidden="true" />
                   {status.running ? '运行中' : '已停止'}
                 </span>
               </div>
               {status.running && (
                 <>
-                  <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
-                    <span className="text-stone-700">进程 PID:</span>
+                  <div className="flex items-center justify-between p-3 bg-[#f4f4f5] rounded-lg">
+                    <span className="text-[#3f3f46]">进程 PID:</span>
                     <span className="font-mono">{status.pid}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
-                    <span className="text-stone-700">运行时间:</span>
+                  <div className="flex items-center justify-between p-3 bg-[#f4f4f5] rounded-lg">
+                    <span className="text-[#3f3f46]">运行时间:</span>
                     <span className="font-mono">{status.uptime || '-'}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
-                    <span className="text-stone-700">CPU 使用率:</span>
+                  <div className="flex items-center justify-between p-3 bg-[#f4f4f5] rounded-lg">
+                    <span className="text-[#3f3f46]">CPU 使用率:</span>
                     <span className="font-mono">{status.cpu_percent ? status.cpu_percent + '%' : '-'}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
-                    <span className="text-stone-700">内存使用:</span>
+                  <div className="flex items-center justify-between p-3 bg-[#f4f4f5] rounded-lg">
+                    <span className="text-[#3f3f46]">内存使用:</span>
                     <span className="font-mono">{status.memory_mb ? status.memory_mb + ' MB' : '-'}</span>
                   </div>
                 </>
@@ -167,7 +170,7 @@ export default function ServerPage() {
                 onClick={() => startServer(false)}
                 disabled={status.running || loading}
                 className={`w-full px-6 py-3 text-white rounded-lg transition-colors flex items-center justify-center ${
-                  status.running || loading ? 'bg-stone-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
+                  status.running || loading ? 'bg-[#9ca3a8] cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
                 }`}
               >
                 <Play className="w-5 h-5 mr-2" />
@@ -177,7 +180,7 @@ export default function ServerPage() {
                 onClick={() => startServer(true)}
                 disabled={status.running || loading}
                 className={`w-full px-6 py-3 text-white rounded-lg transition-colors flex items-center justify-center ${
-                  status.running || loading ? 'bg-stone-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                  status.running || loading ? 'bg-[#9ca3a8] cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                 }`}
               >
                 <Bug className="w-5 h-5 mr-2" />
@@ -187,7 +190,7 @@ export default function ServerPage() {
                 onClick={stopServer}
                 disabled={!status.running || loading}
                 className={`w-full px-6 py-3 text-white rounded-lg transition-colors flex items-center justify-center ${
-                  !status.running || loading ? 'bg-stone-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
+                  !status.running || loading ? 'bg-[#9ca3a8] cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
                 }`}
               >
                 <Square className="w-5 h-5 mr-2" />
@@ -211,23 +214,23 @@ export default function ServerPage() {
         </div>
       </div>
 
-      <div className="bg-stone-900 rounded-lg overflow-hidden">
-        <div className="px-6 py-4 bg-stone-800 border-b border-stone-700 flex items-center justify-between">
+      <div className="rounded-[10px] bg-zinc-900 overflow-hidden">
+        <div className="px-6 py-4 bg-[#27272a] border-b border-[#3f3f46] flex items-center justify-between">
           <h3 className="text-white font-semibold">服务器日志</h3>
           <button
             onClick={clearLogs}
-            className="px-3 py-1 text-xs bg-stone-700 text-white rounded hover:bg-stone-600 transition-colors flex items-center"
+            className="px-3 py-1 text-xs bg-[#3f3f46] text-white rounded hover:bg-[#52525b] transition-colors flex items-center"
           >
             <Trash2 className="w-3 h-3 mr-1" />
             清空日志
           </button>
         </div>
-        <div ref={logContainerRef} className="p-4 h-96 overflow-y-auto font-mono text-sm text-stone-300 bg-stone-900">
-          {logs.length === 0 && <p className="text-stone-500">暂无日志输出</p>}
+        <div ref={logContainerRef} className="p-4 h-96 overflow-y-auto font-mono text-sm text-[#d4d4d8] bg-zinc-900">
+          {logs.length === 0 && <p className="text-[#71717a]">暂无日志输出</p>}
           {logs.map((log, index) => (
-            <div key={index} className="mb-1 hover:bg-stone-800 px-2 py-1 rounded">
-              <span className="text-stone-500">[{log.timestamp}]</span>{' '}
-              <span className={logLevelColors[log.level] || 'text-stone-300'}>{log.message}</span>
+            <div key={index} className="mb-1 hover:bg-[#27272a] px-2 py-1 rounded">
+              <span className="text-[#71717a]">[{log.timestamp}]</span>{' '}
+              <span className={logLevelColors[log.level] || 'text-[#d4d4d8]'}>{log.message}</span>
             </div>
           ))}
         </div>

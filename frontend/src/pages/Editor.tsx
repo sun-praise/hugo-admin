@@ -839,10 +839,10 @@ export default function Editor() {
 
   if (!currentFile) {
     return (
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-12 text-center">
-        <FileCode className="w-16 h-16 text-stone-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-stone-700 mb-2">未选择文件</h3>
-        <p className="text-stone-500 mb-4">请从文章列表中选择一个文件进行编辑</p>
+      <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-12 text-center">
+        <FileCode className="w-16 h-16 text-[#9ca3a8] mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-[#3f3f46] mb-2">未选择文件</h3>
+        <p className="text-[#52525b] mb-4">请从文章列表中选择一个文件进行编辑</p>
         <Link to="/posts" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
           浏览文章
         </Link>
@@ -853,25 +853,25 @@ export default function Editor() {
   return (
     <div className="relative">
       {/* 工具栏 */}
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-4 mb-4">
+      <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-4 mb-4">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div className="flex items-center space-x-4">
             <div>
-              <label className="text-sm font-medium text-stone-700">当前文件:</label>
-              <span className="ml-2 text-stone-600 font-mono text-sm">{currentFile}</span>
+              <label className="text-sm font-medium text-[#3f3f46]">当前文件:</label>
+              <span className="ml-2 text-[#52525b] font-mono text-sm">{currentFile}</span>
             </div>
           </div>
           <div className="flex items-center space-x-1">
-            <button onClick={() => setShowFrontmatterDrawer(true)} title="Frontmatter" className="p-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors">
+            <button onClick={() => setShowFrontmatterDrawer(true)} title="Frontmatter" className="p-2 border border-[#e4e4e7] text-[#3f3f46] rounded-lg hover:bg-[#f4f4f5] transition-colors">
               <FileCode className="w-5 h-5" />
             </button>
-            <button onClick={() => setShowBacklinks(!showBacklinks)} title="反向链接" className="relative p-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors">
+            <button onClick={() => setShowBacklinks(!showBacklinks)} title="反向链接" className="relative p-2 border border-[#e4e4e7] text-[#3f3f46] rounded-lg hover:bg-[#f4f4f5] transition-colors">
               <ArrowLeftRight className="w-5 h-5" />
               {backlinks.length > 0 && (
                 <span className="absolute -top-1 -right-1 bg-blue-100 text-blue-800 text-[10px] font-semibold w-4 h-4 flex items-center justify-center rounded-full">{backlinks.length}</span>
               )}
             </button>
-            <button onClick={() => setShowImageManager(!showImageManager)} title="图片管理" className="p-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors">
+            <button onClick={() => setShowImageManager(!showImageManager)} title="图片管理" className="p-2 border border-[#e4e4e7] text-[#3f3f46] rounded-lg hover:bg-[#f4f4f5] transition-colors">
               <Image className="w-5 h-5" />
             </button>
             <button onClick={generateCoverImage} disabled={generatingCover || !currentFile} title={generatingCover ? '生成中...' : 'AI 生成封面'} className="p-2 border border-purple-400 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
@@ -885,38 +885,38 @@ export default function Editor() {
                 <Headphones className="w-5 h-5" />
               </button>
             )}
-            <span className="border-l border-stone-300 mx-1 h-6" />
+            <span className="border-l border-[#d4d4d8] mx-1 h-6" />
             <button onClick={() => saveFile()} disabled={saving || !hasChanges} title={saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               <Save className="w-5 h-5" />
             </button>
-            <button onClick={publishArticle} disabled={publishing || !currentFile || isPublished} title={publishing ? '发布中...' : isPublished ? '已发布' : '发布'} className={`p-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isPublished ? 'bg-stone-400 hover:bg-stone-500' : 'bg-green-600 hover:bg-green-700'}`}>
+            <button onClick={publishArticle} disabled={publishing || !currentFile || isPublished} title={publishing ? '发布中...' : isPublished ? '已发布' : '发布'} className={`p-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isPublished ? 'bg-zinc-400 hover:bg-zinc-500' : 'bg-green-600 hover:bg-green-700'}`}>
               <Upload className="w-5 h-5" />
             </button>
           </div>
         </div>
 
         {(generatingCover || generatingFm) && (
-          <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-3 mb-4">
+          <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-3 mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-full bg-stone-200 rounded-full h-2 overflow-hidden">
+              <div className="w-full bg-[#ebebeb] rounded-full h-2 overflow-hidden">
                 <div className={`h-2 rounded-full animate-progress ${generatingCover ? 'bg-purple-500' : 'bg-amber-500'}`} style={{ width: '100%' }} />
               </div>
-              <span className="text-sm text-stone-600 whitespace-nowrap">{generatingCover ? 'AI 生成封面中...' : 'AI 生成 Frontmatter 中...'}</span>
+              <span className="text-sm text-[#52525b] whitespace-nowrap">{generatingCover ? 'AI 生成封面中...' : 'AI 生成 Frontmatter 中...'}</span>
             </div>
           </div>
         )}
 
         {/* TTS 语音播报参数面板 + 进度 */}
         {ttsAvailable && (
-          <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-3 mb-4">
+          <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-3 mb-4">
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-sm font-medium text-stone-700">语音播报</span>
+              <span className="text-sm font-medium text-[#3f3f46]">语音播报</span>
               {ttsVoices.length > 0 && (
-                <select value={ttsVoice} onChange={(e) => setTtsVoice(e.target.value)} className="px-2 py-1 border border-stone-300 rounded-lg text-sm" disabled={generatingTts}>
+                <select value={ttsVoice} onChange={(e) => setTtsVoice(e.target.value)} className="px-2 py-1 border border-[#e4e4e7] rounded-lg text-sm" disabled={generatingTts}>
                   {ttsVoices.map((v) => (<option key={v} value={v}>{v}</option>))}
                 </select>
               )}
-              <label className="flex items-center gap-2 text-sm text-stone-600">
+              <label className="flex items-center gap-2 text-sm text-[#52525b]">
                 语速
                 <input type="range" min={0.5} max={2} step={0.1} value={ttsSpeed} onChange={(e) => setTtsSpeed(parseFloat(e.target.value))} disabled={generatingTts} className="w-28" />
                 <span className="font-mono w-8">{ttsSpeed.toFixed(1)}</span>
@@ -925,15 +925,15 @@ export default function Editor() {
                 {audioUrl ? '重新生成' : '生成语音'}
               </button>
               {audioUrl && !generatingTts && (
-                <button onClick={deleteSpeech} className="px-3 py-1 border border-stone-300 text-stone-600 rounded-lg text-sm hover:bg-stone-50 transition-colors">删除</button>
+                <button onClick={deleteSpeech} className="px-3 py-1 border border-[#e4e4e7] text-[#52525b] rounded-lg text-sm hover:bg-[#f4f4f5] transition-colors">删除</button>
               )}
             </div>
             {generatingTts && (
               <div className="flex items-center gap-3 mt-3">
-                <div className="w-full bg-stone-200 rounded-full h-2 overflow-hidden">
+                <div className="w-full bg-[#ebebeb] rounded-full h-2 overflow-hidden">
                   <div className="h-2 rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.min(100, ttsProgress?.percent || 0)}%` }} />
                 </div>
-                <span className="text-sm text-stone-600 whitespace-nowrap">{ttsProgress?.message || ttsProgress?.stage || '生成中...'}</span>
+                <span className="text-sm text-[#52525b] whitespace-nowrap">{ttsProgress?.message || ttsProgress?.stage || '生成中...'}</span>
               </div>
             )}
             {audioUrl && !generatingTts && (
@@ -945,7 +945,7 @@ export default function Editor() {
         {showImageManager && (
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-stone-900">图片管理</h3>
+              <h3 className="font-semibold text-zinc-900">图片管理</h3>
               <label className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg cursor-pointer transition-colors">
                 <input type="file" onChange={uploadImage} accept="image/*" className="hidden" />
                 上传图片
@@ -958,24 +958,24 @@ export default function Editor() {
                 const imgSrc = isRemoteUrl ? image.url : `/content/${articleDir}${image.url}`;
                 return (
                   <div key={image.name} className="relative group">
-                    <img src={imgSrc} alt={image.name} className="w-full h-32 object-cover rounded border border-stone-200" />
+                    <img src={imgSrc} alt={image.name} className="w-full h-32 object-cover rounded border border-[#e4e4e7]" />
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center z-10">
                       <button onClick={() => copyImageUrl(image.url)} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded shadow-lg">
                         复制链接
                       </button>
                     </div>
-                    <div className="mt-1 text-xs text-stone-600 truncate">{image.name}</div>
+                    <div className="mt-1 text-xs text-[#52525b] truncate">{image.name}</div>
                   </div>
                 );
               })}
             </div>
-            {images.length === 0 && <p className="text-stone-500 text-center py-8">暂无图片，点击"上传图片"开始上传</p>}
+            {images.length === 0 && <p className="text-[#52525b] text-center py-8">暂无图片，点击"上传图片"开始上传</p>}
           </div>
         )}
       </div>
 
       {/* Markdown 工具栏 */}
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-3 mb-4">
+      <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-3 mb-4">
         <div className="flex flex-wrap gap-2">
           <button onClick={() => insertMarkdown('bold')} className="toolbar-btn" title="加粗 (Ctrl+B)">
             <Bold className="w-4 h-4" />
@@ -986,7 +986,7 @@ export default function Editor() {
           <button onClick={() => insertMarkdown('heading')} className="toolbar-btn" title="标题">
             <Heading className="w-4 h-4" />
           </button>
-          <span className="border-l border-stone-300 mx-1" />
+          <span className="border-l border-[#d4d4d8] mx-1" />
           <button onClick={() => insertMarkdown('link')} className="toolbar-btn" title="链接">
             <Link2 className="w-4 h-4" />
           </button>
@@ -996,7 +996,7 @@ export default function Editor() {
           <button onClick={() => insertMarkdown('image')} className="toolbar-btn" title="图片">
             <Image className="w-4 h-4" />
           </button>
-          <span className="border-l border-stone-300 mx-1" />
+          <span className="border-l border-[#d4d4d8] mx-1" />
           <button onClick={() => insertMarkdown('ul')} className="toolbar-btn" title="无序列表">
             <List className="w-4 h-4" />
           </button>
@@ -1016,17 +1016,17 @@ export default function Editor() {
       </div>
 
       {/* 编辑器和预览 */}
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-4">
+      <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ height: 'calc(100vh - 380px)', minHeight: '500px' }}>
           <div className="flex flex-col">
-            <div className="text-sm font-medium text-stone-700 mb-2">编辑器</div>
+            <div className="text-sm font-medium text-[#3f3f46] mb-2">编辑器</div>
             <textarea
               ref={textareaRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onPaste={handlePaste}
               placeholder="在此输入 Markdown 内容..."
-              className="flex-1 w-full font-mono text-sm p-4 border border-stone-200 rounded-lg bg-white resize-none focus:ring-2 focus:ring-stone-400 focus:border-transparent outline-none"
+              className="flex-1 w-full font-mono text-sm p-4 border border-[#e4e4e7] rounded-lg bg-white resize-none focus:ring-2 focus:ring-[#d4d4d8] focus:border-transparent outline-none"
               style={{ lineHeight: 1.6 }}
             />
             <InlineEditOverlay
@@ -1037,8 +1037,8 @@ export default function Editor() {
             />
           </div>
           <div className="flex flex-col">
-            <div className="text-sm font-medium text-stone-700 mb-2">预览</div>
-            <div className="flex-1 overflow-y-auto p-4 border border-stone-200 rounded-lg bg-white">
+            <div className="text-sm font-medium text-[#3f3f46] mb-2">预览</div>
+            <div className="flex-1 overflow-y-auto p-4 border border-[#e4e4e7] rounded-lg bg-white">
               {previewEl}
             </div>
           </div>
@@ -1051,14 +1051,14 @@ export default function Editor() {
           <div className="fixed inset-0 bg-black/30 z-[55]" onClick={() => setShowFrontmatterDrawer(false)} />
           <div className="fixed top-0 right-0 w-[420px] max-w-[90vw] h-screen bg-white shadow-xl z-[60] overflow-y-auto flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-medium text-stone-900">Frontmatter</h3>
-              <button onClick={() => setShowFrontmatterDrawer(false)} className="text-stone-400 hover:text-stone-600">
+              <h3 className="text-lg font-medium text-zinc-900">Frontmatter</h3>
+              <button onClick={() => setShowFrontmatterDrawer(false)} className="text-[#9ca3a8] hover:text-zinc-900">
                 <X className="w-6 h-6" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {(fmEdit.cover || fmEdit.image) && (
-                <div className="relative rounded-lg overflow-hidden border border-stone-200">
+                <div className="relative rounded-lg overflow-hidden border border-[#e4e4e7]">
                   <img
                     src={`/content/${currentFile.replace(/[^/]+$/, '')}${fmEdit.image || fmEdit.cover}`}
                     alt="封面图片"
@@ -1076,11 +1076,11 @@ export default function Editor() {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">title</label>
-                <input type="text" value={fmEdit.title || ''} onChange={(e) => setFmEdit({ ...fmEdit, title: e.target.value })} placeholder="文章标题" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">title</label>
+                <input type="text" value={fmEdit.title || ''} onChange={(e) => setFmEdit({ ...fmEdit, title: e.target.value })} placeholder="文章标题" className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">date</label>
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">date</label>
                 <input
                   type="datetime-local"
                   value={fmDateLocal}
@@ -1088,39 +1088,39 @@ export default function Editor() {
                     setFmDateLocal(e.target.value);
                     setFmEdit({ ...fmEdit, date: e.target.value ? e.target.value.replace('T', ' ') + ':00+08:00' : '' });
                   }}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400"
+                  className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">draft</label>
-                <select value={fmEdit.draft || 'true'} onChange={(e) => setFmEdit({ ...fmEdit, draft: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400">
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">draft</label>
+                <select value={fmEdit.draft || 'true'} onChange={(e) => setFmEdit({ ...fmEdit, draft: e.target.value })} className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]">
                   <option value="true">true (草稿)</option>
                   <option value="false">false (已发布)</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">tags (逗号分隔)</label>
-                <input type="text" value={fmTagsStr} onChange={(e) => setFmTagsStr(e.target.value)} placeholder="tag1, tag2" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">tags (逗号分隔)</label>
+                <input type="text" value={fmTagsStr} onChange={(e) => setFmTagsStr(e.target.value)} placeholder="tag1, tag2" className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">categories (逗号分隔)</label>
-                <input type="text" value={fmCategoriesStr} onChange={(e) => setFmCategoriesStr(e.target.value)} placeholder="cat1, cat2" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">categories (逗号分隔)</label>
+                <input type="text" value={fmCategoriesStr} onChange={(e) => setFmCategoriesStr(e.target.value)} placeholder="cat1, cat2" className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">cover</label>
-                <input type="text" value={fmEdit.cover || ''} onChange={(e) => setFmEdit({ ...fmEdit, cover: e.target.value })} placeholder="封面图片路径" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">cover</label>
+                <input type="text" value={fmEdit.cover || ''} onChange={(e) => setFmEdit({ ...fmEdit, cover: e.target.value })} placeholder="封面图片路径" className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">image</label>
-                <input type="text" value={fmEdit.image || ''} onChange={(e) => setFmEdit({ ...fmEdit, image: e.target.value })} placeholder="封面图片路径 (Hugo theme)" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">image</label>
+                <input type="text" value={fmEdit.image || ''} onChange={(e) => setFmEdit({ ...fmEdit, image: e.target.value })} placeholder="封面图片路径 (Hugo theme)" className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">description</label>
-                <input type="text" value={fmEdit.description || ''} onChange={(e) => setFmEdit({ ...fmEdit, description: e.target.value })} placeholder="文章描述" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">description</label>
+                <input type="text" value={fmEdit.description || ''} onChange={(e) => setFmEdit({ ...fmEdit, description: e.target.value })} placeholder="文章描述" className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]" />
               </div>
               <div className="border-t pt-4">
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-semibold text-stone-600">其他字段</label>
+                  <label className="text-sm font-semibold text-[#52525b]">其他字段</label>
                   <button onClick={() => setFmExtraFields([...fmExtraFields, { key: '', value: '' }])} className="text-sm text-blue-600 hover:text-blue-700">+ 添加字段</button>
                 </div>
                 {fmExtraFields.map((field, i) => (
@@ -1143,7 +1143,7 @@ export default function Editor() {
               </div>
             </div>
             <div className="p-4 border-t flex justify-end space-x-2">
-              <button onClick={() => setShowFrontmatterDrawer(false)} className="px-4 py-2 border border-stone-300 rounded-lg text-stone-700 hover:bg-stone-50">取消</button>
+              <button onClick={() => setShowFrontmatterDrawer(false)} className="px-4 py-2 border border-[#e4e4e7] rounded-lg text-[#3f3f46] hover:bg-[#f4f4f5]">取消</button>
               <button onClick={applyFrontmatter} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">应用</button>
             </div>
           </div>
@@ -1161,29 +1161,29 @@ export default function Editor() {
                 value={refSearchQuery}
                 onChange={(e) => { setRefSearchQuery(e.target.value); searchRefs(); }}
                 placeholder="输入关键词搜索文章..."
-                className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400 outline-none"
+                className="w-full px-4 py-2 border border-[#e4e4e7] rounded-lg focus:ring-2 focus:ring-[#d4d4d8] outline-none"
                 autoFocus
               />
             </div>
             <div className="max-h-80 overflow-y-auto">
               {refSearchResults.map((item) => (
-                <div key={item.path} onClick={() => insertRef(item)} className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-stone-100 flex items-center gap-3">
+                <div key={item.path} onClick={() => insertRef(item)} className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-[#e4e4e7] flex items-center gap-3">
                   <span className="text-blue-500 text-lg">🔗</span>
                   <div className="min-w-0">
-                    <div className="font-medium text-stone-800 truncate">{item.title || '(无标题)'}</div>
-                    <div className="text-sm text-stone-400 truncate">{item.path}</div>
+                    <div className="font-medium text-zinc-900 truncate">{item.title || '(无标题)'}</div>
+                    <div className="text-sm text-[#9ca3a8] truncate">{item.path}</div>
                   </div>
                 </div>
               ))}
               {refSearchQuery && refSearchResults.length === 0 && (
-                <div className="p-6 text-center text-stone-400">未找到匹配的文章</div>
+                <div className="p-6 text-center text-[#9ca3a8]">未找到匹配的文章</div>
               )}
               {!refSearchQuery && (
-                <div className="p-6 text-center text-stone-400">输入关键词开始搜索</div>
+                <div className="p-6 text-center text-[#9ca3a8]">输入关键词开始搜索</div>
               )}
             </div>
-            <div className="p-3 border-t bg-stone-50 flex justify-end">
-              <button onClick={() => setShowRefModal(false)} className="px-4 py-2 text-stone-600 hover:text-stone-800">取消</button>
+            <div className="p-3 border-t bg-[#f4f4f5] flex justify-end">
+              <button onClick={() => setShowRefModal(false)} className="px-4 py-2 text-[#52525b] hover:text-zinc-900">取消</button>
             </div>
           </div>
         </div>
@@ -1195,17 +1195,17 @@ export default function Editor() {
           <div className="fixed inset-0 bg-black/30 z-[55]" onClick={() => setShowBacklinks(false)} />
           <div className="fixed top-0 right-0 w-[380px] max-w-[90vw] h-screen bg-white shadow-xl z-[60] overflow-y-auto flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-medium text-stone-900">反向链接</h3>
-              <button onClick={() => setShowBacklinks(false)} className="text-stone-400 hover:text-stone-600">
+              <h3 className="text-lg font-medium text-zinc-900">反向链接</h3>
+              <button onClick={() => setShowBacklinks(false)} className="text-[#9ca3a8] hover:text-zinc-900">
                 <X className="w-6 h-6" />
               </button>
             </div>
-            {backlinks.length === 0 && <div className="p-4 text-sm text-stone-500">暂无其他文章引用本文</div>}
+            {backlinks.length === 0 && <div className="p-4 text-sm text-[#52525b]">暂无其他文章引用本文</div>}
             {backlinks.map((bl) => (
-              <Link key={bl.path} to={`/editor/${bl.path}`} target="_blank" className="block p-4 border-b border-stone-100 hover:bg-stone-50 transition-colors">
-                <div className="font-medium text-stone-900">{bl.title || '(无标题)'}</div>
-                <div className="text-xs text-stone-400">{bl.path}</div>
-                {bl.context && <div className="text-xs text-stone-500 bg-stone-100 p-2 rounded mt-2">{bl.context}</div>}
+              <Link key={bl.path} to={`/editor/${bl.path}`} target="_blank" className="block p-4 border-b border-[#e4e4e7] hover:bg-[#f4f4f5] transition-colors">
+                <div className="font-medium text-zinc-900">{bl.title || '(无标题)'}</div>
+                <div className="text-xs text-[#9ca3a8]">{bl.path}</div>
+                {bl.context && <div className="text-xs text-[#52525b] bg-[#f4f4f5] p-2 rounded mt-2">{bl.context}</div>}
               </Link>
             ))}
           </div>
@@ -1217,7 +1217,7 @@ export default function Editor() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-8 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4" />
-            <p className="text-stone-700">加载中...</p>
+            <p className="text-[#3f3f46]">加载中...</p>
           </div>
         </div>
       )}
