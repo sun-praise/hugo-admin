@@ -2,6 +2,7 @@
 
 [![License](https://img.shields.io/github/license/Svtter/hugo-admin)](LICENSE)
 [![Go](https://img.shields.io/badge/go-1.24%2B-00ADD8)](https://go.dev/)
+[![Coverage](https://codecov.io/gh/sun-praise/hugo-admin/graph/badge.svg)](https://codecov.io/gh/sun-praise/hugo-admin)
 [![Hugo](https://img.shields.io/badge/hugo-compatible-ff4088)](https://gohugo.io/)
 [![Documentation](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://sun-praise.github.io/hugo-admin/)
 
