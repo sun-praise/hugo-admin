@@ -7,6 +7,7 @@ import {
   Settings,
   Puzzle,
   GitBranch,
+  FlaskConical,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -21,6 +22,7 @@ const navItems = [
   { to: '/git', icon: GitBranch, label: 'Git' },
   { to: '/plugins', icon: Puzzle, label: '插件' },
   { to: '/settings', icon: Settings, label: '设置' },
+  { to: '/playground', icon: FlaskConical, label: '演示场' },
 ];
 
 interface SidebarProps {

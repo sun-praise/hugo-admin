@@ -276,3 +276,20 @@ func trimSpaces(s string) string {
 	}
 	return string(out)
 }
+
+// POST /api/tts/demo —— playground 演示：模拟 TTS 任务，经 broker 广播
+// tts.progress（0→100）→ tts.done。带独立 scope，不与真实任务混淆，
+// 也不需要 tts_generation 插件。
+func (s *Server) handleTTSDemo(w http.ResponseWriter, r *http.Request) {
+	scope := util.NewOperationID()
+	go func() {
+		for percent := 0; percent <= 100; percent += 10 {
+			s.emitTTS("tts.progress", scope, map[string]any{
+				"stage": "演示任务", "percent": percent,
+			})
+			time.Sleep(200 * time.Millisecond)
+		}
+		s.emitTTS("tts.done", scope, map[string]any{"message": "演示任务完成"})
+	}()
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "event_scope": scope})
+}

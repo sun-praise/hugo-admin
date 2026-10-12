@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"trpc.group/trpc-go/trpc-agent-go/event"
 	"trpc.group/trpc-go/trpc-agent-go/model"
 )
 
@@ -47,6 +48,8 @@ const (
 	MaxSelectedText = 5000
 	MaxInstruction  = 1000
 	MaxContext      = 1000
+	// MaxRewriteText 限制 playground 流式润色的输入长度。
+	MaxRewriteText = 5000
 )
 
 // BuildInlinePrompts 对齐 _build_prompts。
@@ -116,7 +119,12 @@ func (s *Service) ChatSSE(ctx context.Context, message string) (<-chan string, e
 	if err != nil {
 		return nil, err
 	}
+	return agentFrames(events), nil
+}
 
+// agentFrames 把 trpc 事件流映射为 SSE 帧通道（协议见文件头注释）。
+// 通道关闭即流结束（最后一帧为 data: [DONE]）。
+func agentFrames(events <-chan *event.Event) <-chan string {
 	ch := make(chan string, 64)
 	go func() {
 		defer close(ch)
@@ -170,5 +178,5 @@ func (s *Service) ChatSSE(ctx context.Context, message string) (<-chan string, e
 			ch <- "data: [DONE]\n\n"
 		}
 	}()
-	return ch, nil
+	return ch
 }
