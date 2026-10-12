@@ -12,10 +12,10 @@ import (
 
 var hugoConfigFiles = []string{"config.toml", "config.yaml", "config.json", "hugo.toml", "hugo.yaml"}
 
-const (
-	defaultThemeRepo = "https://github.com/Svtter/Fried-Rice.git"
-	defaultThemeName = "Fried-Rice"
-)
+const defaultThemeName = "Fried-Rice"
+
+// defaultThemeRepo 声明为 var，测试可指向本地 git 仓库，避免真实网络克隆。
+var defaultThemeRepo = "https://github.com/Svtter/Fried-Rice.git"
 
 // ValidateTargetPath 对齐 validate_target_path。
 func ValidateTargetPath(adminRoot, targetPath string) (string, error) {
