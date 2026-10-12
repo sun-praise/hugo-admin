@@ -239,3 +239,66 @@ func TestInlineEditFlow(t *testing.T) {
 		t.Fatalf("xss = %d %v", status, body)
 	}
 }
+
+// 流式润色：帧协议与 /api/ai/chat 一致（文本增量 + [DONE]）。
+func TestAIRewriteSSE(t *testing.T) {
+	mock := mockAnthropicTextOnly(t, "润色后的文本。")
+	ts := newAITestServer(t, mock)
+	client := ts.Client()
+	login(t, client, ts.URL)
+
+	req, _ := http.NewRequest("POST", ts.URL+"/api/ai/rewrite",
+		strings.NewReader(mustJSON(map[string]any{"text": "原文"})))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" {
+		t.Fatalf("content-type = %q", ct)
+	}
+
+	stream := ""
+	buf := make([]byte, 4096)
+	for !strings.Contains(stream, "[DONE]") {
+		n, err := resp.Body.Read(buf)
+		if n > 0 {
+			stream += string(buf[:n])
+		}
+		if err != nil {
+			break
+		}
+	}
+	if !strings.Contains(stream, "data: 润色后的文本。\n\n") || !strings.HasSuffix(stream, "data: [DONE]\n\n") {
+		t.Fatalf("stream = %q", stream)
+	}
+}
+
+func TestAIRewriteValidation(t *testing.T) {
+	// 未配置 AI → 503
+	ts := newAITestServer(t, nil)
+	client := ts.Client()
+	login(t, client, ts.URL)
+	status, _ := doJSON(t, client, "POST", ts.URL+"/api/ai/rewrite", map[string]string{"text": "x"})
+	if status != 503 {
+		t.Fatalf("disabled status = %d", status)
+	}
+
+	// 参数校验
+	enabled := newAITestServer(t, mockAnthropicTextOnly(t, "ok"))
+	c2 := enabled.Client()
+	login(t, c2, enabled.URL)
+	status, body := doJSON(t, c2, "POST", enabled.URL+"/api/ai/rewrite", map[string]string{})
+	if status != 400 || body["message"] != "缺少 text" {
+		t.Fatalf("missing = %d %v", status, body)
+	}
+	long := strings.Repeat("字", 5001)
+	status, body = doJSON(t, c2, "POST", enabled.URL+"/api/ai/rewrite", map[string]string{"text": long})
+	if status != 400 || !strings.Contains(body["message"].(string), "text 超过") {
+		t.Fatalf("too long = %d %v", status, body)
+	}
+}

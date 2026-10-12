@@ -8,6 +8,7 @@ import {
   GitBranch,
   Puzzle,
   Settings,
+  FlaskConical,
   LogOut,
 } from 'lucide-react';
 import { get, logout } from '../utils/api';
@@ -36,6 +37,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { to: '/git', icon: GitBranch, label: 'Git' },
       { to: '/plugins', icon: Puzzle, label: '插件' },
       { to: '/settings', icon: Settings, label: '设置' },
+      { to: '/playground', icon: FlaskConical, label: '演示场' },
     ],
   },
 ];

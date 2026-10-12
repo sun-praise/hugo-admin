@@ -69,6 +69,10 @@ func Import(contentDir, filename string, raw []byte, title string,
 	}
 	if date, ok := existingFM["date"].(string); ok && strings.TrimSpace(date) != "" {
 		fm["date"] = date
+	} else if d, ok := existingFM["date"].(time.Time); ok {
+		// TOML/YAML 原生日期（已归一化为 time.Time），转字符串保持
+		// 新草稿统一为 YAML + 字符串日期的既有形态
+		fm["date"] = d.Format(time.RFC3339)
 	} else {
 		cst := time.FixedZone("CST", 8*3600)
 		fm["date"] = now.In(cst).Format("2006-01-02T15:04:05+08:00")

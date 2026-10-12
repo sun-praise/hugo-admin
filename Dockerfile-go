@@ -11,7 +11,9 @@ COPY frontend/ ./
 RUN pnpm run build && ls -la /admin-ui
 
 # ============ Stage 2: Go 构建 ============
-FROM golang:1.24-slim AS go-build
+# golang 官方镜像已无 slim 变体且随 Go 支持期滚动下架旧 tag（1.24 已 EOL）；
+# bookworm 与运行时阶段同基线
+FROM golang:1.26-bookworm AS go-build
 WORKDIR /src
 # 先拷依赖清单利用层缓存
 COPY go.mod go.sum ./
