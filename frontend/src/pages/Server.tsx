@@ -160,31 +160,25 @@ export default function ServerPage() {
               <button
                 onClick={() => startServer(false)}
                 disabled={status.running || loading}
-                className={`w-full h-10 text-[14px] rounded-lg text-white flex items-center justify-center transition-colors ${
-                  status.running || loading ? 'bg-[#9ca3a8] cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
-                }`}
+                className="btn btn-primary w-full"
               >
-                <Play className="w-5 h-5 mr-2" />
+                <Play />
                 {loading ? '启动中...' : '启动服务器'}
               </button>
               <button
                 onClick={() => startServer(true)}
                 disabled={status.running || loading}
-                className={`w-full h-10 text-[14px] rounded-lg text-white flex items-center justify-center transition-colors ${
-                  status.running || loading ? 'bg-[#9ca3a8] cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                }`}
+                className="btn btn-ghost w-full"
               >
-                <Bug className="w-5 h-5 mr-2" />
+                <Bug />
                 {loading ? '启动中...' : '启动服务器 (草稿模式)'}
               </button>
               <button
                 onClick={stopServer}
                 disabled={!status.running || loading}
-                className={`w-full h-10 text-[14px] rounded-lg text-white flex items-center justify-center transition-colors ${
-                  !status.running || loading ? 'bg-[#9ca3a8] cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
-                }`}
+                className="btn btn-danger w-full"
               >
-                <Square className="w-5 h-5 mr-2" />
+                <Square />
                 {loading ? '停止中...' : '停止服务器'}
               </button>
               {status.running && (
@@ -192,12 +186,10 @@ export default function ServerPage() {
                   href={hugoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn btn-primary block w-full"
+                  className="btn btn-primary w-full"
                 >
-                  <span className="flex items-center justify-center">
-                    <ExternalLink className="w-5 h-5 mr-2" />
-                    访问网站
-                  </span>
+                  <ExternalLink />
+                  访问网站
                 </a>
               )}
             </div>
