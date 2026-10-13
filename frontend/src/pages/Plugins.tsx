@@ -83,16 +83,13 @@ export default function PluginsPage() {
   return (
     <div className="max-w-4xl space-y-6">
       {/* header */}
-      <div className="flex items-center gap-3">
-        <Puzzle className="w-8 h-8 text-stone-400" />
-        <div>
-          <h1 className="text-3xl font-medium tracking-tight">插件</h1>
-          <p className="text-sm text-stone-500 mt-0.5">管理和浏览 hugo-admin 插件</p>
-        </div>
+      <div className="page-head">
+        <h1 className="m-0 text-[22px] font-semibold tracking-[-0.02em]">插件</h1>
+        <p className="mb-0 mt-1 text-[13.5px] text-[#52525b]">管理和浏览 hugo-admin 插件</p>
       </div>
 
       {/* tabs */}
-      <div className="flex gap-1 border-b border-stone-200">
+      <div className="flex gap-1 border-b border-[#e4e4e7]">
         <TabBtn active={tab === 'installed'} onClick={() => setTab('installed')}>
           已安装
         </TabBtn>
@@ -109,7 +106,7 @@ export default function PluginsPage() {
 
       {/* content */}
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-stone-400">
+        <div className="flex items-center justify-center py-20 text-[#9ca3a8]">
           <Loader2 className="w-6 h-6 animate-spin" />
           <span className="ml-2">加载中...</span>
         </div>
@@ -138,8 +135,8 @@ function TabBtn({
       onClick={onClick}
       className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
         active
-          ? 'border-stone-800 text-stone-900'
-          : 'border-transparent text-stone-500 hover:text-stone-700'
+          ? 'border-zinc-900 text-zinc-900'
+          : 'border-transparent text-[#52525b] hover:text-zinc-900'
       }`}
     >
       {children}
@@ -158,7 +155,7 @@ function InstalledTab({
 }) {
   if (plugins.length === 0) {
     return (
-      <div className="text-center py-20 text-stone-400">
+      <div className="text-center py-20 text-[#9ca3a8]">
         <Puzzle className="w-12 h-12 mx-auto mb-3 opacity-30" />
         <p>暂无已安装的插件</p>
         <p className="text-sm mt-1">从市场安装插件以扩展功能</p>
@@ -171,7 +168,7 @@ function InstalledTab({
       <div className="flex justify-end">
         <button
           onClick={onRefresh}
-          className="flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-700 transition-colors"
+          className="btn btn-ghost"
         >
           <RefreshCw className="w-3.5 h-3.5" />
           刷新
@@ -210,22 +207,22 @@ function PluginCard({
   }
 
   return (
-    <div className="bg-white ring-1 ring-stone-900/5 rounded-md p-5">
+    <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-medium text-stone-900">{plugin.name}</h3>
-            <span className="font-mono text-xs text-stone-500">v{plugin.version}</span>
+            <h3 className="text-base font-medium text-zinc-900">{plugin.name}</h3>
+            <span className="font-mono text-xs text-[#52525b]">v{plugin.version}</span>
             <StatusBadge status={plugin.status} enabled={plugin.enabled} />
           </div>
-          <p className="text-sm text-stone-500 mt-1">{plugin.description}</p>
+          <p className="text-sm text-[#52525b] mt-1">{plugin.description}</p>
           <div className="flex items-center gap-3 mt-2">
-            <span className="text-xs text-stone-400">by {plugin.author}</span>
+            <span className="text-xs text-[#9ca3a8]">by {plugin.author}</span>
             <div className="flex gap-1">
               {plugin.capabilities.map((c) => (
                 <span
                   key={c}
-                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-stone-100 text-stone-600"
+                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[#f4f4f5] text-[#52525b]"
                 >
                   {c}
                 </span>
@@ -238,7 +235,7 @@ function PluginCard({
           {plugin.has_config && (
             <button
               onClick={() => setConfiguring(!configuring)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm border border-stone-300 text-stone-700 rounded-md hover:bg-stone-50 transition-colors"
+              className="btn btn-ghost btn-sm"
             >
               <Settings2 className="w-3.5 h-3.5" />
               配置
@@ -247,11 +244,7 @@ function PluginCard({
           <button
             onClick={toggleEnable}
             disabled={toggling}
-            className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md transition-colors ${
-              plugin.enabled
-                ? 'bg-stone-800 text-white hover:bg-stone-700'
-                : 'border border-stone-300 text-stone-700 hover:bg-stone-50'
-            }`}
+            className={`btn btn-sm ${plugin.enabled ? 'btn-ghost' : 'btn-primary'}`}
           >
             {toggling ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -276,7 +269,7 @@ function PluginCard({
 function StatusBadge({ status, enabled }: { status: string; enabled: boolean }) {
   const colors: Record<string, string> = {
     running: 'bg-emerald-50 text-emerald-700',
-    stopped: 'bg-stone-100 text-stone-500',
+    stopped: 'bg-[#f4f4f5] text-[#52525b]',
     error: 'bg-red-50 text-red-700',
   };
   const labels: Record<string, string> = {
@@ -285,9 +278,9 @@ function StatusBadge({ status, enabled }: { status: string; enabled: boolean }) 
     error: '错误',
   };
   const dotColors: Record<string, string> = {
-    running: 'bg-emerald-500',
-    stopped: 'bg-stone-400',
-    error: 'bg-red-500',
+    running: 'dot-pulse',
+    stopped: 'dot-pulse is-off',
+    error: 'w-1.5 h-1.5 rounded-full bg-red-500',
   };
 
   const s = enabled ? status : 'stopped';
@@ -296,7 +289,7 @@ function StatusBadge({ status, enabled }: { status: string; enabled: boolean }) 
     <span
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${colors[s] || colors.stopped}`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${dotColors[s] || dotColors.stopped}`} />
+      <span aria-hidden="true" className={dotColors[s] || dotColors.stopped} />
       {labels[s] || s}
     </span>
   );
@@ -356,7 +349,7 @@ function ConfigPanel({ name }: { name: string }) {
 
   if (loading) {
     return (
-      <div className="mt-4 pt-4 border-t border-stone-100 flex items-center gap-2 text-sm text-stone-400">
+      <div className="mt-4 pt-4 border-t border-[#e4e4e7] flex items-center gap-2 text-sm text-[#9ca3a8]">
         <Loader2 className="w-4 h-4 animate-spin" />
         加载配置...
       </div>
@@ -367,8 +360,8 @@ function ConfigPanel({ name }: { name: string }) {
     (schema?.properties as Record<string, { type: string; label?: string }>) || {};
 
   return (
-    <div className="mt-4 pt-4 border-t border-stone-100 space-y-3">
-      <h4 className="text-sm font-medium text-stone-700">插件配置</h4>
+    <div className="mt-4 pt-4 border-t border-[#e4e4e7] space-y-3">
+      <h4 className="text-sm font-medium text-[#3f3f46]">插件配置</h4>
 
       {error && (
         <div className="bg-red-50 text-red-700 px-3 py-2 rounded text-sm">{error}</div>
@@ -377,7 +370,7 @@ function ConfigPanel({ name }: { name: string }) {
       <div className="space-y-3">
         {Object.entries(properties).map(([key, def]) => (
           <div key={key}>
-            <label className="block text-sm text-stone-600 mb-1">
+            <label className="block text-sm text-[#52525b] mb-1">
               {def.label || key}
             </label>
             <input
@@ -385,7 +378,7 @@ function ConfigPanel({ name }: { name: string }) {
               value={config[key] || ''}
               onChange={(e) => setConfig({ ...config, [key]: e.target.value })}
               placeholder={def.label || key}
-              className="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:ring-2 focus:ring-stone-800 focus:border-stone-800 outline-none"
+              className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8] focus:border-[#d4d4d8] outline-none"
             />
           </div>
         ))}
@@ -395,7 +388,7 @@ function ConfigPanel({ name }: { name: string }) {
         <button
           onClick={saveConfig}
           disabled={saving}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-stone-800 text-white rounded-md hover:bg-stone-700 transition-colors"
+          className="btn btn-primary"
         >
           {saving ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -422,7 +415,7 @@ function MarketTab({
 
   if (plugins.length === 0) {
     return (
-      <div className="text-center py-20 text-stone-400">
+      <div className="text-center py-20 text-[#9ca3a8]">
         <Store className="w-12 h-12 mx-auto mb-3 opacity-30" />
         <p>插件市场暂无可用插件</p>
         <p className="text-sm mt-1">敬请期待</p>
@@ -435,22 +428,22 @@ function MarketTab({
       {plugins.map((p) => (
         <div
           key={p.name}
-          className="bg-white ring-1 ring-stone-900/5 rounded-md p-5"
+          className="rounded-[10px] border border-[#e4e4e7] bg-white p-5"
         >
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-medium text-stone-900">{p.name}</h3>
-                <span className="font-mono text-xs text-stone-500">v{p.version}</span>
+                <h3 className="text-base font-medium text-zinc-900">{p.name}</h3>
+                <span className="font-mono text-xs text-[#52525b]">v{p.version}</span>
               </div>
-              <p className="text-sm text-stone-500 mt-1">{p.description}</p>
+              <p className="text-sm text-[#52525b] mt-1">{p.description}</p>
               <div className="flex items-center gap-3 mt-2">
-                <span className="text-xs text-stone-400">by {p.author}</span>
+                <span className="text-xs text-[#9ca3a8]">by {p.author}</span>
                 <div className="flex gap-1">
                   {p.capabilities.map((c) => (
                     <span
                       key={c}
-                      className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-stone-100 text-stone-600"
+                      className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[#f4f4f5] text-[#52525b]"
                     >
                       {c}
                     </span>
@@ -465,7 +458,7 @@ function MarketTab({
                 已安装
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 px-3 py-1.5 text-sm border border-stone-300 text-stone-500 rounded-md cursor-not-allowed opacity-50">
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 text-sm border border-[#e4e4e7] text-[#52525b] rounded-lg cursor-not-allowed opacity-50">
                 <Download className="w-3.5 h-3.5" />
                 安装（需手动）
               </span>
@@ -474,7 +467,7 @@ function MarketTab({
         </div>
       ))}
 
-      <p className="text-xs text-stone-400 text-center pt-4">
+      <p className="text-xs text-[#9ca3a8] text-center pt-4">
         v1 版本需手动下载并解压到 ~/.hugo-admin/plugins/ 目录
       </p>
     </div>

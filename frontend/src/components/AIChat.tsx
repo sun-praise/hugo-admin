@@ -288,35 +288,35 @@ export default function AIChat() {
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
       {isOpen && (
-        <div className="bg-white w-96 h-[500px] rounded-2xl shadow-2xl border border-stone-200 flex flex-col mb-4 overflow-hidden fade-in">
-          <div className="bg-stone-900 text-white px-4 py-3 flex justify-between items-center">
+        <div className="bg-white w-96 h-[500px] rounded-[10px] shadow-2xl border border-[#e4e4e7] flex flex-col mb-4 overflow-hidden fade-in">
+          <div className="bg-zinc-900 text-white px-4 py-3 flex justify-between items-center">
             <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full" />
+              <span className="dot-pulse" aria-hidden="true" />
               <span className="font-medium text-sm">AI 助手</span>
               <div className="relative">
                 <button
                   onClick={() => setShowMenu(!showMenu)}
-                  className="ml-2 text-stone-400 hover:text-white text-xs flex items-center"
+                  className="ml-2 text-[#9ca3a8] hover:text-white text-xs flex items-center"
                 >
                   <ChevronDown className="w-4 h-4" />
                 </button>
                 {showMenu && (
-                  <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50 py-1 text-stone-800 text-sm max-h-64 overflow-y-auto">
+                  <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50 py-1 text-zinc-900 text-sm max-h-64 overflow-y-auto">
                     <button
                       onClick={() => {
                         createSession();
                         setShowMenu(false);
                       }}
-                      className="w-full px-3 py-2 text-left hover:bg-stone-100 flex items-center text-blue-600"
+                      className="w-full px-3 py-2 text-left hover:bg-[#f4f4f5] flex items-center text-blue-600"
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       新对话
                     </button>
-                    <div className="border-t border-stone-200 my-1" />
+                    <div className="border-t border-[#e4e4e7] my-1" />
                     {sessions.map((s) => (
                       <div
                         key={s.session_id}
-                        className="flex items-center hover:bg-stone-100 group"
+                        className="flex items-center hover:bg-[#f4f4f5] group"
                       >
                         <button
                           onClick={() => {
@@ -336,25 +336,25 @@ export default function AIChat() {
                             e.stopPropagation();
                             deleteSession(s.session_id);
                           }}
-                          className="px-2 text-stone-400 hover:text-red-500 opacity-0 group-hover:opacity-100"
+                          className="px-2 text-[#9ca3a8] hover:text-red-500 opacity-0 group-hover:opacity-100"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     ))}
                     {sessions.length === 0 && (
-                      <div className="px-3 py-2 text-stone-400 text-center">暂无历史</div>
+                      <div className="px-3 py-2 text-[#9ca3a8] text-center">暂无历史</div>
                     )}
                   </div>
                 )}
               </div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="text-stone-400 hover:text-white">
+            <button onClick={() => setIsOpen(false)} className="text-[#9ca3a8] hover:text-white">
               <X className="w-5 h-5" />
             </button>
           </div>
           {contextLabel && (
-            <div className="px-4 py-1.5 bg-stone-100 text-stone-500 text-xs truncate border-b border-stone-200 flex items-center gap-1.5">
+            <div className="px-4 py-1.5 bg-[#f4f4f5] text-[#52525b] text-xs truncate border-b border-[#e4e4e7] flex items-center gap-1.5">
               <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
@@ -363,7 +363,7 @@ export default function AIChat() {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-stone-50">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#f4f4f5]">
             {messages.map((msg, index) => (
               <div
                 key={index}
@@ -373,7 +373,7 @@ export default function AIChat() {
                   className={`max-w-[85%] px-4 py-2 rounded-2xl text-sm ${
                     msg.role === 'user'
                       ? 'bg-blue-600 text-white rounded-br-none'
-                      : 'bg-white text-stone-800 border border-stone-200 rounded-bl-none'
+                      : 'bg-white text-zinc-900 border border-[#e4e4e7] rounded-bl-none'
                   }`}
                 >
                   <div
@@ -387,11 +387,11 @@ export default function AIChat() {
             ))}
             {isLoading && (
               <div className="flex justify-start">
-                <div className="bg-white border border-stone-200 px-4 py-2 rounded-2xl rounded-bl-none flex items-center space-x-2">
+                <div className="bg-white border border-[#e4e4e7] px-4 py-2 rounded-2xl rounded-bl-none flex items-center space-x-2">
                   <div className="flex space-x-1">
-                    <div className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce" />
-                    <div className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                    <div className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+                    <div className="w-1.5 h-1.5 bg-[#9ca3a8] rounded-full animate-bounce" />
+                    <div className="w-1.5 h-1.5 bg-[#9ca3a8] rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                    <div className="w-1.5 h-1.5 bg-[#9ca3a8] rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
                   </div>
                 </div>
               </div>
@@ -399,14 +399,14 @@ export default function AIChat() {
             <div ref={messagesEndRef} />
           </div>
 
-          <form onSubmit={sendMessage} className="p-4 bg-white border-t border-stone-200">
+          <form onSubmit={sendMessage} className="p-4 bg-white border-t border-[#e4e4e7]">
             <div className="flex space-x-2">
               <input
                 type="text"
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
                 placeholder="输入指令，例如：搜索文章..."
-                className="flex-1 bg-stone-100 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-stone-400 outline-none"
+                className="flex-1 bg-[#f4f4f5] border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-[#d4d4d8] outline-none"
                 disabled={isLoading}
               />
               {isLoading ? (
@@ -436,7 +436,7 @@ export default function AIChat() {
 
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="bg-stone-900 text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform flex items-center justify-center relative"
+        className="bg-zinc-900 text-white p-4 rounded-full shadow-2xl hover:bg-[#2e2e33] hover:scale-110 transition-transform flex items-center justify-center relative"
       >
         {isOpen ? (
           <ChevronDown className="w-6 h-6" />

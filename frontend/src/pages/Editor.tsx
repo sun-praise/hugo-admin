@@ -20,6 +20,7 @@ import {
   Wand2,
   Headphones,
 } from 'lucide-react';
+import { toast } from '../utils/toast';
 import { get, post } from '../utils/api';
 import {
   generateArticleTTS,
@@ -29,7 +30,6 @@ import {
 import { renderMarkdown, escapeHtml } from '../utils/markdown';
 import type { Mermaid } from 'mermaid';
 import type { FileData, ImageItem, Backlink, Frontmatter } from '../types';
-import { usePageTitle } from '../hooks/usePageTitle';
 import { useEvents } from '../hooks/useEvents';
 import { InlineEditOverlay } from '../components/InlineEdit/Overlay';
 import { ConflictModal } from '../components/ConflictModal';
@@ -104,7 +104,6 @@ export default function Editor() {
   const [generatingFm, setGeneratingFm] = useState(false);
   const [fileMtime, setFileMtime] = useState<number | null>(null);
   const [conflictRemoteContent, setConflictRemoteContent] = useState<string | null>(null);
-  const { setTitle: setPageTitle, resetTitle: resetPageTitle } = usePageTitle();
 
   // TTS 语音播报
   const eventsRef = useEvents();
@@ -114,13 +113,6 @@ export default function Editor() {
   const [ttsProgress, setTtsProgress] = useState<{ stage: string; percent: number; message: string } | null>(null);
   const [ttsVoice, setTtsVoice] = useState('');
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
-
-  useEffect(() => {
-    if (frontmatter.title) {
-      setPageTitle(frontmatter.title);
-    }
-    return () => { resetPageTitle(); };
-  }, [frontmatter.title, setPageTitle, resetPageTitle]);
 
   const currentFile = fullPath;
 
@@ -345,18 +337,18 @@ export default function Editor() {
   }
 
   function handleInlineEditDrift() {
-    showNotification('选区已变化，已取消', 'warning');
+    toast('选区已变化，已取消');
   }
 
   async function discardAndReload() {
     setConflictRemoteContent(null);
     await loadFile();
-    showNotification('已加载最新版本', 'info');
+    toast('已加载最新版本');
   }
 
   const saveFile = useCallback(async (force = false) => {
     if (!currentFile) {
-      showNotification('未选择文件', 'error');
+      toast('未选择文件');
       return;
     }
     setSaving(true);
@@ -386,12 +378,12 @@ export default function Editor() {
         setOriginalFrontmatter(JSON.parse(JSON.stringify(frontmatter)));
         setFileMtime(data.mtime ?? null);
         setConflictRemoteContent(null);
-        showNotification('保存成功', 'success');
+        toast('保存成功');
       } else {
-        showNotification('保存失败: ' + data.message, 'error');
+        toast('保存失败: ' + data.message);
       }
     } catch {
-      showNotification('保存失败', 'error');
+      toast('保存失败');
     } finally {
       setSaving(false);
     }
@@ -399,11 +391,11 @@ export default function Editor() {
 
   async function publishArticle() {
     if (!currentFile) {
-      showNotification('未选择文件', 'error');
+      toast('未选择文件');
       return;
     }
     if (isPublished) {
-      showNotification('文章已发布', 'info');
+      toast('文章已发布');
       return;
     }
     if (!confirm('确定要发布这篇文章吗？发布后将无法撤销草稿状态。')) return;
@@ -411,14 +403,14 @@ export default function Editor() {
     try {
       const data = await post<{ success: boolean; message?: string }>('/api/article/publish', { file_path: currentFile });
       if (data.success) {
-        showNotification('发布成功', 'success');
+        toast('发布成功');
         setIsPublished(true);
         await loadFile();
       } else {
-        showNotification('发布失败: ' + data.message, 'error');
+        toast('发布失败: ' + data.message);
       }
     } catch {
-      showNotification('发布失败', 'error');
+      toast('发布失败');
     } finally {
       setPublishing(false);
     }
@@ -444,19 +436,19 @@ export default function Editor() {
       const response = await fetch('/api/image/upload', { method: 'POST', body: formData });
       const data = await response.json();
       if (data.success) {
-        showNotification('图片上传成功', 'success');
+        toast('图片上传成功');
         await loadImages();
       } else {
-        showNotification('上传失败: ' + data.message, 'error');
+        toast('上传失败: ' + data.message);
       }
     } catch {
-      showNotification('上传失败', 'error');
+      toast('上传失败');
     }
   }
 
   async function generateCoverImage() {
     if (!currentFile) {
-      showNotification('未选择文件', 'error');
+      toast('未选择文件');
       return;
     }
     setGeneratingCover(true);
@@ -470,13 +462,13 @@ export default function Editor() {
       if (data.success && data.url) {
         setFmEdit({ ...fmEdit, cover: data.url, image: data.url });
         setFrontmatter({ ...frontmatter, cover: data.url, image: data.url });
-        showNotification('封面图片已生成', 'success');
+        toast('封面图片已生成');
         await loadImages();
       } else {
-        showNotification('生成失败: ' + (data.message || '未知错误'), 'error');
+        toast('生成失败: ' + (data.message || '未知错误'));
       }
     } catch {
-      showNotification('生成封面失败', 'error');
+      toast('生成封面失败');
     } finally {
       setGeneratingCover(false);
     }
@@ -484,11 +476,11 @@ export default function Editor() {
 
   async function generateSpeech() {
     if (!currentFile) {
-      showNotification('未选择文件', 'error');
+      toast('未选择文件');
       return;
     }
     if (!content.trim()) {
-      showNotification('文章内容为空', 'error');
+      toast('文章内容为空');
       return;
     }
     setGeneratingTts(true);
@@ -501,13 +493,13 @@ export default function Editor() {
       if (!data.success) {
         setGeneratingTts(false);
         setTtsProgress(null);
-        showNotification('语音生成失败: ' + (data.message || '未知错误'), 'error');
+        toast('语音生成失败: ' + (data.message || '未知错误'));
       }
       // pending=true 时进度与结果由 Socket.IO 事件驱动
     } catch {
       setGeneratingTts(false);
       setTtsProgress(null);
-      showNotification('语音生成请求失败', 'error');
+      toast('语音生成请求失败');
     }
   }
 
@@ -531,18 +523,18 @@ export default function Editor() {
         });
         // 后端已保存文件，刷新 fileMtime 避免下次手动保存触发假冲突
         if (data.mtime) setFileMtime(data.mtime);
-        showNotification('已删除语音', 'success');
+        toast('已删除语音');
       } else {
-        showNotification('删除失败: ' + (data.message || '未知错误'), 'error');
+        toast('删除失败: ' + (data.message || '未知错误'));
       }
     } catch {
-      showNotification('删除语音失败', 'error');
+      toast('删除语音失败');
     }
   }
 
   async function generateFrontmatterFromAI() {
     if (!currentFile || !content.trim()) {
-      showNotification('文章内容为空', 'error');
+      toast('文章内容为空');
       return;
     }
     setGeneratingFm(true);
@@ -560,13 +552,13 @@ export default function Editor() {
         if (Array.isArray(fm.tags)) newFm.tags = fm.tags as string[];
         if (Array.isArray(fm.categories)) newFm.categories = fm.categories as string[];
         setFrontmatter(newFm);
-        showNotification('Frontmatter 已生成，点击保存生效', 'success');
+        toast('Frontmatter 已生成，点击保存生效');
       } else {
-        showNotification('生成失败: ' + (data.message || '未知错误'), 'error');
+        toast('生成失败: ' + (data.message || '未知错误'));
       }
     } catch (error) {
       console.error('Failed to generate frontmatter:', error);
-      showNotification('生成 frontmatter 失败', 'error');
+      toast('生成 frontmatter 失败');
     } finally {
       setGeneratingFm(false);
     }
@@ -574,7 +566,7 @@ export default function Editor() {
 
   function copyImageUrl(url: string) {
     navigator.clipboard.writeText(url);
-    showNotification('图片链接已复制', 'success');
+    toast('图片链接已复制');
   }
 
   async function searchRefs() {
@@ -636,16 +628,6 @@ export default function Editor() {
     }
   }
 
-  function showNotification(message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 fade-in ${
-      type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-    } text-white`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 3000);
-  }
-
   const loadFile = useCallback(async () => {
     if (!currentFile) return;
     setLoading(true);
@@ -670,11 +652,11 @@ export default function Editor() {
           setOriginalFrontmatter({});
           await checkPublishStatus();
         } else {
-          showNotification('加载文件失败', 'error');
+          toast('加载文件失败');
         }
       }
     } catch {
-      showNotification('加载文件失败', 'error');
+      toast('加载文件失败');
     } finally {
       setLoading(false);
     }
@@ -743,18 +725,18 @@ export default function Editor() {
         }));
         // 后端已保存文件，刷新 fileMtime 避免下次手动保存触发假冲突
         if (d.mtime) setFileMtime(d.mtime);
-        showNotification('语音播报已生成', 'success');
+        toast('语音播报已生成');
       }
     };
     const onFailed = (d: { message?: string }) => {
       setGeneratingTts(false);
       setTtsProgress(null);
-      showNotification('语音生成失败: ' + (d.message || '未知错误'), 'error');
+      toast('语音生成失败: ' + (d.message || '未知错误'));
     };
     const onConflict = (d: { message?: string }) => {
       setGeneratingTts(false);
       setTtsProgress(null);
-      showNotification(d.message || '文章已被修改，请保存后重试', 'warning');
+      toast(d.message || '文章已被修改，请保存后重试');
     };
     socket.on('tts.progress', onProgress);
     socket.on('tts.done', onDone);
@@ -839,11 +821,11 @@ export default function Editor() {
 
   if (!currentFile) {
     return (
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-12 text-center">
-        <FileCode className="w-16 h-16 text-stone-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-stone-700 mb-2">未选择文件</h3>
-        <p className="text-stone-500 mb-4">请从文章列表中选择一个文件进行编辑</p>
-        <Link to="/posts" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+      <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-12 text-center">
+        <FileCode className="w-16 h-16 text-[#9ca3a8] mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-[#3f3f46] mb-2">未选择文件</h3>
+        <p className="text-[#52525b] mb-4">请从文章列表中选择一个文件进行编辑</p>
+        <Link to="/posts" className="btn btn-primary">
           浏览文章
         </Link>
       </div>
@@ -853,25 +835,25 @@ export default function Editor() {
   return (
     <div className="relative">
       {/* 工具栏 */}
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-4 mb-4">
+      <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-4 mb-4">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div className="flex items-center space-x-4">
             <div>
-              <label className="text-sm font-medium text-stone-700">当前文件:</label>
-              <span className="ml-2 text-stone-600 font-mono text-sm">{currentFile}</span>
+              <label className="text-sm font-medium text-[#3f3f46]">当前文件:</label>
+              <span className="ml-2 text-[#52525b] font-mono text-sm">{currentFile}</span>
             </div>
           </div>
           <div className="flex items-center space-x-1">
-            <button onClick={() => setShowFrontmatterDrawer(true)} title="Frontmatter" className="p-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors">
+            <button onClick={() => setShowFrontmatterDrawer(true)} title="Frontmatter" className="p-2 border border-[#e4e4e7] text-[#3f3f46] rounded-lg hover:bg-[#f4f4f5] transition-colors">
               <FileCode className="w-5 h-5" />
             </button>
-            <button onClick={() => setShowBacklinks(!showBacklinks)} title="反向链接" className="relative p-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors">
+            <button onClick={() => setShowBacklinks(!showBacklinks)} title="反向链接" className="relative p-2 border border-[#e4e4e7] text-[#3f3f46] rounded-lg hover:bg-[#f4f4f5] transition-colors">
               <ArrowLeftRight className="w-5 h-5" />
               {backlinks.length > 0 && (
                 <span className="absolute -top-1 -right-1 bg-blue-100 text-blue-800 text-[10px] font-semibold w-4 h-4 flex items-center justify-center rounded-full">{backlinks.length}</span>
               )}
             </button>
-            <button onClick={() => setShowImageManager(!showImageManager)} title="图片管理" className="p-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors">
+            <button onClick={() => setShowImageManager(!showImageManager)} title="图片管理" className="p-2 border border-[#e4e4e7] text-[#3f3f46] rounded-lg hover:bg-[#f4f4f5] transition-colors">
               <Image className="w-5 h-5" />
             </button>
             <button onClick={generateCoverImage} disabled={generatingCover || !currentFile} title={generatingCover ? '生成中...' : 'AI 生成封面'} className="p-2 border border-purple-400 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
@@ -885,55 +867,55 @@ export default function Editor() {
                 <Headphones className="w-5 h-5" />
               </button>
             )}
-            <span className="border-l border-stone-300 mx-1 h-6" />
-            <button onClick={() => saveFile()} disabled={saving || !hasChanges} title={saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <span className="border-l border-[#d4d4d8] mx-1 h-6" />
+            <button onClick={() => saveFile()} disabled={saving || !hasChanges} title={saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'} className="p-2 bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               <Save className="w-5 h-5" />
             </button>
-            <button onClick={publishArticle} disabled={publishing || !currentFile || isPublished} title={publishing ? '发布中...' : isPublished ? '已发布' : '发布'} className={`p-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isPublished ? 'bg-stone-400 hover:bg-stone-500' : 'bg-green-600 hover:bg-green-700'}`}>
+            <button onClick={publishArticle} disabled={publishing || !currentFile || isPublished} title={publishing ? '发布中...' : isPublished ? '已发布' : '发布'} className={`p-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isPublished ? 'bg-[#9ca3a8] cursor-not-allowed' : 'bg-zinc-900 hover:bg-[#2e2e33]'}`}>
               <Upload className="w-5 h-5" />
             </button>
           </div>
         </div>
 
         {(generatingCover || generatingFm) && (
-          <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-3 mb-4">
+          <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-3 mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-full bg-stone-200 rounded-full h-2 overflow-hidden">
+              <div className="w-full bg-[#ebebeb] rounded-full h-2 overflow-hidden">
                 <div className={`h-2 rounded-full animate-progress ${generatingCover ? 'bg-purple-500' : 'bg-amber-500'}`} style={{ width: '100%' }} />
               </div>
-              <span className="text-sm text-stone-600 whitespace-nowrap">{generatingCover ? 'AI 生成封面中...' : 'AI 生成 Frontmatter 中...'}</span>
+              <span className="text-sm text-[#52525b] whitespace-nowrap">{generatingCover ? 'AI 生成封面中...' : 'AI 生成 Frontmatter 中...'}</span>
             </div>
           </div>
         )}
 
         {/* TTS 语音播报参数面板 + 进度 */}
         {ttsAvailable && (
-          <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-3 mb-4">
+          <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-3 mb-4">
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-sm font-medium text-stone-700">语音播报</span>
+              <span className="text-sm font-medium text-[#3f3f46]">语音播报</span>
               {ttsVoices.length > 0 && (
-                <select value={ttsVoice} onChange={(e) => setTtsVoice(e.target.value)} className="px-2 py-1 border border-stone-300 rounded-lg text-sm" disabled={generatingTts}>
+                <select value={ttsVoice} onChange={(e) => setTtsVoice(e.target.value)} className="px-2 py-1 border border-[#e4e4e7] rounded-lg text-sm" disabled={generatingTts}>
                   {ttsVoices.map((v) => (<option key={v} value={v}>{v}</option>))}
                 </select>
               )}
-              <label className="flex items-center gap-2 text-sm text-stone-600">
+              <label className="flex items-center gap-2 text-sm text-[#52525b]">
                 语速
                 <input type="range" min={0.5} max={2} step={0.1} value={ttsSpeed} onChange={(e) => setTtsSpeed(parseFloat(e.target.value))} disabled={generatingTts} className="w-28" />
                 <span className="font-mono w-8">{ttsSpeed.toFixed(1)}</span>
               </label>
-              <button onClick={generateSpeech} disabled={generatingTts || !currentFile} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <button onClick={generateSpeech} disabled={generatingTts || !currentFile} className="btn btn-primary">
                 {audioUrl ? '重新生成' : '生成语音'}
               </button>
               {audioUrl && !generatingTts && (
-                <button onClick={deleteSpeech} className="px-3 py-1 border border-stone-300 text-stone-600 rounded-lg text-sm hover:bg-stone-50 transition-colors">删除</button>
+                <button onClick={deleteSpeech} className="btn btn-ghost">删除</button>
               )}
             </div>
             {generatingTts && (
               <div className="flex items-center gap-3 mt-3">
-                <div className="w-full bg-stone-200 rounded-full h-2 overflow-hidden">
+                <div className="w-full bg-[#ebebeb] rounded-full h-2 overflow-hidden">
                   <div className="h-2 rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.min(100, ttsProgress?.percent || 0)}%` }} />
                 </div>
-                <span className="text-sm text-stone-600 whitespace-nowrap">{ttsProgress?.message || ttsProgress?.stage || '生成中...'}</span>
+                <span className="text-sm text-[#52525b] whitespace-nowrap">{ttsProgress?.message || ttsProgress?.stage || '生成中...'}</span>
               </div>
             )}
             {audioUrl && !generatingTts && (
@@ -945,8 +927,8 @@ export default function Editor() {
         {showImageManager && (
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-stone-900">图片管理</h3>
-              <label className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg cursor-pointer transition-colors">
+              <h3 className="font-semibold text-zinc-900">图片管理</h3>
+              <label className="btn btn-primary cursor-pointer">
                 <input type="file" onChange={uploadImage} accept="image/*" className="hidden" />
                 上传图片
               </label>
@@ -958,24 +940,24 @@ export default function Editor() {
                 const imgSrc = isRemoteUrl ? image.url : `/content/${articleDir}${image.url}`;
                 return (
                   <div key={image.name} className="relative group">
-                    <img src={imgSrc} alt={image.name} className="w-full h-32 object-cover rounded border border-stone-200" />
+                    <img src={imgSrc} alt={image.name} className="w-full h-32 object-cover rounded border border-[#e4e4e7]" />
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center z-10">
-                      <button onClick={() => copyImageUrl(image.url)} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded shadow-lg">
+                      <button onClick={() => copyImageUrl(image.url)} className="btn btn-primary btn-sm shadow-lg">
                         复制链接
                       </button>
                     </div>
-                    <div className="mt-1 text-xs text-stone-600 truncate">{image.name}</div>
+                    <div className="mt-1 text-xs text-[#52525b] truncate">{image.name}</div>
                   </div>
                 );
               })}
             </div>
-            {images.length === 0 && <p className="text-stone-500 text-center py-8">暂无图片，点击"上传图片"开始上传</p>}
+            {images.length === 0 && <p className="text-[#52525b] text-center py-8">暂无图片，点击"上传图片"开始上传</p>}
           </div>
         )}
       </div>
 
       {/* Markdown 工具栏 */}
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-3 mb-4">
+      <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-3 mb-4">
         <div className="flex flex-wrap gap-2">
           <button onClick={() => insertMarkdown('bold')} className="toolbar-btn" title="加粗 (Ctrl+B)">
             <Bold className="w-4 h-4" />
@@ -986,7 +968,7 @@ export default function Editor() {
           <button onClick={() => insertMarkdown('heading')} className="toolbar-btn" title="标题">
             <Heading className="w-4 h-4" />
           </button>
-          <span className="border-l border-stone-300 mx-1" />
+          <span className="border-l border-[#d4d4d8] mx-1" />
           <button onClick={() => insertMarkdown('link')} className="toolbar-btn" title="链接">
             <Link2 className="w-4 h-4" />
           </button>
@@ -996,7 +978,7 @@ export default function Editor() {
           <button onClick={() => insertMarkdown('image')} className="toolbar-btn" title="图片">
             <Image className="w-4 h-4" />
           </button>
-          <span className="border-l border-stone-300 mx-1" />
+          <span className="border-l border-[#d4d4d8] mx-1" />
           <button onClick={() => insertMarkdown('ul')} className="toolbar-btn" title="无序列表">
             <List className="w-4 h-4" />
           </button>
@@ -1016,17 +998,17 @@ export default function Editor() {
       </div>
 
       {/* 编辑器和预览 */}
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-4">
+      <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ height: 'calc(100vh - 380px)', minHeight: '500px' }}>
           <div className="flex flex-col">
-            <div className="text-sm font-medium text-stone-700 mb-2">编辑器</div>
+            <div className="text-sm font-medium text-[#3f3f46] mb-2">编辑器</div>
             <textarea
               ref={textareaRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onPaste={handlePaste}
               placeholder="在此输入 Markdown 内容..."
-              className="flex-1 w-full font-mono text-sm p-4 border border-stone-200 rounded-lg bg-white resize-none focus:ring-2 focus:ring-stone-400 focus:border-transparent outline-none"
+              className="flex-1 w-full font-mono text-sm p-4 border border-[#e4e4e7] rounded-lg bg-white resize-none focus:ring-2 focus:ring-[#d4d4d8] focus:border-transparent outline-none"
               style={{ lineHeight: 1.6 }}
             />
             <InlineEditOverlay
@@ -1037,8 +1019,8 @@ export default function Editor() {
             />
           </div>
           <div className="flex flex-col">
-            <div className="text-sm font-medium text-stone-700 mb-2">预览</div>
-            <div className="flex-1 overflow-y-auto p-4 border border-stone-200 rounded-lg bg-white">
+            <div className="text-sm font-medium text-[#3f3f46] mb-2">预览</div>
+            <div className="flex-1 overflow-y-auto p-4 border border-[#e4e4e7] rounded-lg bg-white">
               {previewEl}
             </div>
           </div>
@@ -1051,14 +1033,14 @@ export default function Editor() {
           <div className="fixed inset-0 bg-black/30 z-[55]" onClick={() => setShowFrontmatterDrawer(false)} />
           <div className="fixed top-0 right-0 w-[420px] max-w-[90vw] h-screen bg-white shadow-xl z-[60] overflow-y-auto flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-medium text-stone-900">Frontmatter</h3>
-              <button onClick={() => setShowFrontmatterDrawer(false)} className="text-stone-400 hover:text-stone-600">
+              <h3 className="text-lg font-medium text-zinc-900">Frontmatter</h3>
+              <button onClick={() => setShowFrontmatterDrawer(false)} className="text-[#9ca3a8] hover:text-zinc-900">
                 <X className="w-6 h-6" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {(fmEdit.cover || fmEdit.image) && (
-                <div className="relative rounded-lg overflow-hidden border border-stone-200">
+                <div className="relative rounded-lg overflow-hidden border border-[#e4e4e7]">
                   <img
                     src={`/content/${currentFile.replace(/[^/]+$/, '')}${fmEdit.image || fmEdit.cover}`}
                     alt="封面图片"
@@ -1069,18 +1051,18 @@ export default function Editor() {
                       const url = fmEdit.image || fmEdit.cover || '';
                       navigator.clipboard.writeText(url);
                     }}
-                    className="absolute bottom-2 right-2 px-2 py-1 bg-black/60 text-white text-xs rounded hover:bg-black/80 transition-colors"
+                    className="absolute bottom-2 right-2 btn btn-sm btn-primary"
                   >
                     复制路径
                   </button>
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">title</label>
-                <input type="text" value={fmEdit.title || ''} onChange={(e) => setFmEdit({ ...fmEdit, title: e.target.value })} placeholder="文章标题" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">title</label>
+                <input type="text" value={fmEdit.title || ''} onChange={(e) => setFmEdit({ ...fmEdit, title: e.target.value })} placeholder="文章标题" className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">date</label>
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">date</label>
                 <input
                   type="datetime-local"
                   value={fmDateLocal}
@@ -1088,40 +1070,40 @@ export default function Editor() {
                     setFmDateLocal(e.target.value);
                     setFmEdit({ ...fmEdit, date: e.target.value ? e.target.value.replace('T', ' ') + ':00+08:00' : '' });
                   }}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400"
+                  className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">draft</label>
-                <select value={fmEdit.draft || 'true'} onChange={(e) => setFmEdit({ ...fmEdit, draft: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400">
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">draft</label>
+                <select value={fmEdit.draft || 'true'} onChange={(e) => setFmEdit({ ...fmEdit, draft: e.target.value })} className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]">
                   <option value="true">true (草稿)</option>
                   <option value="false">false (已发布)</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">tags (逗号分隔)</label>
-                <input type="text" value={fmTagsStr} onChange={(e) => setFmTagsStr(e.target.value)} placeholder="tag1, tag2" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">tags (逗号分隔)</label>
+                <input type="text" value={fmTagsStr} onChange={(e) => setFmTagsStr(e.target.value)} placeholder="tag1, tag2" className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">categories (逗号分隔)</label>
-                <input type="text" value={fmCategoriesStr} onChange={(e) => setFmCategoriesStr(e.target.value)} placeholder="cat1, cat2" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">categories (逗号分隔)</label>
+                <input type="text" value={fmCategoriesStr} onChange={(e) => setFmCategoriesStr(e.target.value)} placeholder="cat1, cat2" className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">cover</label>
-                <input type="text" value={fmEdit.cover || ''} onChange={(e) => setFmEdit({ ...fmEdit, cover: e.target.value })} placeholder="封面图片路径" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">cover</label>
+                <input type="text" value={fmEdit.cover || ''} onChange={(e) => setFmEdit({ ...fmEdit, cover: e.target.value })} placeholder="封面图片路径" className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">image</label>
-                <input type="text" value={fmEdit.image || ''} onChange={(e) => setFmEdit({ ...fmEdit, image: e.target.value })} placeholder="封面图片路径 (Hugo theme)" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">image</label>
+                <input type="text" value={fmEdit.image || ''} onChange={(e) => setFmEdit({ ...fmEdit, image: e.target.value })} placeholder="封面图片路径 (Hugo theme)" className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">description</label>
-                <input type="text" value={fmEdit.description || ''} onChange={(e) => setFmEdit({ ...fmEdit, description: e.target.value })} placeholder="文章描述" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-stone-400" />
+                <label className="block text-sm font-medium text-[#3f3f46] mb-1">description</label>
+                <input type="text" value={fmEdit.description || ''} onChange={(e) => setFmEdit({ ...fmEdit, description: e.target.value })} placeholder="文章描述" className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg text-sm focus:ring-2 focus:ring-[#d4d4d8]" />
               </div>
               <div className="border-t pt-4">
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-semibold text-stone-600">其他字段</label>
-                  <button onClick={() => setFmExtraFields([...fmExtraFields, { key: '', value: '' }])} className="text-sm text-blue-600 hover:text-blue-700">+ 添加字段</button>
+                  <label className="text-sm font-semibold text-[#52525b]">其他字段</label>
+                  <button onClick={() => setFmExtraFields([...fmExtraFields, { key: '', value: '' }])} className="btn btn-ghost btn-sm">+ 添加字段</button>
                 </div>
                 {fmExtraFields.map((field, i) => (
                   <div key={i} className="flex items-center space-x-2 mb-2">
@@ -1143,8 +1125,8 @@ export default function Editor() {
               </div>
             </div>
             <div className="p-4 border-t flex justify-end space-x-2">
-              <button onClick={() => setShowFrontmatterDrawer(false)} className="px-4 py-2 border border-stone-300 rounded-lg text-stone-700 hover:bg-stone-50">取消</button>
-              <button onClick={applyFrontmatter} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">应用</button>
+              <button onClick={() => setShowFrontmatterDrawer(false)} className="btn btn-ghost">取消</button>
+              <button onClick={applyFrontmatter} className="btn btn-primary">应用</button>
             </div>
           </div>
         </>
@@ -1161,29 +1143,29 @@ export default function Editor() {
                 value={refSearchQuery}
                 onChange={(e) => { setRefSearchQuery(e.target.value); searchRefs(); }}
                 placeholder="输入关键词搜索文章..."
-                className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400 outline-none"
+                className="w-full px-4 py-2 border border-[#e4e4e7] rounded-lg focus:ring-2 focus:ring-[#d4d4d8] outline-none"
                 autoFocus
               />
             </div>
             <div className="max-h-80 overflow-y-auto">
               {refSearchResults.map((item) => (
-                <div key={item.path} onClick={() => insertRef(item)} className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-stone-100 flex items-center gap-3">
+                <div key={item.path} onClick={() => insertRef(item)} className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-[#e4e4e7] flex items-center gap-3">
                   <span className="text-blue-500 text-lg">🔗</span>
                   <div className="min-w-0">
-                    <div className="font-medium text-stone-800 truncate">{item.title || '(无标题)'}</div>
-                    <div className="text-sm text-stone-400 truncate">{item.path}</div>
+                    <div className="font-medium text-zinc-900 truncate">{item.title || '(无标题)'}</div>
+                    <div className="text-sm text-[#9ca3a8] truncate">{item.path}</div>
                   </div>
                 </div>
               ))}
               {refSearchQuery && refSearchResults.length === 0 && (
-                <div className="p-6 text-center text-stone-400">未找到匹配的文章</div>
+                <div className="p-6 text-center text-[#9ca3a8]">未找到匹配的文章</div>
               )}
               {!refSearchQuery && (
-                <div className="p-6 text-center text-stone-400">输入关键词开始搜索</div>
+                <div className="p-6 text-center text-[#9ca3a8]">输入关键词开始搜索</div>
               )}
             </div>
-            <div className="p-3 border-t bg-stone-50 flex justify-end">
-              <button onClick={() => setShowRefModal(false)} className="px-4 py-2 text-stone-600 hover:text-stone-800">取消</button>
+            <div className="p-3 border-t bg-[#f4f4f5] flex justify-end">
+              <button onClick={() => setShowRefModal(false)} className="btn btn-ghost">取消</button>
             </div>
           </div>
         </div>
@@ -1195,17 +1177,17 @@ export default function Editor() {
           <div className="fixed inset-0 bg-black/30 z-[55]" onClick={() => setShowBacklinks(false)} />
           <div className="fixed top-0 right-0 w-[380px] max-w-[90vw] h-screen bg-white shadow-xl z-[60] overflow-y-auto flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-medium text-stone-900">反向链接</h3>
-              <button onClick={() => setShowBacklinks(false)} className="text-stone-400 hover:text-stone-600">
+              <h3 className="text-lg font-medium text-zinc-900">反向链接</h3>
+              <button onClick={() => setShowBacklinks(false)} className="text-[#9ca3a8] hover:text-zinc-900">
                 <X className="w-6 h-6" />
               </button>
             </div>
-            {backlinks.length === 0 && <div className="p-4 text-sm text-stone-500">暂无其他文章引用本文</div>}
+            {backlinks.length === 0 && <div className="p-4 text-sm text-[#52525b]">暂无其他文章引用本文</div>}
             {backlinks.map((bl) => (
-              <Link key={bl.path} to={`/editor/${bl.path}`} target="_blank" className="block p-4 border-b border-stone-100 hover:bg-stone-50 transition-colors">
-                <div className="font-medium text-stone-900">{bl.title || '(无标题)'}</div>
-                <div className="text-xs text-stone-400">{bl.path}</div>
-                {bl.context && <div className="text-xs text-stone-500 bg-stone-100 p-2 rounded mt-2">{bl.context}</div>}
+              <Link key={bl.path} to={`/editor/${bl.path}`} target="_blank" className="block p-4 border-b border-[#e4e4e7] hover:bg-[#f4f4f5] transition-colors">
+                <div className="font-medium text-zinc-900">{bl.title || '(无标题)'}</div>
+                <div className="text-xs text-[#9ca3a8]">{bl.path}</div>
+                {bl.context && <div className="text-xs text-[#52525b] bg-[#f4f4f5] p-2 rounded mt-2">{bl.context}</div>}
               </Link>
             ))}
           </div>
@@ -1217,7 +1199,7 @@ export default function Editor() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-8 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4" />
-            <p className="text-stone-700">加载中...</p>
+            <p className="text-[#3f3f46]">加载中...</p>
           </div>
         </div>
       )}

@@ -6,35 +6,167 @@
   --font-size-base: 1.0625rem;
 }
 
-/* ===== Design System Tokens ===== */
+/* ===== Design System Tokens（对齐 docs/design/admin-redesign-preview.html） ===== */
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-size: 1.0625rem;
-  line-height: 1.625;
-  color: #292524;
-  background-color: #fafaf9;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #18181b;
+  background-color: #fafafa;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ===== Typography ===== */
-/* Page titles: text-3xl font-medium tracking-tight -> editorial serif feel */
-/* Section titles: text-xl font-medium */
-/* Body: text-base leading-relaxed tracking-wide */
-/* Caption: text-sm text-stone-500 */
-/* Mono metadata: font-mono text-sm text-stone-600 */
+/* 键盘提示键帽 */
+.kbd {
+  font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: #9ca3a8;
+  background: #fff;
+  border: 1px solid #e4e4e7;
+  border-bottom-color: #d4d4d8;
+  border-radius: 4px;
+  padding: 1px 5px;
+  line-height: 1.4;
+}
 
-/* ===== Sidebar ===== */
-/* bg-stone-900, text-stone-400, active: bg-stone-800 text-stone-100, w-64 */
+/* 状态圆点(带脉冲) */
+.dot-pulse {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 999px;
+  background: #22c55e;
+}
+.dot-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: inherit;
+  animation: dotPulse 2.2s ease-out infinite;
+}
+.dot-pulse.is-off {
+  background: #9ca3a8;
+}
+@keyframes dotPulse {
+  0% { transform: scale(1); opacity: 0.7; }
+  70%, 100% { transform: scale(2.4); opacity: 0; }
+}
 
-/* ===== Cards ===== */
-/* p-6, ring-1 ring-stone-900/5, rounded-md, bg-white */
+/* 卡片入场 */
+.animate-rise {
+  animation: rise 0.35s ease both;
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+}
 
-/* ===== Buttons ===== */
-/* Primary: bg-stone-800 hover:bg-stone-700 text-white rounded-md */
-/* Ghost: border border-stone-300 text-stone-700 hover:bg-stone-50 rounded-md */
+/* ===== 组件层(对齐 Tailwind v4 分层,工具类可正常覆盖) ===== */
+@layer components {
+  /* 按钮规范(对齐原型 .btn-primary/.btn-ghost):
+     <button className="btn btn-primary"> / className="btn btn-ghost" */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    border: 0;
+    transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: #18181b;
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: #2e2e33;
+  }
+  .btn-ghost {
+    background: #fff;
+    border: 1px solid #e4e4e7;
+    color: #18181b;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: #f4f4f5;
+  }
+  .btn-danger {
+    background: #dc2626;
+    color: #fff;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: #b91c1c;
+  }
+  /* 小号:28px 高,用于卡片内行级操作 */
+  .btn-sm {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12.5px;
+    border-radius: 6px;
+    gap: 5px;
+  }
+  /* 深色面上的 ghost(如日志面板头部) */
+  .btn-ghost-dark {
+    background: rgb(255 255 255 / 0.1);
+    color: rgb(255 255 255 / 0.82);
+  }
+  .btn-ghost-dark:hover:not(:disabled) {
+    background: rgb(255 255 255 / 0.18);
+  }
+
+  /* 按钮内图标默认尺寸(无显式尺寸类的裸图标兜底;utilities 层仍可覆盖) */
+  .btn svg {
+    width: 15px;
+    height: 15px;
+    flex: none;
+  }
+  .btn-sm svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  /* 页面头(语义钩子,样式由内部元素承担) */
+  .page-head {
+    margin: 0;
+  }
+}
+
+/* 应用 Toast(底部居中深色胶囊) */
+.app-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  z-index: 60;
+  transform: translate(-50%, 8px);
+  background: #18181b;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 9px 16px;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(24 24 24 / 0.2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.app-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
 
 /* ===== Scrollbar ===== */
 ::-webkit-scrollbar {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, RefreshCw, Plus, Upload, FileUp, Tag, FolderOpen, Calendar, Clock, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { toast } from '../utils/toast';
 import { get, post, uploadMarkdown } from '../utils/api';
 import { useEvents } from '../hooks/useEvents';
 import type { Post, PostsResponse, Tag as TagType, Category } from '../types';
@@ -99,9 +100,9 @@ export default function Posts() {
     try {
       await post('/api/cache/refresh');
       await loadPosts();
-      showNotification('缓存刷新成功', 'success');
+      toast('缓存刷新成功');
     } catch {
-      showNotification('刷新失败', 'error');
+      toast('刷新失败');
     } finally {
       setRefreshing(false);
     }
@@ -113,13 +114,13 @@ export default function Posts() {
     try {
       const data = await post<{ success: boolean; path?: string; message?: string }>('/api/post/create', { title });
       if (data.success && data.path) {
-        showNotification('文章创建成功', 'success');
+        toast('文章创建成功');
         setTimeout(() => navigate(`/editor/${data.path}`), 1000);
       } else {
-        showNotification('创建失败: ' + (data.message || ''), 'error');
+        toast('创建失败: ' + (data.message || ''));
       }
     } catch {
-      showNotification('创建失败', 'error');
+      toast('创建失败');
     }
   }
 
@@ -138,13 +139,13 @@ export default function Posts() {
     if (!socket) return;
     const onDone = (payload: { scope?: string; url?: string }) => {
       if (scope && payload.scope && payload.scope !== scope) return;
-      showNotification('封面已生成', 'success');
+      toast('封面已生成');
       socket.off('article_import.cover_done', onDone);
       socket.off('article_import.cover_failed', onFail);
     };
     const onFail = (payload: { scope?: string; message?: string }) => {
       if (scope && payload.scope && payload.scope !== scope) return;
-      showNotification('封面生成失败：' + (payload.message || ''), 'warning');
+      toast('封面生成失败：' + (payload.message || ''));
       socket.off('article_import.cover_done', onDone);
       socket.off('article_import.cover_failed', onFail);
     };
@@ -159,7 +160,7 @@ export default function Posts() {
     if (!file) return;
 
     if (!/\.(md|markdown)$/i.test(file.name)) {
-      showNotification('请选择 .md / .markdown 文件', 'error');
+      toast('请选择 .md / .markdown 文件');
       return;
     }
 
@@ -170,21 +171,21 @@ export default function Posts() {
         await loadPosts();
         const hasWarnings = (data.warnings?.length ?? 0) > 0;
         if (hasWarnings) {
-          showNotification('导入完成（部分步骤跳过）：' + (data.warnings ?? []).join('；'), 'warning');
+          toast('导入完成（部分步骤跳过）：' + (data.warnings ?? []).join('；'));
         }
         if (data.cover_pending) {
-          showNotification('文章已导入，封面后台生成中…', 'info');
+          toast('文章已导入，封面后台生成中…');
           subscribeCoverProgress(data.event_scope);
         } else if (!hasWarnings) {
-          showNotification('导入成功', 'success');
+          toast('导入成功');
         }
         const path = data.path;
         setTimeout(() => navigate(`/editor/${path}`), 1200);
       } else {
-        showNotification('导入失败: ' + (data.message || ''), 'error');
+        toast('导入失败: ' + (data.message || ''));
       }
     } catch {
-      showNotification('导入失败', 'error');
+      toast('导入失败');
     } finally {
       setImporting(false);
     }
@@ -216,32 +217,25 @@ export default function Posts() {
       const result = await post<{ success: boolean; results?: Array<{ path: string; success: boolean; message?: string }>; message?: string }>('/api/article/publish/bulk', { file_paths });
       if (result.success && result.results) {
         const successCount = result.results.filter((r) => r.success).length;
-        showNotification(`批量发布完成：${successCount}/${file_paths.length} 成功`, 'success');
+        toast(`批量发布完成：${successCount}/${file_paths.length} 成功`);
         await loadPosts();
         setSelectedPosts(new Set());
         setSelectAll(false);
       } else {
-        showNotification('批量发布失败: ' + result.message, 'error');
+        toast('批量发布失败: ' + result.message);
       }
     } catch {
-      showNotification('批量发布失败', 'error');
+      toast('批量发布失败');
     } finally {
       setBulkPublishing(false);
     }
   }
 
-  function showNotification(message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 fade-in ${
-      type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-    } text-white`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 3000);
-  }
-
   return (
     <div>
+      <div className="page-head">
+        <h1 className="m-0 text-[22px] font-semibold tracking-[-0.02em]">文章管理</h1>
+      </div>
       <input
         type="file"
         accept=".md,.markdown"
@@ -250,27 +244,27 @@ export default function Posts() {
         className="hidden"
       />
       {/* 搜索和筛选 */}
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6 mb-6">
+      <div className="mt-6 rounded-[10px] border border-[#e4e4e7] bg-white p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-stone-700 mb-2">搜索</label>
+            <label className="block text-sm font-medium text-[#3f3f46] mb-2">搜索</label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-stone-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#9ca3a8]" />
               <input
                 type="text"
                 value={filters.query}
                 onChange={(e) => updateFilter('query', e.target.value)}
                 placeholder="搜索标题、内容、标签..."
-                className="w-full pl-10 pr-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-[#e4e4e7] rounded-lg focus:ring-2 focus:ring-[#d4d4d8] focus:border-transparent"
               />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-stone-700 mb-2">分类</label>
+            <label className="block text-sm font-medium text-[#3f3f46] mb-2">分类</label>
             <select
               value={filters.category}
               onChange={(e) => updateFilter('category', e.target.value)}
-              className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400"
+              className="w-full px-4 py-2 border border-[#e4e4e7] rounded-lg focus:ring-2 focus:ring-[#d4d4d8]"
             >
               <option value="">全部分类</option>
               {categories.map((cat) => (
@@ -281,11 +275,11 @@ export default function Posts() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-stone-700 mb-2">标签</label>
+            <label className="block text-sm font-medium text-[#3f3f46] mb-2">标签</label>
             <select
               value={filters.tag}
               onChange={(e) => updateFilter('tag', e.target.value)}
-              className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400"
+              className="w-full px-4 py-2 border border-[#e4e4e7] rounded-lg focus:ring-2 focus:ring-[#d4d4d8]"
             >
               <option value="">全部标签</option>
               {tags.map((tag) => (
@@ -299,46 +293,46 @@ export default function Posts() {
       </div>
 
       {/* 文章列表 */}
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5">
+      <div className="rounded-[10px] border border-[#e4e4e7] bg-white">
         {loading ? (
           <div className="p-12 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
-            <p className="mt-4 text-stone-600">加载中...</p>
+            <p className="mt-4 text-[#52525b]">加载中...</p>
           </div>
         ) : (
           <div>
-            <div className="px-6 py-4 border-b border-stone-200">
+            <div className="px-6 py-4 border-b border-[#e4e4e7]">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-lg font-medium">共 {pagination.total} 篇文章</h3>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={refreshCache}
                     disabled={refreshing}
-                    className="px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors disabled:opacity-50 flex items-center"
+                    className="btn btn-ghost"
                   >
-                    <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
                     {refreshing ? '刷新中...' : '刷新缓存'}
                   </button>
                   <button
                     onClick={handleUploadClick}
                     disabled={importing}
-                    className="px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors disabled:opacity-50 flex items-center"
+                    className="btn btn-ghost"
                   >
-                    <FileUp className={`w-4 h-4 mr-2 ${importing ? 'animate-spin' : ''}`} />
+                    <FileUp className={`w-4 h-4 ${importing ? 'animate-spin' : ''}`} />
                     {importing ? '导入中...' : '上传 Markdown'}
                   </button>
                   <button
                     onClick={createNewPost}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                    className="btn btn-primary"
                   >
-                    <Plus className="w-4 h-4 mr-2" />
+                    <Plus className="w-4 h-4" />
                     新建文章
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-4 px-6 py-3 border-b border-stone-200">
+            <div className="flex items-center gap-4 px-6 py-3 border-b border-[#e4e4e7]">
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -346,38 +340,38 @@ export default function Posts() {
                   checked={selectAll}
                   onChange={toggleSelectAll}
                   disabled={posts.length === 0}
-                  className="w-4 h-4 border-stone-300 rounded text-blue-600 focus:ring-2 focus:ring-stone-400"
+                  className="w-4 h-4 border-[#e4e4e7] rounded text-blue-600 focus:ring-2 focus:ring-[#d4d4d8]"
                 />
-                <label htmlFor="select-all" className="text-sm font-medium text-stone-700 cursor-pointer">
+                <label htmlFor="select-all" className="text-sm font-medium text-[#3f3f46] cursor-pointer">
                   全选 ({selectedPosts.size} / {posts.length})
                 </label>
               </div>
               <button
                 onClick={bulkPublish}
                 disabled={selectedPosts.size === 0 || bulkPublishing}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                className="btn btn-primary"
               >
-                <Upload className="w-4 h-4 mr-2" />
+                <Upload className="w-4 h-4" />
                 {bulkPublishing ? '批量发布中...' : `批量发布 (${selectedPosts.size})`}
               </button>
             </div>
 
-            <div className="divide-y divide-stone-200">
+            <div className="divide-y divide-[#e4e4e7]">
               {posts.length === 0 && (
-                <div className="p-12 text-center text-stone-500">
-                  <FileText className="w-16 h-16 mb-4 text-stone-400 mx-auto" />
+                <div className="p-12 text-center text-[#52525b]">
+                  <FileText className="w-16 h-16 mb-4 text-[#9ca3a8] mx-auto" />
                   <p>未找到文章</p>
                 </div>
               )}
               {posts.map((post) => (
-                <div key={post.path} className="p-6 hover:bg-stone-50 transition-colors">
+                <div key={post.path} className="p-6 hover:bg-[#f4f4f5] transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-shrink-0 mr-4 pt-1">
                       <input
                         type="checkbox"
                         checked={selectedPosts.has(post.path)}
                         onChange={() => togglePostSelection(post.path)}
-                        className="w-4 h-4 border-stone-300 rounded text-blue-600 focus:ring-2 focus:ring-stone-400"
+                        className="w-4 h-4 border-[#e4e4e7] rounded text-blue-600 focus:ring-2 focus:ring-[#d4d4d8]"
                       />
                     </div>
                     {post.cover_url && (
@@ -385,17 +379,17 @@ export default function Posts() {
                         <img
                           src={post.cover_url}
                           alt={post.title}
-                          className="w-24 h-16 object-cover rounded-lg bg-stone-100"
+                          className="w-24 h-16 object-cover rounded-lg bg-[#f4f4f5]"
                           onError={(e) => (e.currentTarget.style.display = 'none')}
                         />
                       </Link>
                     )}
                     <div className="flex-1 min-w-0">
                       <Link to={`/editor/${post.path}`} className="block">
-                        <h4 className="text-lg font-medium text-stone-900 hover:text-blue-600 mb-2">{post.title}</h4>
+                        <h4 className="text-lg font-medium text-zinc-900 hover:text-blue-600 mb-2">{post.title}</h4>
                       </Link>
-                      <p className="text-stone-600 text-sm mb-3 line-clamp-2">{post.description || post.excerpt}</p>
-                      <div className="flex flex-wrap items-center gap-4 text-sm text-stone-500">
+                      <p className="text-[#52525b] text-sm mb-3 line-clamp-2">{post.description || post.excerpt}</p>
+                      <div className="flex flex-wrap items-center gap-4 text-sm text-[#52525b]">
                         <span className="flex items-center">
                           <Calendar className="w-4 h-4 mr-1" />
                           {post.date}
@@ -422,7 +416,7 @@ export default function Posts() {
                       {post.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {post.tags.map((tag) => (
-                            <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-stone-100 text-stone-600">
+                            <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-[#f4f4f5] text-[#52525b]">
                               <Tag className="w-3 h-3 mr-1" />
                               {tag}
                             </span>
@@ -445,11 +439,11 @@ export default function Posts() {
       {pagination.total > 0 && (
         <nav
           aria-label="分页"
-          className="bg-white rounded-md ring-1 ring-stone-900/5 px-6 py-3 mt-6 flex items-center justify-between flex-wrap gap-3"
+          className="rounded-[10px] border border-[#e4e4e7] bg-white px-6 py-3 mt-6 flex items-center justify-between flex-wrap gap-3"
         >
-          <div className="text-sm text-stone-500">
-            第 <span className="font-medium text-stone-700">{pagination.page}</span> / {pagination.total_pages} 页
-            <span className="mx-2 text-stone-300">·</span>
+          <div className="text-sm text-[#52525b]">
+            第 <span className="font-medium text-[#3f3f46]">{pagination.page}</span> / {pagination.total_pages} 页
+            <span className="mx-2 text-[#d4d4d8]">·</span>
             共 {pagination.total} 篇
           </div>
           <div className="flex items-center gap-1">
@@ -457,7 +451,7 @@ export default function Posts() {
               type="button"
               onClick={prevPage}
               disabled={!pagination.has_prev || loading}
-              className="px-3 py-1.5 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center"
+              className="px-3 py-1.5 border border-[#e4e4e7] text-[#3f3f46] rounded-lg hover:bg-[#f4f4f5] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center"
               aria-label="上一页"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -466,7 +460,7 @@ export default function Posts() {
               item === '…' ? (
                 <span
                   key={`ellipsis-${idx}`}
-                  className="px-2 text-stone-400 select-none"
+                  className="px-2 text-[#9ca3a8] select-none"
                   aria-hidden="true"
                 >
                   …
@@ -481,7 +475,7 @@ export default function Posts() {
                   className={
                     item === pagination.page
                       ? 'px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium cursor-default'
-                      : 'px-3 py-1.5 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors disabled:opacity-50'
+                      : 'px-3 py-1.5 border border-[#e4e4e7] text-[#3f3f46] rounded-lg hover:bg-[#f4f4f5] transition-colors disabled:opacity-50'
                   }
                 >
                   {item}
@@ -492,7 +486,7 @@ export default function Posts() {
               type="button"
               onClick={nextPage}
               disabled={!pagination.has_next || loading}
-              className="px-3 py-1.5 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center"
+              className="px-3 py-1.5 border border-[#e4e4e7] text-[#3f3f46] rounded-lg hover:bg-[#f4f4f5] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center"
               aria-label="下一页"
             >
               <ChevronRight className="w-4 h-4" />
