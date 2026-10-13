@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/svtter/hugo-admin/internal/frontmatter"
 )
 
 func seedPublishFixture(t *testing.T) string {
@@ -118,5 +120,56 @@ func TestBulkPublishArticles(t *testing.T) {
 	}
 	if results[1]["success"] != false || results[1]["message"] == nil || results[1]["published_at"] != nil {
 		t.Fatalf("results[1] = %#v", results[1])
+	}
+}
+
+func TestPublishArticleTOML(t *testing.T) {
+	// 回归：+++ 草稿发布后应保持 TOML 格式且 draft 切换正确
+	dir := t.TempDir()
+	path := filepath.Join(dir, "post", "toml-draft.md")
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	if err := os.WriteFile(path,
+		[]byte("+++\ntitle = \"TOML 草稿\"\ndraft = true\ntags = [\"emoji\"]\n+++\n\n草稿正文\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ok, msg, _ := PublishArticle(dir, "post/toml-draft.md")
+	if !ok || msg != "文章发布成功" {
+		t.Fatalf("publish = %v %q", ok, msg)
+	}
+	data, _ := os.ReadFile(path)
+	text := string(data)
+	if !strings.HasPrefix(text, "+++\n") {
+		t.Fatalf("发布后应保持 +++ 格式:\n%s", text)
+	}
+	doc, err := frontmatter.Parse(data)
+	if err != nil {
+		t.Fatalf("re-parse: %v (%q)", err, text)
+	}
+	if doc.Metadata["draft"] != false || !doc.TOML {
+		t.Fatalf("metadata = %#v", doc.Metadata)
+	}
+	if doc.Metadata["title"] != "TOML 草稿" || !strings.Contains(text, "emoji") {
+		t.Fatalf("metadata 丢失: %q", text)
+	}
+}
+
+func TestPublishArticleDegradedTOML(t *testing.T) {
+	// 形似 +++ 的降级文档：明确报错，不误报"已发布"，文件不动
+	dir := t.TempDir()
+	path := filepath.Join(dir, "post", "deg.md")
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	original := "+++\n这是正文开头的一行\n+++\n继续正文\n"
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ok, msg, _ := PublishArticle(dir, "post/deg.md")
+	if ok || msg != "发布失败: 文件没有合法的 frontmatter" {
+		t.Fatalf("publish = %v %q", ok, msg)
+	}
+	data, _ := os.ReadFile(path)
+	if string(data) != original {
+		t.Fatalf("降级文档被改动:\n got %q\nwant %q", data, original)
 	}
 }

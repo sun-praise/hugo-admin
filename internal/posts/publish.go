@@ -57,6 +57,10 @@ func PublishArticle(contentDir, filePath string) (bool, string, string) {
 		if err != nil {
 			return false, fmt.Sprintf("发布操作失败: %v", err)
 		}
+		if doc.Degraded {
+			// 形似 +++ 但无合法 frontmatter：明确报错而非误导性的"已发布"
+			return false, "发布失败: 文件没有合法的 frontmatter"
+		}
 		draft, _ := doc.Metadata["draft"].(bool)
 		if !draft {
 			return false, "文章已经发布"

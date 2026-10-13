@@ -14,4 +14,10 @@ export default defineConfig({
     // from the app side. Every app-owned chunk stays under the default 500 kB.
     chunkSizeWarningLimit: 700,
   },
+  server: {
+    // pnpm dev 时把 /api（含 SSE）代理到本地 Go 服务,无需先构建再由 Go 托管
+    proxy: {
+      '/api': 'http://localhost:5050',
+    },
+  },
 })

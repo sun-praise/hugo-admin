@@ -36,6 +36,9 @@ type Manager struct {
 	isRunning bool
 	startedAt time.Time
 	logs      []map[string]any
+	// exited 在 monitorLogs 完成收尸（cmd.Wait 返回）后关闭，
+	// 供 Stop 等待进程退出、processAlive 判断进程已死。访问需持有 m.mu。
+	exited chan struct{}
 }
 
 func NewManager(hugoRoot, serverURL string, broker *realtime.Broker) *Manager {
@@ -88,31 +91,44 @@ func (m *Manager) Start(debug bool, themeOverride string) (bool, string) {
 	m.logs = nil
 	m.addLog(fmt.Sprintf("Hugo 服务器已启动 (PID: %d)", m.pid), "SUCCESS")
 
-	go m.monitorLogs(stdout)
+	m.exited = make(chan struct{})
+	// cmd/exited 以参数传入（Start 持锁期间创建），monitorLogs 不跨 goroutine 读 m.cmd
+	go m.monitorLogs(stdout, cmd, m.exited)
 	return true, fmt.Sprintf("Hugo 服务器已启动 (PID: %d)", m.pid)
 }
 
 // Stop 对齐 stop()：SIGTERM 优雅停止，5 秒后 SIGKILL。
 func (m *Manager) Stop() (bool, string) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	if !m.isRunning || m.cmd == nil {
+		m.mu.Unlock()
 		return false, "Hugo 服务器未运行"
 	}
+	cmd := m.cmd
+	exited := m.exited
+	m.mu.Unlock()
 
-	if m.cmd.Process != nil {
-		_ = m.cmd.Process.Signal(syscall.SIGTERM)
-		done := make(chan struct{})
-		go func() { _ = m.cmd.Wait(); close(done) }()
+	// monitorLogs 负责唯一的 cmd.Wait()（stdout EOF 后收尸），
+	// 这里经 exited 等待退出：SIGTERM 优雅停止，5 秒后 SIGKILL。
+	// 等待期间不得持有 m.mu：monitorLogs 要先拿锁写日志、收尸后才能关 exited，
+	// 持锁等待会与之互相等待而死锁。
+	if cmd.Process != nil {
+		_ = cmd.Process.Signal(syscall.SIGTERM)
 		select {
-		case <-done:
+		case <-exited:
 		case <-time.After(5 * time.Second):
-			_ = m.cmd.Process.Kill()
-			<-done
+			_ = cmd.Process.Kill()
+			<-exited
 		}
 	}
 
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// 等待期间可能已被并发处理（自动退出纠正、重复 Stop、重启了新实例），
+	// 只清理仍属于本次 Stop 的那台服务器
+	if m.cmd != cmd {
+		return true, "Hugo 服务器已停止"
+	}
 	m.addLog("Hugo 服务器已停止", "INFO")
 	m.isRunning = false
 	m.cmd = nil
@@ -164,14 +180,19 @@ func (m *Manager) processAlive() bool {
 	if m.cmd == nil || m.cmd.Process == nil || m.pid == 0 {
 		return false
 	}
-	// 已 Wait 过（monitorLogs 收尾或 Stop）→ 必定退出
-	if m.cmd.ProcessState != nil {
+	// exited 已关闭 → monitorLogs 已 Wait 收尸，进程必定退出
+	// （不再裸读 cmd.ProcessState：它与 Wait 的写入无同步）
+	select {
+	case <-m.exited:
 		return false
+	default:
 	}
 	return syscall.Kill(m.pid, 0) == nil
 }
 
-func (m *Manager) monitorLogs(stdout io.Reader) {
+// monitorLogs 消费 hugo stdout 追加日志；stdout EOF 即进程退出：
+// Wait 回收僵尸并关闭 exited，下一次 Status/Start 据此自动纠正为未运行。
+func (m *Manager) monitorLogs(stdout io.Reader, cmd *exec.Cmd, exited chan struct{}) {
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -181,9 +202,8 @@ func (m *Manager) monitorLogs(stdout io.Reader) {
 			m.mu.Unlock()
 		}
 	}
-	// stdout EOF 即进程退出：Wait 回收僵尸并设置 ProcessState，
-	// 下一次 Status/Start 据此自动纠正为未运行
-	_ = m.cmd.Wait()
+	_ = cmd.Wait()
+	close(exited)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.isRunning {

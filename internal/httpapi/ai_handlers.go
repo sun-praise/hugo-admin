@@ -115,10 +115,19 @@ func (s *Server) handleAIChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	assistant := writeSSEFrames(w, frames)
+	if sessionID != "" && assistant != "" {
+		s.chat.AddMessage(sessionID, "assistant", assistant)
+	}
+}
+
+// writeSSEFrames 把帧通道写出为 SSE 响应（协议见 internal/ai/sse.go），
+// 返回累积的纯文本（会话存储用）。
+func writeSSEFrames(w http.ResponseWriter, frames <-chan string) string {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
-		return
+		return ""
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -137,9 +146,36 @@ func (s *Server) handleAIChat(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	if sessionID != "" && assistant != "" {
-		s.chat.AddMessage(sessionID, "assistant", assistant)
+	return assistant
+}
+
+// POST /api/ai/rewrite —— SSE 流式润色（playground；协议同 /api/ai/chat）
+func (s *Server) handleAIRewrite(w http.ResponseWriter, r *http.Request) {
+	if !s.aiSvc.Enabled() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+			"success": false,
+			"message": "AI service not configured. Set DEEPSEEK_API_KEY to enable.",
+		})
+		return
 	}
+	data := jsonDict(r)
+	text := strings.TrimSpace(strOr(data["text"]))
+	if text == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "message": "缺少 text"})
+		return
+	}
+	if len([]rune(text)) > ai.MaxRewriteText {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"success": false, "message": fmt.Sprintf("text 超过 %d 字符限制", ai.MaxRewriteText)})
+		return
+	}
+
+	frames, err := s.aiSvc.RewriteSSE(r.Context(), text)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"success": false, "message": err.Error()})
+		return
+	}
+	writeSSEFrames(w, frames)
 }
 
 // POST /api/ai/inline-edit —— 非流式改写
