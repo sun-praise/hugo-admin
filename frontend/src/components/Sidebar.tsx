@@ -103,7 +103,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'} px-1 py-1`}>
           {!collapsed && <p className="text-xs text-stone-500">Hugo Blog Admin</p>}
           <a
-            href="https://github.com/Svtter/hugo-admin"
+            href="https://github.com/sun-praise/hugo-admin"
             target="_blank"
             rel="noopener noreferrer"
             className="text-stone-400 hover:text-stone-200 transition-colors"

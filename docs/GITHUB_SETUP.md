@@ -15,7 +15,7 @@ Go to your repository page and click the ⚙️ gear icon next to "About" to add
 
 **Website:**
 ```
-https://github.com/Svtter/hugo-admin
+https://github.com/sun-praise/hugo-admin
 ```
 
 **Topics (click "Add topics"):**
@@ -102,7 +102,7 @@ If you have GitHub CLI (`gh`) installed, you can set some of these programmatica
 
 ```bash
 # Set repository description and topics
-gh repo edit Svtter/hugo-admin \
+gh repo edit sun-praise/hugo-admin \
   --description "🚀 A lightweight web-based admin interface for Hugo static sites - Browse, edit, and manage your blog with ease" \
   --add-topic hugo \
   --add-topic hugo-admin \
@@ -117,12 +117,12 @@ gh repo edit Svtter/hugo-admin \
   --add-topic blog-management
 
 # Enable features
-gh repo edit Svtter/hugo-admin \
+gh repo edit sun-praise/hugo-admin \
   --enable-issues \
   --enable-wiki=false
 
 # View current settings
-gh repo view Svtter/hugo-admin
+gh repo view sun-praise/hugo-admin
 ```
 
 ## After Setup Checklist
