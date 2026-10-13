@@ -38,11 +38,14 @@ func newTestServerHugoRoot(t *testing.T, hugoRoot string) *httptest.Server {
 	if err != nil {
 		t.Fatalf("auth store: %v", err)
 	}
-	srv := New(cfg, store, realtime.NewBroker(), Options{Hugo: hugo.NewManager(hugoRoot, "", nil)})
+	hugoManager := hugo.NewManager(hugoRoot, "", nil)
+	srv := New(cfg, store, realtime.NewBroker(), Options{Hugo: hugoManager})
 	ts := httptest.NewServer(srv)
 	jar, _ := cookiejar.New(nil)
 	ts.Client().Jar = jar
 	t.Cleanup(ts.Close)
+	// 预览类测试会启动 hugo，测试结束统一回收
+	t.Cleanup(func() { hugoManager.Stop() })
 	return ts
 }
 
@@ -166,15 +169,15 @@ func TestPluginLifecycleHTTP(t *testing.T) {
 		t.Fatal("未知插件 disable 应 404")
 	}
 
-	// 运行中的插件：TTS 删除（实现返回 success 或 Unimplemented 均覆盖）
+	// 运行中的插件：TTS 删除（testplugin 实现了 Delete，应返回 200）
 	req, _ := http.NewRequest("DELETE", ts.URL+"/api/plugins/test-plugin/tts/audio-1", nil)
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if resp.StatusCode != 200 && resp.StatusCode != 500 {
-		t.Fatalf("tts delete = %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("tts delete = %d, want 200", resp.StatusCode)
 	}
 
 	// 运行中的插件：multipart 图片上传走 gRPC 流式

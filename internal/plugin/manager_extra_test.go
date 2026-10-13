@@ -1,6 +1,9 @@
 package plugin
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -60,17 +63,43 @@ func TestManagerSetConfigWithoutRunningPlugin(t *testing.T) {
 	}
 }
 
-func TestFetchMarketFallback(t *testing.T) {
+func TestFetchMarketOffline(t *testing.T) {
+	oldURL := marketURL
+	t.Cleanup(func() { marketURL = oldURL })
+
+	// 成功路径：本地服务返回目录数据
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"version": 1, "plugins": [{"name": "demo"}]}`)
+	}))
+	t.Cleanup(srv.Close)
+	marketURL = srv.URL
+
 	m := NewManager(t.TempDir())
-	// 无论上游市场可达与否，都应返回可用目录（成功→数据，失败→空目录）
-	for i := 0; i < 2; i++ {
-		catalog := m.FetchMarket()
-		if catalog == nil {
-			t.Fatalf("第 %d 次 FetchMarket 返回 nil", i+1)
-		}
-		if _, ok := catalog["plugins"]; !ok {
-			t.Fatalf("第 %d 次返回缺少 plugins 键: %#v", i+1, catalog)
-		}
+	catalog := m.FetchMarket()
+	plugins, _ := catalog["plugins"].([]any)
+	if len(plugins) != 1 {
+		t.Fatalf("成功路径 catalog = %#v", catalog)
+	}
+	// 二次调用命中 TTL 缓存
+	m.mu.Lock()
+	cached := m.marketCache
+	m.mu.Unlock()
+	if cached == nil {
+		t.Fatal("成功后应有缓存")
+	}
+
+	// 失败路径：新 manager + 500 响应 → 回退空目录
+	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(bad.Close)
+	marketURL = bad.URL
+	fallback := NewManager(t.TempDir()).FetchMarket()
+	if _, ok := fallback["plugins"]; !ok {
+		t.Fatalf("回退 catalog 缺 plugins 键: %#v", fallback)
+	}
+	if plugins, _ := fallback["plugins"].([]any); len(plugins) != 0 {
+		t.Fatalf("回退应为空目录: %#v", fallback)
 	}
 }
 
@@ -121,10 +150,14 @@ func TestManifestHelpers(t *testing.T) {
 	if p, err := mf.ResolveEntryPath(); err != nil || p != bin {
 		t.Fatalf("合法 Entry = %q, err = %v", p, err)
 	}
-	// symlink 越界
+	// symlink 越界：目标必须是存在且可执行的文件，才能真正命中目录边界检查
 	outside := t.TempDir()
+	outsideTool := filepath.Join(outside, "tool")
+	if err := os.WriteFile(outsideTool, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	link := filepath.Join(dir, "evil")
-	if err := os.Symlink(filepath.Join(outside, "tool"), link); err != nil {
+	if err := os.Symlink(outsideTool, link); err != nil {
 		t.Fatal(err)
 	}
 	mf.Entry = "evil"

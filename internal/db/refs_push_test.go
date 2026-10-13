@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 )
@@ -24,13 +25,36 @@ func TestUpsertAndBatchReferences(t *testing.T) {
 		t.Fatalf("二次 upsert: %v", err)
 	}
 
-	// BatchUpsertReferences：事务批量
+	// 预置 post/z 的旧引用，验证批量事务的删除语义
+	if err := d.UpsertReferences("post/z/index.md",
+		[]RefEntry{{TargetPath: "post/old.md"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// BatchUpsertReferences：a 替换、x 新增、z 清空
 	batch := map[string][]RefEntry{
-		"post/x/index.md": {{TargetPath: "post/y/index.md", Context: "批量"}},
+		"post/x/index.md": {{TargetPath: "post/y/index.md"}},
 		"post/z/index.md": {},
 	}
 	if err := d.BatchUpsertReferences(batch); err != nil {
 		t.Fatalf("batch: %v", err)
+	}
+
+	all, err := d.GetAllReferences()
+	if err != nil {
+		t.Fatalf("GetAllReferences: %v", err)
+	}
+	want := map[string][]string{
+		"post/a/index.md": {"post/b/index.md"}, // 替换后只剩第一条
+		"post/x/index.md": {"post/y/index.md"}, // 批量新增
+	}
+	for src, targets := range want {
+		if fmt.Sprint(all[src]) != fmt.Sprint(targets) {
+			t.Fatalf("%s = %#v, want %#v", src, all[src], targets)
+		}
+	}
+	if refs, ok := all["post/z/index.md"]; ok && len(refs) > 0 {
+		t.Fatalf("post/z 应被清空: %#v", refs)
 	}
 }
 

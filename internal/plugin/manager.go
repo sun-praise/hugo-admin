@@ -25,9 +25,11 @@ import (
 const (
 	handshakeTimeout = 10 * time.Second
 	shutdownTimeout  = 5 * time.Second
-	marketURL        = "https://plugins.hugo-admin.dev/manifest.json"
 	marketCacheTTL   = 5 * time.Minute
 )
+
+// marketURL 声明为 var，测试可指向本地 httptest 服务，避免真实网络。
+var marketURL = "https://plugins.hugo-admin.dev/manifest.json"
 
 // pluginState 对齐 PluginState。
 type pluginState struct {
