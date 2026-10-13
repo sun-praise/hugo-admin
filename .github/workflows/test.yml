@@ -11,12 +11,6 @@ on:
       - '.github/workflows/test.yml'
   pull_request:
     branches: [ master, main, develop ]
-    paths:
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - '.pre-commit-config.yaml'
-      - '.github/workflows/test.yml'
 
 concurrency:
   group: tests-${{ github.ref }}
@@ -85,7 +79,15 @@ jobs:
     - name: Upload coverage reports
       uses: codecov/codecov-action@v7
       with:
-        file: ./coverage.out
+        files: ./coverage.out
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: false
+
+    # 测试失败时也可下载 profile 排查
+    - name: Upload profile artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-profile
+        path: coverage.out
