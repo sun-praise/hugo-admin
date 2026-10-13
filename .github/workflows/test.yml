@@ -50,7 +50,9 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v6
       with:
-        go-version: '1.24'
+        # 与 Dockerfile-go 的 golang:1.26-bookworm 对齐，出货镜像的工具链被 CI 覆盖；
+        # go.mod 的 go 1.24 是语言最低版本，两者不冲突
+        go-version: '1.26'
         cache: true
 
     # internal/projectinit 的测试执行真实 hugo 命令（版本对齐 Dockerfile-go）
