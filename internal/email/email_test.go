@@ -82,6 +82,8 @@ func TestGetLatestPost(t *testing.T) {
 	if len(p.Tags) != 5 || p.Tags[0] != "go" {
 		t.Fatalf("tags = %#v", p.Tags)
 	}
+	// 前提：gofeed 把 RSS pubDate 解析为 time.Time 后按 UTC 归一化输出；
+	// 升级 gofeed 若改变归一化行为，此断言失败属预期信号而非 flaky
 	if p.Published != "Mon, 02 Jan 2006 22:04:05 +0000" {
 		t.Fatalf("published = %q（gofeed 会把 -0700 时区归一化为 UTC）", p.Published)
 	}
@@ -392,5 +394,20 @@ func TestSentRecordPersistence(t *testing.T) {
 	}
 	if !s.isAlreadySent(&Post{Link: "a"}) || s.isAlreadySent(&Post{Link: "c"}) {
 		t.Fatal("isAlreadySent 判断错误")
+	}
+}
+
+// TestSendCampaignInvalidURL 钉住 http.NewRequest 的错误早返回：
+// apiURL 非法（host 含空格）时直接 campaignError，不得对 nil 请求取头 panic。
+func TestSendCampaignInvalidURL(t *testing.T) {
+	s := newService(t, testFeed)
+	s.apiURL = "http://bad host"
+	post, _ := s.GetLatestPost()
+	res := s.SendCampaign(post, true)
+	if res["success"] != false {
+		t.Fatalf("res = %#v", res)
+	}
+	if res["message"] == nil {
+		t.Fatal("失败结果应携带错误信息")
 	}
 }
