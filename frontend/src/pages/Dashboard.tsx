@@ -166,7 +166,7 @@ export default function Dashboard() {
         ].map((card, i) => (
           <div
             key={card.label}
-            className="animate-rise rounded-[10px] border border-[#e4e4e7] bg-white px-[18px] pb-3.5 pt-4"
+            className="min-w-0 animate-rise rounded-[10px] border border-[#e4e4e7] bg-white px-[18px] pb-3.5 pt-4"
             style={{ animationDelay: `${i * 0.04}s` }}
           >
             <div className="flex items-center justify-between gap-2">
@@ -179,7 +179,7 @@ export default function Dashboard() {
             <div className="mt-0.5 truncate text-[12.5px] tabular-nums text-[#9ca3a8]">{card.sub}</div>
           </div>
         ))}
-        <div className="animate-rise rounded-[10px] border border-[#e4e4e7] bg-white px-[18px] pb-3.5 pt-4" style={{ animationDelay: '0.12s' }}>
+        <div className="min-w-0 animate-rise rounded-[10px] border border-[#e4e4e7] bg-white px-[18px] pb-3.5 pt-4" style={{ animationDelay: '0.12s' }}>
           <div className="flex items-center justify-between gap-2">
             <span className="text-[13px] text-[#52525b]">Hugo 服务器</span>
             <span className="grid h-[30px] w-[30px] flex-none place-items-center rounded-lg bg-[#f4f4f5] text-[#52525b]">
@@ -203,7 +203,7 @@ export default function Dashboard() {
 
       <div className="animate-rise grid grid-cols-[minmax(0,1fr)_360px] items-start gap-4 [animation-delay:0.16s] max-[1080px]:grid-cols-1 min-[1440px]:grid-cols-[minmax(0,1fr)_400px]">
         {/* 最近文章 */}
-        <section aria-label="最近文章" className="rounded-[10px] border border-[#e4e4e7] bg-white">
+        <section aria-label="最近文章" className="min-w-0 rounded-[10px] border border-[#e4e4e7] bg-white">
           <div className="flex items-center justify-between gap-3 border-b border-[#e4e4e7] py-[13px] pl-5 pr-4">
             <span className="text-[14px] font-semibold tracking-[-0.01em]">最近文章</span>
             <Link to="/posts" className="inline-flex items-center gap-0.5 text-[13px] font-medium text-blue-600 hover:underline">
@@ -217,7 +217,7 @@ export default function Dashboard() {
               <button
                 key={post.path}
                 onClick={() => navigate(`/editor/${post.path}`)}
-                className="block w-full cursor-pointer rounded-lg border-0 bg-transparent px-3 py-[11px] text-left transition-colors hover:bg-[#f4f4f5]"
+                className="block w-full min-w-0 cursor-pointer rounded-lg border-0 bg-transparent px-3 py-[11px] text-left transition-colors hover:bg-[#f4f4f5]"
               >
                 <div className="flex min-w-0 items-center gap-2.5">
                   <span className="min-w-0 flex-1 truncate text-[14px] font-[550]">{post.title}</span>
