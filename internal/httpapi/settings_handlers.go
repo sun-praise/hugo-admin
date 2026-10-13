@@ -12,8 +12,8 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 
-	"github.com/svtter/hugo-admin/internal/settings"
-	"github.com/svtter/hugo-admin/internal/theme"
+	"github.com/sun-praise/hugo-admin/v3/internal/settings"
+	"github.com/sun-praise/hugo-admin/v3/internal/theme"
 )
 
 // 对齐 settings_routes / config_routes / theme_routes / page_routes(content)。

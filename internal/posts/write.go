@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/frontmatter"
+	"github.com/sun-praise/hugo-admin/v3/internal/frontmatter"
 )
 
 // 写域：对齐 services/post_service.py 的 read_file /

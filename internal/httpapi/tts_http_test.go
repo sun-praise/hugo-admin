@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/plugin"
+	"github.com/sun-praise/hugo-admin/v3/internal/plugin"
 )
 
 // 文章级 TTS 集成测试：testplugin（固定音频 URL/时长）+

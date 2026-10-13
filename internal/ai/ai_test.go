@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/git"
+	"github.com/sun-praise/hugo-admin/v3/internal/git"
 )
 
 // newMockAnthropic 两轮：文本+tool_use → 工具结果回传 → 收尾文本。

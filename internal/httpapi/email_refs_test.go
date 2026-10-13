@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/svtter/hugo-admin/internal/db"
-	"github.com/svtter/hugo-admin/internal/refs"
+	"github.com/sun-praise/hugo-admin/v3/internal/db"
+	"github.com/sun-praise/hugo-admin/v3/internal/refs"
 )
 
 // refsTestContent：a 引用 b（ref shortcode + 相对路径），c 引用 b（裸文件名）。

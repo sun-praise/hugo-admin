@@ -16,9 +16,9 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/tool"
 	"trpc.group/trpc-go/trpc-agent-go/tool/function"
 
-	"github.com/svtter/hugo-admin/internal/git"
-	"github.com/svtter/hugo-admin/internal/hugo"
-	"github.com/svtter/hugo-admin/internal/posts"
+	"github.com/sun-praise/hugo-admin/v3/internal/git"
+	"github.com/sun-praise/hugo-admin/v3/internal/hugo"
+	"github.com/sun-praise/hugo-admin/v3/internal/posts"
 )
 
 const systemPrompt = "You are a helpful read-only AI assistant for a Hugo blog. " +

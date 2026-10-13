@@ -10,13 +10,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/svtter/hugo-admin/internal/auth"
-	"github.com/svtter/hugo-admin/internal/chathistory"
-	"github.com/svtter/hugo-admin/internal/config"
-	"github.com/svtter/hugo-admin/internal/db"
-	"github.com/svtter/hugo-admin/internal/git"
-	"github.com/svtter/hugo-admin/internal/hugo"
-	"github.com/svtter/hugo-admin/internal/realtime"
+	"github.com/sun-praise/hugo-admin/v3/internal/auth"
+	"github.com/sun-praise/hugo-admin/v3/internal/chathistory"
+	"github.com/sun-praise/hugo-admin/v3/internal/config"
+	"github.com/sun-praise/hugo-admin/v3/internal/db"
+	"github.com/sun-praise/hugo-admin/v3/internal/git"
+	"github.com/sun-praise/hugo-admin/v3/internal/hugo"
+	"github.com/sun-praise/hugo-admin/v3/internal/realtime"
 )
 
 const devSecret = "dev-secret-key-change-in-production"

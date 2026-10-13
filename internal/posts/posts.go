@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/frontmatter"
+	"github.com/sun-praise/hugo-admin/v3/internal/frontmatter"
 )
 
 // BlogPost 对齐 Python BlogPost。

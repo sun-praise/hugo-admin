@@ -7,8 +7,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/frontmatter"
-	"github.com/svtter/hugo-admin/internal/util"
+	"github.com/sun-praise/hugo-admin/v3/internal/frontmatter"
+	"github.com/sun-praise/hugo-admin/v3/internal/util"
 )
 
 // 发布域：对齐 post_service 的 publish_article /
