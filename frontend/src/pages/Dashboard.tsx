@@ -1,276 +1,318 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FileText, Tag, FolderOpen, Server, Search, Plus, Settings, Upload, Mail, Send } from 'lucide-react';
-import { get, post } from '../utils/api';
-import type { Post, PostsResponse, Tag as TagType, Category, ServerStatus } from '../types';
+import {
+  ChevronRight,
+  FileText,
+  FolderOpen,
+  Mail,
+  Pen,
+  Search,
+  Send,
+  Server,
+  Tag,
+  Upload,
+  type LucideIcon,
+} from 'lucide-react';
 
+import { get } from '../utils/api';
+import { createNewPost, publishSystem, pushLatestEmail, pushSpecificEmail } from '../utils/actions';
+import { useMe } from '../hooks/useMe';
+import type { GitStatus } from '../utils/api';
+import type { Category, Post, PostsResponse, ServerStatus, Tag as TagType } from '../types';
+
+const WEEK_MS = 7 * 24 * 3600 * 1000;
+
+function mondayOf(d: Date): number {
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  day.setDate(day.getDate() - ((day.getDay() + 6) % 7));
+  return day.getTime();
+}
+
+function formatMonthDay(date: string): string {
+  return date.length >= 10 ? date.slice(5, 10) : date;
+}
+
+// 仪表板:对齐 docs/design/admin-redesign-preview.html,数据全部真实。
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [stats, setStats] = useState({ total_posts: 0, total_tags: 0, total_categories: 0 });
+  const me = useMe();
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [tags, setTags] = useState<TagType[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [serverStatus, setServerStatus] = useState<ServerStatus>({ running: false, pid: null });
-  const [recentPosts, setRecentPosts] = useState<Post[]>([]);
-  const [publishing, setPublishing] = useState(false);
-  const [pushingEmail, setPushingEmail] = useState(false);
-
-  const loadStats = useCallback(async () => {
-    try {
-      const posts = await get<PostsResponse>('/api/posts?per_page=1000');
-      const tags = await get<{ tags: TagType[] }>('/api/posts/tags');
-      const categories = await get<{ categories: Category[] }>('/api/posts/categories');
-      setStats({
-        total_posts: posts.total,
-        total_tags: tags.tags.length,
-        total_categories: categories.categories.length,
-      });
-    } catch (error) {
-      console.error('Failed to load stats:', error);
-    }
-  }, []);
-
-  const loadRecentPosts = useCallback(async () => {
-    try {
-      const data = await get<PostsResponse>('/api/posts?per_page=5');
-      setRecentPosts(data.posts);
-    } catch (error) {
-      console.error('Failed to load recent posts:', error);
-    }
-  }, []);
-
-  const loadServerStatus = useCallback(async () => {
-    try {
-      const data = await get<ServerStatus>('/api/server/status');
-      setServerStatus(data);
-    } catch (error) {
-      console.error('Failed to load server status:', error);
-    }
-  }, []);
+  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
+  const [version, setVersion] = useState('');
 
   useEffect(() => {
+    let alive = true;
     (async () => {
-      await loadStats();
-      await loadRecentPosts();
-      await loadServerStatus();
+      // 每个请求独立失败兜底:可选项挂了不影响文章/状态等主数据
+      const safe = async <T,>(p: Promise<T>, fallback: T): Promise<T> => {
+        try {
+          return await p;
+        } catch {
+          return fallback;
+        }
+      };
+      const [all, tagData, catData, st, gs, ver] = await Promise.all([
+        safe(get<PostsResponse>('/api/posts?per_page=1000'), {
+          posts: [], total: 0, page: 1, per_page: 0, total_pages: 0, has_next: false, has_prev: false,
+        }),
+        safe(get<{ tags: TagType[] }>('/api/posts/tags'), { tags: [] }),
+        safe(get<{ categories: Category[] }>('/api/posts/categories'), { categories: [] }),
+        safe(get<ServerStatus>('/api/server/status'), { running: false, pid: null }),
+        safe(get<GitStatus>('/api/git/status'), { success: false } as GitStatus),
+        safe(get<{ version: string }>('/api/version'), { version: '' }),
+      ]);
+      if (!alive) return;
+      setPosts(all.posts || []);
+      setTags(tagData.tags || []);
+      setCategories(catData.categories || []);
+      setServerStatus(st);
+      setGitStatus(gs);
+      setVersion(ver.version || '');
     })();
-  }, [loadStats, loadRecentPosts, loadServerStatus]);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
-  async function createNewPost() {
-    const title = prompt('请输入文章标题:');
-    if (!title) return;
-    try {
-      const data = await post<{ success: boolean; path?: string; message?: string }>('/api/post/create', { title });
-      if (data.success && data.path) {
-        showNotification('文章创建成功', 'success');
-        setTimeout(() => navigate(`/editor/${data.path}`), 1000);
-      } else {
-        showNotification('创建失败: ' + (data.message || ''), 'error');
-      }
-    } catch {
-      showNotification('创建失败', 'error');
+  // 页面加载时刻(问候语/本周统计共用),挂载时取一次
+  const [now] = useState(() => new Date());
+  const thisMonday = mondayOf(now);
+
+  const stats = useMemo(() => {
+    const nowMs = now.getTime();
+    const drafts = posts.filter((p) => p.status?.is_draft).length;
+    const thisWeek = posts.filter((p) => {
+      const t = new Date(p.date).getTime();
+      return !Number.isNaN(t) && t >= thisMonday && t <= nowMs;
+    }).length;
+    return { total: posts.length, drafts, thisWeek };
+  }, [posts, thisMonday, now]);
+
+  // 近 12 周发布柱状图(原型为 0/1 二值柱)
+  const weeklyBars = useMemo(() => {
+    const counts = new Array<number>(12).fill(0);
+    for (const p of posts) {
+      const t = new Date(p.date).getTime();
+      if (Number.isNaN(t)) continue;
+      const weekIdx = Math.floor((thisMonday - mondayOf(new Date(t))) / WEEK_MS);
+      if (weekIdx >= 0 && weekIdx < 12) counts[11 - weekIdx] += 1;
     }
-  }
+    return counts;
+  }, [posts, thisMonday]);
 
-  async function publishSystem() {
-    setPublishing(true);
-    try {
-      const status = await get<{ success: boolean; has_changes?: boolean; message?: string }>('/api/git/status');
-      if (!status.success) {
-        showNotification('Git 状态检查失败: ' + status.message, 'error');
-        return;
-      }
-      if (!status.has_changes) {
-        showNotification('没有需要发布的改动', 'info');
-        return;
-      }
-      const message = prompt('请输入提交消息 (可选，留空使用默认消息):');
-      if (message === null) return;
-      const result = await post<{ success: boolean; message?: string }>('/api/publish/system', { message: message || null });
-      if (result.success) {
-        showNotification('系统发布成功！GitHub Actions 将自动构建站点', 'success');
-      } else {
-        showNotification('发布失败: ' + result.message, 'error');
-      }
-    } catch {
-      showNotification('系统发布失败', 'error');
-    } finally {
-      setPublishing(false);
-    }
-  }
+  const recentPosts = posts.slice(0, 5);
+  const topTags = [...tags].sort((a, b) => b.count - a.count).slice(0, 3).map((t) => t.name);
+  const topCategories = [...categories].sort((a, b) => b.count - a.count).slice(0, 3).map((c) => c.name);
+  // git 状态失败时(如非 git 目录)返回体可能缺少数组字段,做防御
+  const dirtyCount = gitStatus?.success
+    ? (gitStatus.staged?.length ?? 0) + (gitStatus.unstaged?.length ?? 0) + (gitStatus.untracked?.length ?? 0)
+    : 0;
 
-  async function pushLatestEmail() {
-    setPushingEmail(true);
-    try {
-      const preview = await get<{ success: boolean; data?: { is_already_sent: boolean; post: { title: string; link: string }; subject: string }; message?: string }>('/api/email/preview-latest');
-      if (!preview.success) {
-        showNotification('获取预览失败: ' + preview.message, 'error');
-        return;
-      }
-      const p = preview.data!;
-      const alreadySent = p.is_already_sent ? '（该文章已推送过）' : '';
-      const confirmed = confirm(
-        `确定要推送最新文章给订阅者吗？${alreadySent}\n\n标题：${p.post.title}\n链接：${p.post.link}\n\n邮件主题：${p.subject}`,
-      );
-      if (!confirmed) return;
-      const force = p.is_already_sent ? confirm('该文章已推送过，是否强制再次推送？') : false;
-      const result = await post<{ success: boolean; message?: string }>('/api/email/push-latest', { force, debug_mode: false });
-      if (result.success) {
-        showNotification('邮件推送成功！', 'success');
-      } else {
-        showNotification('推送失败: ' + result.message, 'error');
-      }
-    } catch {
-      showNotification('邮件推送失败', 'error');
-    } finally {
-      setPushingEmail(false);
-    }
-  }
+  const h = now.getHours();
+  const part = h < 6 ? '夜深了' : h < 12 ? '上午好' : h < 18 ? '下午好' : '晚上好';
+  const greeting = `${part},${me?.username || '朋友'} · ${now.getMonth() + 1} 月 ${now.getDate()} 日,继续写点东西吧`;
 
-  async function pushSpecificEmail() {
-    const url = prompt('请输入要推送的文章 URL 或路径：\n\n例如：\n- https://svtter.cn/post/xxx/\n- /post/xxx/');
-    if (!url) return;
-    setPushingEmail(true);
-    try {
-      const preview = await get<{ success: boolean; data?: { is_already_sent: boolean; post: { title: string; link: string }; subject: string }; message?: string }>(
-        '/api/email/preview-article?url=' + encodeURIComponent(url),
-      );
-      if (!preview.success) {
-        showNotification('获取预览失败: ' + preview.message, 'error');
-        return;
-      }
-      const p = preview.data!;
-      const alreadySent = p.is_already_sent ? '（该文章已推送过）' : '';
-      const confirmed = confirm(
-        `确定要推送这篇文章给订阅者吗？${alreadySent}\n\n标题：${p.post.title}\n链接：${p.post.link}\n\n邮件主题：${p.subject}`,
-      );
-      if (!confirmed) return;
-      const force = p.is_already_sent ? confirm('该文章已推送过，是否强制再次推送？') : false;
-      const result = await post<{ success: boolean; message?: string }>('/api/email/push-article', { url, force, debug_mode: false });
-      if (result.success) {
-        showNotification('邮件推送成功！', 'success');
-      } else {
-        showNotification('推送失败: ' + result.message, 'error');
-      }
-    } catch {
-      showNotification('邮件推送失败', 'error');
-    } finally {
-      setPushingEmail(false);
-    }
+  interface QuickAction {
+    icon: LucideIcon;
+    label: string;
+    hint?: string;
+    run: () => void | Promise<void>;
   }
-
-  function showNotification(message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 fade-in ${
-      type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-    } text-white`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 3000);
-  }
-
-  const statCards = [
-    { label: '总文章数', value: stats.total_posts, icon: FileText, color: 'blue' },
-    { label: '标签数', value: stats.total_tags, icon: Tag, color: 'green' },
-    { label: '分类数', value: stats.total_categories, icon: FolderOpen, color: 'purple' },
-    {
-      label: '服务器状态',
-      value: serverStatus.running ? '运行中' : '已停止',
-      icon: Server,
-      color: serverStatus.running ? 'green' : 'gray',
-      isStatus: true,
-    },
+  const quickActions: QuickAction[] = [
+    { icon: Pen, label: '新建文章', hint: 'N', run: () => createNewPost(navigate) },
+    { icon: Search, label: '浏览文章', hint: `${stats.total} 篇`, run: () => navigate('/posts') },
+    { icon: Upload, label: '系统发布', hint: dirtyCount > 0 ? `${dirtyCount} 处待提交` : undefined, run: publishSystem },
+    { icon: Mail, label: '推送最新文章', run: pushLatestEmail },
+    { icon: Send, label: '推送指定文章', run: pushSpecificEmail },
+    { icon: Server, label: '服务器控制', hint: serverStatus.running ? '运行中' : '已停止', run: () => navigate('/server') },
   ];
-
-  const colorMap: Record<string, { bg: string; text: string }> = {
-    blue: { bg: 'bg-blue-100', text: 'text-blue-600' },
-    green: { bg: 'bg-green-100', text: 'text-green-600' },
-    purple: { bg: 'bg-purple-100', text: 'text-purple-600' },
-    gray: { bg: 'bg-stone-100', text: 'text-stone-400' },
-  };
 
   return (
     <div>
+      <div className="page-head">
+        <h1 className="m-0 text-[22px] font-semibold tracking-[-0.02em]">仪表板</h1>
+        <p className="mb-0 mt-1 text-[13.5px] text-[#52525b]">{greeting}</p>
+      </div>
+
       {/* 统计卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {statCards.map((card) => (
-          <div key={card.label} className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-stone-500 text-sm">{card.label}</p>
-                <p className={`text-3xl font-bold mt-2 ${card.isStatus && serverStatus.running ? 'text-green-600' : card.isStatus ? 'text-stone-400' : ''}`}>
-                  {card.value}
-                </p>
-              </div>
-              <div className={`p-3 rounded-full ${colorMap[card.color].bg}`}>
-                <card.icon className={`w-8 h-8 ${colorMap[card.color].text}`} />
-              </div>
+      <section aria-label="统计" className="mb-4 mt-6 grid grid-cols-4 gap-4 max-[1080px]:grid-cols-2">
+        {[
+          {
+            label: '总文章数',
+            icon: FileText,
+            value: String(stats.total),
+            sub: (
+              <>
+                {stats.thisWeek > 0 && <span className="font-medium text-green-600">本周 +{stats.thisWeek}</span>}
+                {stats.thisWeek > 0 && ' · '}草稿 {stats.drafts} 篇
+              </>
+            ),
+          },
+          {
+            label: '标签',
+            icon: Tag,
+            value: String(tags.length),
+            sub: topTags.length > 0 ? `最常用:${topTags.join(' · ')}` : '—',
+          },
+          {
+            label: '分类',
+            icon: FolderOpen,
+            value: String(categories.length),
+            sub: topCategories.length > 0 ? `${topCategories.join(' · ')} …` : '—',
+          },
+        ].map((card, i) => (
+          <div
+            key={card.label}
+            className="animate-rise rounded-[10px] border border-[#e4e4e7] bg-white px-[18px] pb-3.5 pt-4"
+            style={{ animationDelay: `${i * 0.04}s` }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[13px] text-[#52525b]">{card.label}</span>
+              <span className="grid h-[30px] w-[30px] flex-none place-items-center rounded-lg bg-[#f4f4f5] text-[#52525b]">
+                <card.icon className="h-[15px] w-[15px]" />
+              </span>
             </div>
+            <div className="mt-2.5 flex text-[27px] font-semibold tabular-nums tracking-[-0.02em]">{card.value}</div>
+            <div className="mt-0.5 truncate text-[12.5px] tabular-nums text-[#9ca3a8]">{card.sub}</div>
           </div>
         ))}
-      </div>
-
-      {/* 快速操作 */}
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6 mb-8">
-        <h3 className="text-lg font-medium mb-4">快速操作</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Link to="/posts" className="flex items-center justify-center p-4 border-2 border-stone-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors">
-            <Search className="w-6 h-6 text-blue-600 mr-3" />
-            <span className="font-medium">浏览文章</span>
-          </Link>
-          <button onClick={createNewPost} className="flex items-center justify-center p-4 border-2 border-stone-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors">
-            <Plus className="w-6 h-6 text-green-600 mr-3" />
-            <span className="font-medium">新建文章</span>
-          </button>
-          <Link to="/server" className="flex items-center justify-center p-4 border-2 border-stone-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors">
-            <Settings className="w-6 h-6 text-purple-600 mr-3" />
-            <span className="font-medium">服务器控制</span>
-          </Link>
-          <button onClick={publishSystem} disabled={publishing} className="flex items-center justify-center p-4 border-2 border-stone-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors disabled:opacity-50">
-            <Upload className="w-6 h-6 text-orange-600 mr-3" />
-            <span className="font-medium">{publishing ? '发布中...' : '系统发布'}</span>
-          </button>
-          <button onClick={pushLatestEmail} disabled={pushingEmail} className="flex items-center justify-center p-4 border-2 border-stone-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors disabled:opacity-50">
-            <Mail className="w-6 h-6 text-indigo-600 mr-3" />
-            <span className="font-medium">{pushingEmail ? '推送中...' : '推送最新文章'}</span>
-          </button>
-          <button onClick={pushSpecificEmail} disabled={pushingEmail} className="flex items-center justify-center p-4 border-2 border-stone-200 rounded-lg hover:border-teal-500 hover:bg-teal-50 transition-colors disabled:opacity-50">
-            <Send className="w-6 h-6 text-teal-600 mr-3" />
-            <span className="font-medium">推送指定文章</span>
-          </button>
+        <div className="animate-rise rounded-[10px] border border-[#e4e4e7] bg-white px-[18px] pb-3.5 pt-4" style={{ animationDelay: '0.12s' }}>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[13px] text-[#52525b]">Hugo 服务器</span>
+            <span className="grid h-[30px] w-[30px] flex-none place-items-center rounded-lg bg-[#f4f4f5] text-[#52525b]">
+              <Server className="h-[15px] w-[15px]" />
+            </span>
+          </div>
+          <div
+            className={`mt-2.5 flex items-center gap-2 text-[21px] font-semibold tracking-[-0.02em] ${
+              serverStatus.running ? 'text-green-600' : 'text-[#9ca3a8]'
+            }`}
+          >
+            <span className={`dot-pulse ${serverStatus.running ? '' : 'is-off'}`} aria-hidden="true" />
+            {serverStatus.running ? '运行中' : '已停止'}
+          </div>
+          <div className="mt-0.5 text-[12.5px] tabular-nums text-[#9ca3a8]">
+            {serverStatus.pid != null ? `PID ${serverStatus.pid}` : '—'}
+            {serverStatus.uptime ? ` · ${serverStatus.uptime}` : ''}
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* 最近文章 */}
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium">最近文章</h3>
-          <Link to="/posts" className="text-blue-600 hover:text-blue-800 text-sm">查看全部 →</Link>
-        </div>
-        <div className="space-y-3">
-          {recentPosts.length === 0 && <p className="text-stone-500 text-center py-8">暂无文章</p>}
-          {recentPosts.map((post) => (
-            <div key={post.path} className="border-b border-stone-200 pb-3 last:border-b-0">
-              <Link to={`/editor/${post.path}`} className="flex hover:bg-stone-50 rounded p-2 -m-2">
-                {post.cover_url && (
-                  <img
-                    src={post.cover_url}
-                    alt={post.title}
-                    className="w-16 h-12 object-cover rounded mr-3 flex-shrink-0 bg-stone-100"
-                    onError={(e) => (e.currentTarget.style.display = 'none')}
-                  />
-                )}
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-stone-900 mb-1 truncate">{post.title}</h4>
-                  <p className="text-sm text-stone-600 mb-1 line-clamp-1">{post.excerpt}</p>
-                  <div className="flex items-center space-x-4 text-xs text-stone-500">
-                    <span>{post.date}</span>
-                    <span className="flex items-center space-x-1">
-                      <Tag className="w-4 h-4" />
-                      <span>{post.tags.join(', ')}</span>
+      <div className="animate-rise grid grid-cols-[minmax(0,1fr)_360px] items-start gap-4 [animation-delay:0.16s] max-[1080px]:grid-cols-1 min-[1440px]:grid-cols-[minmax(0,1fr)_400px]">
+        {/* 最近文章 */}
+        <section aria-label="最近文章" className="rounded-[10px] border border-[#e4e4e7] bg-white">
+          <div className="flex items-center justify-between gap-3 border-b border-[#e4e4e7] py-[13px] pl-5 pr-4">
+            <span className="text-[14px] font-semibold tracking-[-0.01em]">最近文章</span>
+            <Link to="/posts" className="inline-flex items-center gap-0.5 text-[13px] font-medium text-blue-600 hover:underline">
+              查看全部
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+          <div className="grid gap-0.5 p-2">
+            {recentPosts.length === 0 && <p className="py-10 text-center text-[13px] text-[#9ca3a8]">暂无文章</p>}
+            {recentPosts.map((post) => (
+              <button
+                key={post.path}
+                onClick={() => navigate(`/editor/${post.path}`)}
+                className="block w-full cursor-pointer rounded-lg border-0 bg-transparent px-3 py-[11px] text-left transition-colors hover:bg-[#f4f4f5]"
+              >
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="min-w-0 flex-1 truncate text-[14px] font-[550]">{post.title}</span>
+                  {post.status?.is_draft && (
+                    <span className="flex-none rounded-full bg-amber-50 px-2 py-[1.5px] text-[11.5px] font-medium text-amber-700">
+                      草稿
                     </span>
-                  </div>
+                  )}
+                  <span className="flex-none text-[12.5px] tabular-nums text-[#9ca3a8]">{formatMonthDay(post.date)}</span>
                 </div>
-              </Link>
+                <div className="mt-[3px] flex min-w-0 items-center gap-3">
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-[#52525b]">{post.excerpt}</span>
+                  <span className="flex flex-none gap-1.5">
+                    {post.tags.slice(0, 2).map((t) => (
+                      <span key={t} className="whitespace-nowrap rounded-full bg-[#f4f4f5] px-2 py-[1.5px] text-[11.5px] text-[#52525b]">
+                        {t}
+                      </span>
+                    ))}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* 右侧栏 */}
+        <div className="grid min-w-0 gap-4">
+          <section aria-label="快捷操作" className="rounded-[10px] border border-[#e4e4e7] bg-white">
+            <div className="flex items-center justify-between gap-3 border-b border-[#e4e4e7] py-[13px] pl-5 pr-4">
+              <span className="text-[14px] font-semibold tracking-[-0.01em]">快捷操作</span>
             </div>
-          ))}
+            <div className="grid gap-0.5 p-2">
+              {quickActions.map((action) => (
+                <button
+                  key={action.label}
+                  onClick={() => void action.run()}
+                  className="flex h-[34px] cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent px-2.5 text-left text-[13.5px] font-medium text-zinc-900 transition-colors hover:bg-[#f4f4f5]"
+                >
+                  <action.icon className="h-[15px] w-[15px] flex-none text-[#9ca3a8]" />
+                  {action.label}
+                  {action.hint && <span className="ml-auto text-[12px] tabular-nums text-[#9ca3a8]">{action.hint}</span>}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section aria-label="发布动态" className="rounded-[10px] border border-[#e4e4e7] bg-white">
+            <div className="flex items-center justify-between gap-3 border-b border-[#e4e4e7] py-[13px] pl-5 pr-4">
+              <span className="text-[14px] font-semibold tracking-[-0.01em]">发布动态</span>
+            </div>
+            <div className="px-5 pb-3.5 pt-4">
+              <div className="flex h-[72px] items-end gap-1.5" role="img" aria-label="近 12 周发布柱状图">
+                {weeklyBars.map((count, i) => (
+                  <div
+                    key={i}
+                    className={`min-h-[3px] flex-1 rounded-[3px_3px_2px_2px] ${count > 0 ? 'bg-zinc-900' : 'bg-[#ebebeb]'}`}
+                    style={{ height: `${Math.max(3, count * 26)}px` }}
+                    title={`${i === 11 ? '本周' : `${11 - i} 周前`}:${count} 篇`}
+                  />
+                ))}
+              </div>
+              <div className="mt-2.5 flex justify-between border-t border-dashed border-[#e4e4e7] pt-2.5 text-[12px] tabular-nums text-[#9ca3a8]">
+                <span>
+                  近 12 周 · 共 <strong className="font-semibold text-zinc-900">{weeklyBars.reduce((a, b) => a + b, 0)}</strong> 篇
+                </span>
+                <span>
+                  本周 <strong className="font-semibold text-zinc-900">{weeklyBars[11]}</strong> 篇
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section aria-label="系统概况" className="rounded-[10px] border border-[#e4e4e7] bg-white">
+            <div className="flex items-center justify-between gap-3 border-b border-[#e4e4e7] py-[13px] pl-5 pr-4">
+              <span className="text-[14px] font-semibold tracking-[-0.01em]">系统概况</span>
+            </div>
+            <div className="grid gap-0.5 p-2">
+              <div className="flex h-8 items-center justify-between gap-3 rounded-md px-3 text-[13px] text-[#52525b]">
+                <span>管理版本</span>
+                <strong className="font-medium tabular-nums text-zinc-900">{version ? `v${version}` : '—'}</strong>
+              </div>
+              <div className="flex h-8 items-center justify-between gap-3 rounded-md px-3 text-[13px] text-[#52525b]">
+                <span>待提交改动</span>
+                <strong className={`font-medium tabular-nums ${dirtyCount > 0 ? 'text-amber-700' : 'text-zinc-900'}`}>
+                  {dirtyCount} 个文件
+                </strong>
+              </div>
+              <div className="flex h-8 items-center justify-between gap-3 rounded-md px-3 text-[13px] text-[#52525b]">
+                <span>Hugo 服务器</span>
+                <strong className="font-medium tabular-nums text-zinc-900">
+                  {serverStatus.running ? '运行中' : '已停止'}
+                </strong>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </div>

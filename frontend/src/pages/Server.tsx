@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Bug, Square, ExternalLink, Trash2 } from 'lucide-react';
+import { toast } from '../utils/toast';
 import { get, post } from '../utils/api';
 import { useEvents } from '../hooks/useEvents';
 import type { ServerStatus, LogEntry } from '../types';
@@ -51,7 +52,7 @@ export default function ServerPage() {
     if (!events) return;
 
     const handleLog = (data: LogEntry) => {
-      setLogs((prev) => [...prev, data]);
+      setLogs((prev) => [...prev.slice(-499), data]);
     };
 
     events.on('server_log', handleLog);
@@ -73,13 +74,13 @@ export default function ServerPage() {
     try {
       const data = await post<{ success: boolean; status?: ServerStatus; message?: string }>('/api/server/start', { debug });
       if (data.success && data.status) {
-        showNotification('服务器启动成功', 'success');
+        toast('服务器启动成功');
         setStatus(data.status);
       } else {
-        showNotification('启动失败: ' + data.message, 'error');
+        toast('启动失败: ' + data.message);
       }
     } catch {
-      showNotification('启动失败', 'error');
+      toast('启动失败');
     } finally {
       setLoading(false);
     }
@@ -90,13 +91,13 @@ export default function ServerPage() {
     try {
       const data = await post<{ success: boolean; status?: ServerStatus; message?: string }>('/api/server/stop');
       if (data.success && data.status) {
-        showNotification('服务器已停止', 'success');
+        toast('服务器已停止');
         setStatus(data.status);
       } else {
-        showNotification('停止失败: ' + data.message, 'error');
+        toast('停止失败: ' + data.message);
       }
     } catch {
-      showNotification('停止失败', 'error');
+      toast('停止失败');
     } finally {
       setLoading(false);
     }
@@ -106,53 +107,46 @@ export default function ServerPage() {
     setLogs([]);
   }
 
-  function showNotification(message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 fade-in ${
-      type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-    } text-white`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 3000);
-  }
-
   const logLevelColors: Record<string, string> = {
     SUCCESS: 'text-green-400',
     ERROR: 'text-red-400',
     WARNING: 'text-yellow-400',
-    INFO: 'text-stone-300',
+    INFO: 'text-[#d4d4d8]',
   };
 
   return (
     <div>
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6 mb-6">
+      <div className="page-head">
+        <h1 className="m-0 text-[22px] font-semibold tracking-[-0.02em]">服务器控制</h1>
+      </div>
+      <div className="mt-6 rounded-[10px] border border-[#e4e4e7] bg-white p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <h3 className="text-lg font-medium mb-4">服务器状态</h3>
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
-                <span className="text-stone-700">运行状态:</span>
-                <span className={`font-semibold flex items-center ${status.running ? 'text-green-600' : 'text-stone-500'}`}>
-                  <span className={`w-2 h-2 rounded-full mr-2 ${status.running ? 'bg-green-500' : 'bg-stone-400'}`} />
+              <div className="flex items-center justify-between p-3 bg-[#f4f4f5] rounded-lg">
+                <span className="text-[#3f3f46]">运行状态:</span>
+                <span className={`font-semibold flex items-center ${status.running ? 'text-green-600' : 'text-[#52525b]'}`}>
+                  <span className={`dot-pulse mr-2 ${status.running ? '' : 'is-off'}`} aria-hidden="true" />
                   {status.running ? '运行中' : '已停止'}
                 </span>
               </div>
               {status.running && (
                 <>
-                  <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
-                    <span className="text-stone-700">进程 PID:</span>
+                  <div className="flex items-center justify-between p-3 bg-[#f4f4f5] rounded-lg">
+                    <span className="text-[#3f3f46]">进程 PID:</span>
                     <span className="font-mono">{status.pid}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
-                    <span className="text-stone-700">运行时间:</span>
+                  <div className="flex items-center justify-between p-3 bg-[#f4f4f5] rounded-lg">
+                    <span className="text-[#3f3f46]">运行时间:</span>
                     <span className="font-mono">{status.uptime || '-'}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
-                    <span className="text-stone-700">CPU 使用率:</span>
+                  <div className="flex items-center justify-between p-3 bg-[#f4f4f5] rounded-lg">
+                    <span className="text-[#3f3f46]">CPU 使用率:</span>
                     <span className="font-mono">{status.cpu_percent ? status.cpu_percent + '%' : '-'}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg">
-                    <span className="text-stone-700">内存使用:</span>
+                  <div className="flex items-center justify-between p-3 bg-[#f4f4f5] rounded-lg">
+                    <span className="text-[#3f3f46]">内存使用:</span>
                     <span className="font-mono">{status.memory_mb ? status.memory_mb + ' MB' : '-'}</span>
                   </div>
                 </>
@@ -166,31 +160,25 @@ export default function ServerPage() {
               <button
                 onClick={() => startServer(false)}
                 disabled={status.running || loading}
-                className={`w-full px-6 py-3 text-white rounded-lg transition-colors flex items-center justify-center ${
-                  status.running || loading ? 'bg-stone-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
-                }`}
+                className="btn btn-primary w-full"
               >
-                <Play className="w-5 h-5 mr-2" />
+                <Play />
                 {loading ? '启动中...' : '启动服务器'}
               </button>
               <button
                 onClick={() => startServer(true)}
                 disabled={status.running || loading}
-                className={`w-full px-6 py-3 text-white rounded-lg transition-colors flex items-center justify-center ${
-                  status.running || loading ? 'bg-stone-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                }`}
+                className="btn btn-ghost w-full"
               >
-                <Bug className="w-5 h-5 mr-2" />
+                <Bug />
                 {loading ? '启动中...' : '启动服务器 (草稿模式)'}
               </button>
               <button
                 onClick={stopServer}
                 disabled={!status.running || loading}
-                className={`w-full px-6 py-3 text-white rounded-lg transition-colors flex items-center justify-center ${
-                  !status.running || loading ? 'bg-stone-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
-                }`}
+                className="btn btn-danger w-full"
               >
-                <Square className="w-5 h-5 mr-2" />
+                <Square />
                 {loading ? '停止中...' : '停止服务器'}
               </button>
               {status.running && (
@@ -198,12 +186,10 @@ export default function ServerPage() {
                   href={hugoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block w-full px-6 py-3 bg-purple-600 text-white text-center rounded-lg hover:bg-purple-700 transition-colors"
+                  className="btn btn-primary w-full"
                 >
-                  <span className="flex items-center justify-center">
-                    <ExternalLink className="w-5 h-5 mr-2" />
-                    访问网站
-                  </span>
+                  <ExternalLink />
+                  访问网站
                 </a>
               )}
             </div>
@@ -211,23 +197,23 @@ export default function ServerPage() {
         </div>
       </div>
 
-      <div className="bg-stone-900 rounded-lg overflow-hidden">
-        <div className="px-6 py-4 bg-stone-800 border-b border-stone-700 flex items-center justify-between">
+      <div className="rounded-[10px] bg-zinc-900 overflow-hidden">
+        <div className="px-6 py-4 bg-[#27272a] border-b border-[#3f3f46] flex items-center justify-between">
           <h3 className="text-white font-semibold">服务器日志</h3>
           <button
             onClick={clearLogs}
-            className="px-3 py-1 text-xs bg-stone-700 text-white rounded hover:bg-stone-600 transition-colors flex items-center"
+            className="btn btn-ghost-dark btn-sm"
           >
-            <Trash2 className="w-3 h-3 mr-1" />
+            <Trash2 className="w-3 h-3" />
             清空日志
           </button>
         </div>
-        <div ref={logContainerRef} className="p-4 h-96 overflow-y-auto font-mono text-sm text-stone-300 bg-stone-900">
-          {logs.length === 0 && <p className="text-stone-500">暂无日志输出</p>}
+        <div ref={logContainerRef} className="p-4 h-96 overflow-y-auto font-mono text-sm text-[#d4d4d8] bg-zinc-900">
+          {logs.length === 0 && <p className="text-[#71717a]">暂无日志输出</p>}
           {logs.map((log, index) => (
-            <div key={index} className="mb-1 hover:bg-stone-800 px-2 py-1 rounded">
-              <span className="text-stone-500">[{log.timestamp}]</span>{' '}
-              <span className={logLevelColors[log.level] || 'text-stone-300'}>{log.message}</span>
+            <div key={index} className="mb-1 hover:bg-[#27272a] px-2 py-1 rounded">
+              <span className="text-[#71717a]">[{log.timestamp}]</span>{' '}
+              <span className={logLevelColors[log.level] || 'text-[#d4d4d8]'}>{log.message}</span>
             </div>
           ))}
         </div>

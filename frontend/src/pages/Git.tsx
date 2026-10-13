@@ -160,12 +160,12 @@ export default function Git() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-stone-800">Git</h2>
+      <div className="page-head flex items-center justify-between gap-3">
+        <h1 className="m-0 text-[22px] font-semibold tracking-[-0.02em]">Git</h1>
         <button
           onClick={refresh}
           disabled={activeLoading}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-white ring-1 ring-stone-900/5 rounded-lg hover:bg-stone-50 transition-colors disabled:opacity-50"
+          className="btn btn-ghost"
         >
           <RefreshCw className={`w-4 h-4 ${activeLoading ? 'animate-spin' : ''}`} />
           刷新
@@ -173,11 +173,11 @@ export default function Git() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-stone-100 p-1 rounded-lg w-fit">
+      <div className="mt-6 flex gap-1 mb-6 bg-[#ebebeb] p-1 rounded-lg w-fit">
         <button
           onClick={() => setTab('status')}
           className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-colors ${
-            tab === 'status' ? 'bg-white text-stone-800 shadow-sm font-medium' : 'text-stone-500 hover:text-stone-700'
+            tab === 'status' ? 'bg-white text-zinc-900 shadow-sm font-medium' : 'text-[#52525b] hover:text-zinc-900'
           }`}
         >
           <ListTree className="w-4 h-4" />
@@ -186,7 +186,7 @@ export default function Git() {
         <button
           onClick={() => setTab('commits')}
           className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-colors ${
-            tab === 'commits' ? 'bg-white text-stone-800 shadow-sm font-medium' : 'text-stone-500 hover:text-stone-700'
+            tab === 'commits' ? 'bg-white text-zinc-900 shadow-sm font-medium' : 'text-[#52525b] hover:text-zinc-900'
           }`}
         >
           <GitCommit className="w-4 h-4" />
@@ -195,7 +195,7 @@ export default function Git() {
         <button
           onClick={() => setTab('pushes')}
           className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-colors ${
-            tab === 'pushes' ? 'bg-white text-stone-800 shadow-sm font-medium' : 'text-stone-500 hover:text-stone-700'
+            tab === 'pushes' ? 'bg-white text-zinc-900 shadow-sm font-medium' : 'text-[#52525b] hover:text-zinc-900'
           }`}
         >
           <GitBranch className="w-4 h-4" />
@@ -258,7 +258,7 @@ function StatusView({
   }
   if (!status.success) {
     return (
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-6 flex items-start gap-3 text-red-700">
+      <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-6 flex items-start gap-3 text-red-700">
         <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
         <div className="text-sm">{status.message || '当前目录不是有效的 git 仓库'}</div>
       </div>
@@ -273,9 +273,9 @@ function StatusView({
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-4">
+      <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-sm text-stone-600">
+          <div className="text-sm text-[#52525b]">
             {clean ? (
               <span className="inline-flex items-center gap-2 text-green-700">
                 <CheckCircle2 className="w-4 h-4" />
@@ -288,23 +288,23 @@ function StatusView({
               </span>
             )}
             {status.message && status.message !== '获取状态成功' && (
-              <span className="ml-3 text-stone-400">{status.message}</span>
+              <span className="ml-3 text-[#9ca3a8]">{status.message}</span>
             )}
           </div>
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-stone-600 select-none">
+            <label className="flex items-center gap-2 text-sm text-[#52525b] select-none">
               <input
                 type="checkbox"
                 checked={setUpstream}
                 onChange={(e) => onSetUpstreamChange(e.target.checked)}
-                className="rounded border-stone-300"
+                className="rounded border-[#e4e4e7]"
               />
               set-upstream (-u)
             </label>
             <button
               onClick={onPush}
               disabled={pushing}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition-colors disabled:opacity-50"
+              className="btn btn-primary"
             >
               <Upload className={`w-4 h-4 ${pushing ? 'animate-pulse' : ''}`} />
               {pushing ? '推送中...' : '推送'}
@@ -322,7 +322,7 @@ function StatusView({
       {clean ? (
         <EmptyState text="没有 staged / unstaged / untracked 改动" />
       ) : (
-        <div className="bg-white rounded-md ring-1 ring-stone-900/5 overflow-hidden">
+        <div className="rounded-[10px] border border-[#e4e4e7] bg-white overflow-hidden">
           {status.staged.length > 0 && (
             <FileGroup title="已暂存 (staged)" tone="green" files={status.staged} />
           )}
@@ -352,15 +352,15 @@ function FileGroup({
       ? 'bg-green-50 text-green-700'
       : tone === 'amber'
       ? 'bg-amber-50 text-amber-700'
-      : 'bg-stone-50 text-stone-700';
+      : 'bg-[#f4f4f5] text-[#3f3f46]';
   return (
     <div>
-      <div className={`px-4 py-2 text-xs font-medium border-b border-stone-100 ${toneClass}`}>
+      <div className={`px-4 py-2 text-xs font-medium border-b border-[#e4e4e7] ${toneClass}`}>
         {title} · {files.length}
       </div>
-      <ul className="divide-y divide-stone-100">
+      <ul className="divide-y divide-[#e4e4e7]">
         {files.map((f) => (
-          <li key={f} className="px-4 py-2 font-mono text-sm text-stone-700 break-all">
+          <li key={f} className="px-4 py-2 font-mono text-sm text-[#3f3f46] break-all">
             {f}
           </li>
         ))}
@@ -387,15 +387,15 @@ function CommitsView({
     return <EmptyState text="暂无提交记录" />;
   }
   return (
-    <div className="bg-white rounded-md ring-1 ring-stone-900/5 overflow-hidden">
-      <ul className="divide-y divide-stone-100">
+    <div className="rounded-[10px] border border-[#e4e4e7] bg-white overflow-hidden">
+      <ul className="divide-y divide-[#e4e4e7]">
         {commits.map((c) => (
-          <li key={c.hash} className="p-4 hover:bg-stone-50 transition-colors">
+          <li key={c.hash} className="p-4 hover:bg-[#f4f4f5] transition-colors">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-stone-800 truncate">{c.message}</p>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-stone-500">
-                  <span className="font-mono text-xs text-stone-600">{c.hash.slice(0, 7)}</span>
+                <p className="font-medium text-zinc-900 truncate">{c.message}</p>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-[#52525b]">
+                  <span className="font-mono text-xs text-[#52525b]">{c.hash.slice(0, 7)}</span>
                   <span>{c.author}</span>
                   <span title={c.date}>{relativeFromNow(c.date)}</span>
                   {c.refs && (
@@ -407,7 +407,7 @@ function CommitsView({
                 </div>
               </div>
               <div className="flex items-center gap-3 text-xs font-mono whitespace-nowrap shrink-0">
-                <span className="text-stone-500">{c.stats.files} 文件</span>
+                <span className="text-[#52525b]">{c.stats.files} 文件</span>
                 <span className="text-green-600">+{c.stats.insertions}</span>
                 <span className="text-red-600">-{c.stats.deletions}</span>
               </div>
@@ -416,11 +416,11 @@ function CommitsView({
         ))}
       </ul>
       {hasMore && (
-        <div className="p-3 border-t border-stone-100 text-center">
+        <div className="p-3 border-t border-[#e4e4e7] text-center">
           <button
             onClick={onLoadMore}
             disabled={loading}
-            className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 hover:bg-stone-50 rounded-lg transition-colors disabled:opacity-50"
+            className="btn btn-ghost"
           >
             {loading ? '加载中...' : '加载更多'}
           </button>
@@ -450,12 +450,12 @@ function PushesView({
     return <EmptyState text="暂无推送记录" />;
   }
   return (
-    <div className="bg-white rounded-md ring-1 ring-stone-900/5 overflow-hidden">
-      <ul className="divide-y divide-stone-100">
+    <div className="rounded-[10px] border border-[#e4e4e7] bg-white overflow-hidden">
+      <ul className="divide-y divide-[#e4e4e7]">
         {pushes.map((p) => {
           const range = p.from_sha && p.to_sha ? `${p.from_sha.slice(0, 7)}..${p.to_sha.slice(0, 7)}` : p.to_sha ? `${p.to_sha.slice(0, 7)}` : '—';
           return (
-            <li key={p.id} className="p-4 hover:bg-stone-50 transition-colors">
+            <li key={p.id} className="p-4 hover:bg-[#f4f4f5] transition-colors">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
@@ -464,11 +464,11 @@ function PushesView({
                     ) : (
                       <XCircle className="w-4 h-4 text-red-600 shrink-0" />
                     )}
-                    <p className={`font-medium truncate ${p.success ? 'text-stone-800' : 'text-red-700'}`}>
+                    <p className={`font-medium truncate ${p.success ? 'text-zinc-900' : 'text-red-700'}`}>
                       {p.commit_message || (p.success ? '推送成功' : '推送失败')}
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-stone-500">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-[#52525b]">
                     <span className="inline-flex items-center gap-1">
                       <GitBranch className="w-3 h-3" />
                       {p.remote}/{p.branch}
@@ -488,22 +488,22 @@ function PushesView({
       </ul>
 
       {pagination.total_pages > 1 && (
-        <div className="flex items-center justify-between p-3 border-t border-stone-100">
+        <div className="flex items-center justify-between p-3 border-t border-[#e4e4e7]">
           <button
             onClick={() => onPage(page - 1)}
             disabled={!pagination.has_prev || loading}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm text-stone-600 rounded hover:bg-stone-50 disabled:opacity-40 disabled:hover:bg-transparent"
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-[#52525b] rounded hover:bg-[#f4f4f5] disabled:opacity-40 disabled:hover:bg-transparent"
           >
             <ChevronLeft className="w-4 h-4" />
             上一页
           </button>
-          <span className="text-sm text-stone-500">
+          <span className="text-sm text-[#52525b]">
             第 {page} / {pagination.total_pages} 页（共 {pagination.total} 条）
           </span>
           <button
             onClick={() => onPage(page + 1)}
             disabled={!pagination.has_next || loading}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm text-stone-600 rounded hover:bg-stone-50 disabled:opacity-40 disabled:hover:bg-transparent"
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-[#52525b] rounded hover:bg-[#f4f4f5] disabled:opacity-40 disabled:hover:bg-transparent"
           >
             下一页
             <ChevronRight className="w-4 h-4" />
@@ -516,7 +516,7 @@ function PushesView({
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="bg-white rounded-md ring-1 ring-stone-900/5 p-12 text-center text-stone-400">
+    <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-12 text-center text-[#9ca3a8]">
       {text}
     </div>
   );
