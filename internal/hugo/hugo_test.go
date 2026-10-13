@@ -2,6 +2,7 @@ package hugo
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -188,5 +189,24 @@ func TestFormatUptime(t *testing.T) {
 		if got := formatUptime(d); got != want {
 			t.Errorf("formatUptime(%v) = %q, want %q", d, got, want)
 		}
+	}
+}
+
+// TestMonitorLogsStaleCmdNotClearState 钉住收尸守卫：Stop→Start 换新实例后，
+// 旧进程的 monitorLogs 迟到收尸（m.cmd != cmd）不得清掉新实例的 isRunning。
+func TestMonitorLogsStaleCmdNotClearState(t *testing.T) {
+	m := NewManager(t.TempDir(), "", nil)
+	staleCmd := &exec.Cmd{} // 本轮监控对应的旧进程
+	m.cmd = &exec.Cmd{}     // 当前实例已是另一个 cmd
+	m.isRunning = true
+
+	exited := make(chan struct{})
+	m.monitorLogs(strings.NewReader(""), staleCmd, exited)
+	<-exited
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.isRunning {
+		t.Fatal("旧进程的迟到收尸不应清掉新实例的 isRunning")
 	}
 }

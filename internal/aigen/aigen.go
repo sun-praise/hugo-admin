@@ -27,6 +27,10 @@ const (
 	defaultImgModel = "google/gemini-3.1-flash-image-preview"
 )
 
+// CoverEndpointOverride 非空时替换封面生成的 OpenRouter 端点，
+// 供跨包测试注入 httptest 服务（与 ExtractImageFromURL 暴露给测试同理）。
+var CoverEndpointOverride string
+
 // ---- frontmatter 生成 ----
 
 var (
@@ -220,7 +224,11 @@ func GenerateCoverImage(title, description, content, apiKey, model string) (bool
 		"model":    model,
 		"messages": []map[string]any{{"role": "user", "content": strings.Join(promptParts, "\n")}},
 	})
-	req, _ := http.NewRequest(http.MethodPost, openRouterURL, bytes.NewReader(payload))
+	endpoint := openRouterURL
+	if CoverEndpointOverride != "" {
+		endpoint = CoverEndpointOverride
+	}
+	req, _ := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(payload))
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 

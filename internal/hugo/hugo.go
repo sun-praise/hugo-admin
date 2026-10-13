@@ -206,7 +206,9 @@ func (m *Manager) monitorLogs(stdout io.Reader, cmd *exec.Cmd, exited chan struc
 	close(exited)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.isRunning {
+	// 仅当仍是本次启动的进程时才翻转状态：Stop→Start 期间旧 goroutine
+	// 迟到的收尸不得把新实例的 isRunning 误清（Status 误报/重复拉起）。
+	if m.cmd == cmd && m.isRunning {
 		m.isRunning = false
 	}
 }

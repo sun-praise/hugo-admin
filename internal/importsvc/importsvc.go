@@ -244,7 +244,9 @@ func createArticleDir(contentDir, title string, now time.Time) string {
 	name := datePrefix + "-" + slug
 	target := filepath.Join(contentDir, "post", name)
 	for {
-		if _, err := os.Stat(target); os.IsNotExist(err) {
+		// 只有目标已存在才换名重试；stat 出错（如父路径是文件，ENOTDIR）
+		// 视为可用，交由后续写入报告真实错误，避免死循环。
+		if _, err := os.Stat(target); err != nil {
 			break
 		}
 		name = datePrefix + "-" + slug + "-" + util.NewOperationID()[:6]

@@ -383,8 +383,14 @@ func (s *Service) SendCampaign(post *Post, force bool) map[string]any {
 	auth := fmt.Sprintf("token %s:%s", s.apiUser, s.apiKey)
 
 	createJSON, _ := json.Marshal(campaignData)
-	createResp, err := client.Post(s.apiURL+"/api/campaigns", "application/json",
+	createReq, err := http.NewRequest(http.MethodPost, s.apiURL+"/api/campaigns",
 		bytes.NewReader(createJSON))
+	if err != nil {
+		return s.campaignError(err, nil)
+	}
+	createReq.Header.Set("Authorization", auth)
+	createReq.Header.Set("Content-Type", "application/json")
+	createResp, err := client.Do(createReq)
 	if err != nil {
 		return s.campaignError(err, createResp)
 	}
@@ -402,8 +408,11 @@ func (s *Service) SendCampaign(post *Post, force bool) map[string]any {
 
 	// 启动活动
 	sendJSON, _ := json.Marshal(map[string]any{"status": "running"})
-	sendReq, _ := http.NewRequest(http.MethodPut, fmt.Sprintf("%s/api/campaigns/%d/status", s.apiURL, campaignID),
+	sendReq, err := http.NewRequest(http.MethodPut, fmt.Sprintf("%s/api/campaigns/%d/status", s.apiURL, campaignID),
 		bytes.NewReader(sendJSON))
+	if err != nil {
+		return s.campaignError(err, nil)
+	}
 	sendReq.Header.Set("Authorization", auth)
 	sendReq.Header.Set("Content-Type", "application/json")
 	sendResp, err := client.Do(sendReq)
