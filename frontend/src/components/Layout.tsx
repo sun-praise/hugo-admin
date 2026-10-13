@@ -10,7 +10,6 @@ import Loading from './Loading';
 // beat after the shell without blocking first paint.
 const AIChat = lazy(() => import('./AIChat'));
 
-import { PageTitleProvider } from '../contexts/PageTitleContext';
 import { createNewPost } from '../utils/actions';
 
 export default function Layout() {
@@ -41,23 +40,21 @@ export default function Layout() {
   }, [navigate]);
 
   return (
-    <PageTitleProvider>
-      <div className="grid min-h-screen grid-cols-[232px_minmax(0,1fr)] max-[860px]:grid-cols-[60px_minmax(0,1fr)]">
-        <Sidebar />
-        <div className="flex min-w-0 flex-col">
-          <Topbar onOpenPalette={openPalette} />
-          <main className="w-full max-w-[1760px] flex-1 px-8 pb-14 pt-7 max-[860px]:px-4">
-            <Suspense fallback={<Loading />}>
-              <Outlet />
-            </Suspense>
-          </main>
-        </div>
-        <Suspense fallback={null}>
-          <AIChat />
-        </Suspense>
+    <div className="grid min-h-screen grid-cols-[232px_minmax(0,1fr)] max-[860px]:grid-cols-[60px_minmax(0,1fr)]">
+      <Sidebar />
+      <div className="flex min-w-0 flex-col">
+        <Topbar onOpenPalette={openPalette} />
+        <main className="w-full max-w-[1760px] flex-1 px-8 pb-14 pt-7 max-[860px]:px-4">
+          <Suspense fallback={<Loading />}>
+            <Outlet />
+          </Suspense>
+        </main>
       </div>
+      <Suspense fallback={null}>
+        <AIChat />
+      </Suspense>
       <CommandPaletteWrapper open={paletteOpen} onClose={closePalette} />
-    </PageTitleProvider>
+    </div>
   );
 }
 

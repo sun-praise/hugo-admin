@@ -52,7 +52,7 @@ export default function ServerPage() {
     if (!events) return;
 
     const handleLog = (data: LogEntry) => {
-      setLogs((prev) => [...prev, data]);
+      setLogs((prev) => [...prev.slice(-499), data]);
     };
 
     events.on('server_log', handleLog);
@@ -202,7 +202,7 @@ export default function ServerPage() {
           <h3 className="text-white font-semibold">服务器日志</h3>
           <button
             onClick={clearLogs}
-            className="btn btn-ghost btn-sm"
+            className="btn btn-ghost-dark btn-sm"
           >
             <Trash2 className="w-3 h-3" />
             清空日志

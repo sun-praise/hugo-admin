@@ -120,7 +120,7 @@ export default function Sidebar() {
 
       <div className="mt-auto border-t border-[#e4e4e7] pt-3">
         <div className="flex items-center gap-2.5 px-2 py-1.5 max-[860px]:justify-center max-[860px]:px-0">
-          <div className="grid h-7 w-7 flex-none place-items-center rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-[12px] font-semibold text-white">
+          <div className="grid h-7 w-7 flex-none place-items-center rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-[12px] font-semibold text-white max-[860px]:hidden">
             {initial}
           </div>
           <div className="min-w-0 leading-[1.3] max-[860px]:hidden">
@@ -131,7 +131,7 @@ export default function Sidebar() {
             onClick={handleLogout}
             title="退出登录"
             aria-label="退出登录"
-            className="ml-auto grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-md border-0 bg-transparent text-[#9ca3a8] hover:bg-[#f4f4f5] hover:text-zinc-900 max-[860px]:hidden"
+            className="ml-auto grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-md border-0 bg-transparent text-[#9ca3a8] hover:bg-[#f4f4f5] hover:text-zinc-900 max-[860px]:mx-auto"
           >
             <LogOut className="h-[15px] w-[15px]" />
           </button>

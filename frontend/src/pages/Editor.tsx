@@ -30,7 +30,6 @@ import {
 import { renderMarkdown, escapeHtml } from '../utils/markdown';
 import type { Mermaid } from 'mermaid';
 import type { FileData, ImageItem, Backlink, Frontmatter } from '../types';
-import { usePageTitle } from '../hooks/usePageTitle';
 import { useEvents } from '../hooks/useEvents';
 import { InlineEditOverlay } from '../components/InlineEdit/Overlay';
 import { ConflictModal } from '../components/ConflictModal';
@@ -105,7 +104,6 @@ export default function Editor() {
   const [generatingFm, setGeneratingFm] = useState(false);
   const [fileMtime, setFileMtime] = useState<number | null>(null);
   const [conflictRemoteContent, setConflictRemoteContent] = useState<string | null>(null);
-  const { setTitle: setPageTitle, resetTitle: resetPageTitle } = usePageTitle();
 
   // TTS 语音播报
   const eventsRef = useEvents();
@@ -115,13 +113,6 @@ export default function Editor() {
   const [ttsProgress, setTtsProgress] = useState<{ stage: string; percent: number; message: string } | null>(null);
   const [ttsVoice, setTtsVoice] = useState('');
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
-
-  useEffect(() => {
-    if (frontmatter.title) {
-      setPageTitle(frontmatter.title);
-    }
-    return () => { resetPageTitle(); };
-  }, [frontmatter.title, setPageTitle, resetPageTitle]);
 
   const currentFile = fullPath;
 

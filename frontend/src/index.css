@@ -66,68 +66,72 @@ body {
   from { opacity: 0; transform: translateY(6px); }
 }
 
-/* ===== 按钮规范(对齐原型 .btn-primary/.btn-ghost) ===== */
-/* 用法:<button className="btn btn-primary"> / className="btn btn-ghost" */
-/* 可叠加结构类:w-full / block / ml-auto 等;不要叠加 inline-flex、px-*、py-*、 */
-/* h-*、rounded-*、text-[13px]、font-medium、transition-colors(已由 .btn 提供) */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-  border: 0;
-  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, opacity 0.12s ease;
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.btn-primary {
-  background: #18181b;
-  color: #fff;
-}
-.btn-primary:hover:not(:disabled) {
-  background: #2e2e33;
-}
-.btn-ghost {
-  background: #fff;
-  border: 1px solid #e4e4e7;
-  color: #18181b;
-}
-.btn-ghost:hover:not(:disabled) {
-  background: #f4f4f5;
-}
-.btn-danger {
-  background: #dc2626;
-  color: #fff;
-}
-.btn-danger:hover:not(:disabled) {
-  background: #b91c1c;
-}
-/* 小号:28px 高,用于卡片内行级操作(配置/禁用/页签旁等) */
-.btn-sm {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12.5px;
-  border-radius: 6px;
-  gap: 5px;
-}
-/* 图标尺寸规范(按钮内图标) */
-.btn svg {
-  width: 15px;
-  height: 15px;
-  flex: none;
-}
-.btn-sm svg {
-  width: 13px;
-  height: 13px;
+/* ===== 组件层(对齐 Tailwind v4 分层,工具类可正常覆盖) ===== */
+@layer components {
+  /* 按钮规范(对齐原型 .btn-primary/.btn-ghost):
+     <button className="btn btn-primary"> / className="btn btn-ghost" */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    border: 0;
+    transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: #18181b;
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: #2e2e33;
+  }
+  .btn-ghost {
+    background: #fff;
+    border: 1px solid #e4e4e7;
+    color: #18181b;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: #f4f4f5;
+  }
+  .btn-danger {
+    background: #dc2626;
+    color: #fff;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: #b91c1c;
+  }
+  /* 小号:28px 高,用于卡片内行级操作 */
+  .btn-sm {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12.5px;
+    border-radius: 6px;
+    gap: 5px;
+  }
+  /* 深色面上的 ghost(如日志面板头部) */
+  .btn-ghost-dark {
+    background: rgb(255 255 255 / 0.1);
+    color: rgb(255 255 255 / 0.82);
+  }
+  .btn-ghost-dark:hover:not(:disabled) {
+    background: rgb(255 255 255 / 0.18);
+  }
+
+  /* 页面头(语义钩子,样式由内部元素承担) */
+  .page-head {
+    margin: 0;
+  }
 }
 
 /* 应用 Toast(底部居中深色胶囊) */

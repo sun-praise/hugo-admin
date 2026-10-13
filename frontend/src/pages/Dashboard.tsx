@@ -46,25 +46,31 @@ export default function Dashboard() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      try {
-        const [all, tagData, catData, st, gs, ver] = await Promise.all([
-          get<PostsResponse>('/api/posts?per_page=1000'),
-          get<{ tags: TagType[] }>('/api/posts/tags'),
-          get<{ categories: Category[] }>('/api/posts/categories'),
-          get<ServerStatus>('/api/server/status'),
-          get<GitStatus>('/api/git/status'),
-          get<{ version: string }>('/api/version'),
-        ]);
-        if (!alive) return;
-        setPosts(all.posts);
-        setTags(tagData.tags);
-        setCategories(catData.categories);
-        setServerStatus(st);
-        setGitStatus(gs);
-        setVersion(ver.version);
-      } catch (error) {
-        console.error('Failed to load dashboard:', error);
-      }
+      // 每个请求独立失败兜底:可选项挂了不影响文章/状态等主数据
+      const safe = async <T,>(p: Promise<T>, fallback: T): Promise<T> => {
+        try {
+          return await p;
+        } catch {
+          return fallback;
+        }
+      };
+      const [all, tagData, catData, st, gs, ver] = await Promise.all([
+        safe(get<PostsResponse>('/api/posts?per_page=1000'), {
+          posts: [], total: 0, page: 1, per_page: 0, total_pages: 0, has_next: false, has_prev: false,
+        }),
+        safe(get<{ tags: TagType[] }>('/api/posts/tags'), { tags: [] }),
+        safe(get<{ categories: Category[] }>('/api/posts/categories'), { categories: [] }),
+        safe(get<ServerStatus>('/api/server/status'), { running: false, pid: null }),
+        safe(get<GitStatus>('/api/git/status'), { success: false } as GitStatus),
+        safe(get<{ version: string }>('/api/version'), { version: '' }),
+      ]);
+      if (!alive) return;
+      setPosts(all.posts || []);
+      setTags(tagData.tags || []);
+      setCategories(catData.categories || []);
+      setServerStatus(st);
+      setGitStatus(gs);
+      setVersion(ver.version || '');
     })();
     return () => {
       alive = false;
@@ -291,7 +297,7 @@ export default function Dashboard() {
             <div className="grid gap-0.5 p-2">
               <div className="flex h-8 items-center justify-between gap-3 rounded-md px-3 text-[13px] text-[#52525b]">
                 <span>管理版本</span>
-                <strong className="font-medium tabular-nums text-zinc-900">v{version}</strong>
+                <strong className="font-medium tabular-nums text-zinc-900">{version ? `v${version}` : '—'}</strong>
               </div>
               <div className="flex h-8 items-center justify-between gap-3 rounded-md px-3 text-[13px] text-[#52525b]">
                 <span>待提交改动</span>

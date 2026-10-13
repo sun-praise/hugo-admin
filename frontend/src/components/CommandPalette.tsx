@@ -37,7 +37,8 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
-  const [hits, setHits] = useState<SearchHit[]>([]);
+  // hits 与产出它的查询绑定,渲染时按当前查询过滤,天然过期即失效
+  const [search, setSearch] = useState<{ q: string; items: SearchHit[] }>({ q: '', items: [] });
   const searchSeq = useRef(0);
 
   const commands = useMemo<Command[]>(
@@ -46,7 +47,6 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
       { group: '操作', icon: Upload, label: '系统发布（提交并触发构建）', run: publishSystem },
       { group: '操作', icon: Mail, label: '推送最新文章到订阅者', run: pushLatestEmail },
       { group: '操作', icon: Send, label: '推送指定文章…', run: pushSpecificEmail },
-      { group: '操作', icon: Server, label: '服务器控制', run: () => navigate('/server') },
       { group: '页面', icon: Home, label: '仪表板', run: () => navigate('/') },
       { group: '页面', icon: FileText, label: '文章管理', run: () => navigate('/posts') },
       { group: '页面', icon: Pen, label: '编辑器', run: () => navigate('/editor') },
@@ -65,9 +65,12 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
     return commands.filter((c) => c.label.toLowerCase().includes(q));
   }, [commands, trimmed]);
 
+  // 仅展示由当前查询产出的结果(清空/改词后旧结果自动失效)
+  const hits = useMemo(() => (search.q === trimmed ? search.items : []), [search, trimmed]);
+
   const searchCommands = useMemo<Command[]>(
     () =>
-      hits.map((h) => ({
+      hits.slice(0, 30).map((h) => ({
         group: '文章',
         icon: FileText,
         label: h.title || h.path,
@@ -79,7 +82,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
 
   const items = useMemo(() => [...filtered, ...searchCommands], [filtered, searchCommands]);
 
-  // 文章搜索(防抖 250ms);搜索结果为空或查询为空时不展示文章分组
+  // 文章搜索(防抖 250ms);结果携带其查询串,竞态响应自然过期
   useEffect(() => {
     const q = trimmed;
     if (!q) return;
@@ -88,20 +91,20 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
       get<{ success: boolean; posts?: SearchHit[] }>('/api/posts/search?q=' + encodeURIComponent(q))
         .then((d) => {
           if (seq !== searchSeq.current) return;
-          setHits(d.posts || []);
+          setSearch({ q, items: d.posts || [] });
           setActiveIndex(0);
         })
         .catch(() => {
           if (seq !== searchSeq.current) return;
-          setHits([]);
+          setSearch({ q, items: [] });
           setActiveIndex(0);
         });
     }, 250);
     return () => clearTimeout(timer);
   }, [trimmed]);
 
-  // 结果集变化后下标可能越界,渲染时收敛
-  const clampedIndex = items.length === 0 ? 0 : Math.min(activeIndex, items.length - 1);
+  // 结果集变化后下标可能越界,渲染时收敛(带下界)
+  const clampedIndex = Math.max(0, Math.min(activeIndex, items.length - 1));
 
   const runActive = useCallback(() => {
     const item = items[clampedIndex];
