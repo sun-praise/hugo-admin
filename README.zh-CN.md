@@ -142,7 +142,7 @@ hugo-admin/
 ├── app.py                 # Flask 应用
 ├── config.py              # 配置文件
 ├── pyproject.toml         # 依赖和项目元数据
-├── Dockerfile             # Docker 镜像构建
+├── Dockerfile-go          # Docker 镜像构建（Go 单二进制）
 ├── docker-compose.yml     # Docker Compose 配置
 ├── pytest.ini             # Pytest 配置
 ├── services/              # 业务逻辑层

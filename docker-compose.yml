@@ -30,6 +30,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
       - HUGO_ROOT=/app
       - CONTENT_DIR=/app/content
+      - HUGO_SERVER_BASE_URL=${HUGO_SERVER_BASE_URL:-http://localhost:1313}
       - HUGO_THEME=stack
     restart: unless-stopped
     networks:
