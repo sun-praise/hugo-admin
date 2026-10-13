@@ -11,10 +11,23 @@ on:
       - '.github/workflows/test.yml'
   pull_request:
     branches: [ master, main, develop ]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.pre-commit-config.yaml'
+      - '.github/workflows/test.yml'
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
     - uses: actions/checkout@v7
 
@@ -27,6 +40,9 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
     needs: lint
     steps:
     - uses: actions/checkout@v7
@@ -35,12 +51,34 @@ jobs:
       uses: actions/setup-go@v6
       with:
         go-version: '1.24'
+        cache: true
+
+    # internal/projectinit 的测试执行真实 hugo 命令（版本对齐 Dockerfile-go）
+    - name: Install Hugo
+      uses: peaceiris/actions-hugo@v3
+      with:
+        hugo-version: '0.163.3'
+        extended: true
 
     - name: Vet
       run: go vet ./...
 
+    # -coverpkg 跨包统计：httpapi 等集成测试的执行会计入被测包。
+    # 每个测试二进制都会输出全量块，需按块取最大计数去重后
+    # 再交给 go tool cover / Codecov，否则统计失真。
     - name: Test
-      run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+      run: |
+        set -o pipefail
+        go test -race -coverprofile=coverage.out -coverpkg=./internal/...,./cmd/... ./...
+        awk 'NR==1 { mode = $0; next }
+        {
+          key=$1; stmts=$(NF-1); cnt=$NF
+          stmt[key]=stmts
+          if (!(key in max) || cnt > max[key]) max[key]=cnt
+        }
+        END { print mode; for (k in stmt) print k, stmt[k], max[k] }' coverage.out > coverage.merged
+        mv coverage.merged coverage.out
+        go tool cover -func=coverage.out | tail -1
 
     - name: Upload coverage reports
       uses: codecov/codecov-action@v7
