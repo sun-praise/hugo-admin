@@ -60,9 +60,12 @@ docker run -d \
   -v $(pwd)/content:/app/content \
   -v $(pwd)/public:/app/public \
   -v $(pwd)/static:/app/static \
+  -v hugo-admin-data:/app/data \
   -e SECRET_KEY=your-secret-key \
   hugo-admin:latest
 ```
+
+> `-v hugo-admin-data:/app/data` 持久化 auth.json 等运行时数据，容器重建后登录凭据不丢失。
 
 3. **查看日志**
 
