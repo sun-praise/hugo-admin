@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/posts"
+	"github.com/sun-praise/hugo-admin/v3/internal/posts"
 )
 
 // 对齐 publish_routes.py 的 article 端点与 server_routes.py 的

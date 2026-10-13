@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/db"
-	"github.com/svtter/hugo-admin/internal/frontmatter"
+	"github.com/sun-praise/hugo-admin/v3/internal/db"
+	"github.com/sun-praise/hugo-admin/v3/internal/frontmatter"
 )
 
 var refPattern = regexp.MustCompile(`\{\{<\s*ref\s+"([^"]+)"\s*>\}\}`)

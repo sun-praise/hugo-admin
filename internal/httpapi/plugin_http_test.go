@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/plugin"
+	"github.com/sun-praise/hugo-admin/v3/internal/plugin"
 )
 
 // newPluginTestServer 构建真 testplugin 二进制并注入 manager。

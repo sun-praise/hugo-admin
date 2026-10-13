@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/aigen"
-	"github.com/svtter/hugo-admin/internal/importsvc"
-	"github.com/svtter/hugo-admin/internal/util"
+	"github.com/sun-praise/hugo-admin/v3/internal/aigen"
+	"github.com/sun-praise/hugo-admin/v3/internal/importsvc"
+	"github.com/sun-praise/hugo-admin/v3/internal/util"
 )
 
 // 对齐 ai_routes.fm_bp 的 /api/frontmatter/generate、image_routes 的

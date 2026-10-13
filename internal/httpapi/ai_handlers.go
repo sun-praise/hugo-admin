@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/svtter/hugo-admin/internal/ai"
+	"github.com/sun-praise/hugo-admin/v3/internal/ai"
 )
 
 // 对齐 routes/ai_routes.py 与 routes/inline_edit_routes.py。

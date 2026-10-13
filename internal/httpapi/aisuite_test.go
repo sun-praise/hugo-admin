@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/svtter/hugo-admin/internal/aigen"
-	"github.com/svtter/hugo-admin/internal/settings"
+	"github.com/sun-praise/hugo-admin/v3/internal/aigen"
+	"github.com/sun-praise/hugo-admin/v3/internal/settings"
 )
 
 // mockChatServer：OpenAI 兼容 chat/completions（frontmatter 生成用）。

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/svtter/hugo-admin/internal/posts"
+	"github.com/sun-praise/hugo-admin/v3/internal/posts"
 )
 
 // intParam 解析整型查询参数；缺失或非法时用默认值。

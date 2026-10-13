@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/svtter/hugo-admin/internal/projectinit"
+	"github.com/sun-praise/hugo-admin/v3/internal/projectinit"
 )
 
 // 对齐 project_init_routes.py 与 post_routes.py 的缓存端点。
