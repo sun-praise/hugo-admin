@@ -407,7 +407,8 @@ func TestSendCampaignInvalidURL(t *testing.T) {
 	if res["success"] != false {
 		t.Fatalf("res = %#v", res)
 	}
-	if res["message"] == nil {
-		t.Fatal("失败结果应携带错误信息")
+	// 区分 NewRequest 解析失败与传输失败：前者错误信息含 url.Parse 的细节
+	if msg, _ := res["message"].(string); !strings.Contains(msg, "invalid") && !strings.Contains(msg, "parse") {
+		t.Fatalf("message = %q, 应为 URL 解析错误", msg)
 	}
 }
