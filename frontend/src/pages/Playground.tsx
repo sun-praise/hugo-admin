@@ -15,8 +15,8 @@ const WATCHED_EVENTS = [
   'tts.failed',
   'tts.conflict',
   'article_import.progress',
-  'cover_done',
-  'cover_failed',
+  'article_import.cover_done',
+  'article_import.cover_failed',
 ];
 
 interface LogEntry {

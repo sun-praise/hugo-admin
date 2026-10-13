@@ -4,9 +4,9 @@ services:
   hugo-admin:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile-go
       args:
-        HUGO_VERSION: "0.121.1"
+        HUGO_VERSION: "0.163.3"
     container_name: hugo-admin
     ports:
       - "5050:5050"  # Hugo Admin 管理界面
@@ -24,22 +24,18 @@ services:
       - ${HUGO_BLOG_DIR:-../hugo-blog}/resources:/app/resources
       # 主题目录：直接挂载实际主题（Docker 不跟随符号链接）
       - ${HUGO_THEME_DIR:-../Fried-Rice}:/app/themes/stack:ro
-      # 持久化缓存数据库（挂载到 /app 外，避免 Hugo 读取 cache.db）
-      - ./data:/hugo_admin_data
+      # 运行时数据（auth.json 等持久化）
+      - ./data:/app/data
     environment:
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
-      - FLASK_ENV=${FLASK_ENV:-development}
       - HUGO_ROOT=/app
       - CONTENT_DIR=/app/content
-      - PUBLIC_DIR=/app/public
-      - HUGO_SERVER_BASE_URL=${HUGO_SERVER_BASE_URL:-http://localhost:1313}
-      - CACHE_DB_DIR=/hugo_admin_data
       - HUGO_THEME=stack
     restart: unless-stopped
     networks:
       - hugo-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5050/api/server/status"]
+      test: ["CMD", "curl", "-f", "http://localhost:5050/api/version"]
       interval: 30s
       timeout: 10s
       retries: 3
