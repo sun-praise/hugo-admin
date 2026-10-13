@@ -31,8 +31,10 @@ func TestUpsertAndBatchReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// BatchUpsertReferences：a 替换、x 新增、z 清空
+	// BatchUpsertReferences：a 批量替换（覆盖此前单条 upsert 的行）、
+	// x 新增、z 清空
 	batch := map[string][]RefEntry{
+		"post/a/index.md": {{TargetPath: "post/new.md"}},
 		"post/x/index.md": {{TargetPath: "post/y/index.md"}},
 		"post/z/index.md": {},
 	}
@@ -45,7 +47,7 @@ func TestUpsertAndBatchReferences(t *testing.T) {
 		t.Fatalf("GetAllReferences: %v", err)
 	}
 	want := map[string][]string{
-		"post/a/index.md": {"post/b/index.md"}, // 替换后只剩第一条
+		"post/a/index.md": {"post/new.md"},     // 批量替换覆盖单条 upsert 的结果
 		"post/x/index.md": {"post/y/index.md"}, // 批量新增
 	}
 	for src, targets := range want {
