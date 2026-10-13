@@ -128,6 +128,17 @@ body {
     background: rgb(255 255 255 / 0.18);
   }
 
+  /* 按钮内图标默认尺寸(无显式尺寸类的裸图标兜底;utilities 层仍可覆盖) */
+  .btn svg {
+    width: 15px;
+    height: 15px;
+    flex: none;
+  }
+  .btn-sm svg {
+    width: 13px;
+    height: 13px;
+  }
+
   /* 页面头(语义钩子,样式由内部元素承担) */
   .page-head {
     margin: 0;
