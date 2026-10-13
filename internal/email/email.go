@@ -383,8 +383,11 @@ func (s *Service) SendCampaign(post *Post, force bool) map[string]any {
 	auth := fmt.Sprintf("token %s:%s", s.apiUser, s.apiKey)
 
 	createJSON, _ := json.Marshal(campaignData)
-	createResp, err := client.Post(s.apiURL+"/api/campaigns", "application/json",
+	createReq, _ := http.NewRequest(http.MethodPost, s.apiURL+"/api/campaigns",
 		bytes.NewReader(createJSON))
+	createReq.Header.Set("Authorization", auth)
+	createReq.Header.Set("Content-Type", "application/json")
+	createResp, err := client.Do(createReq)
 	if err != nil {
 		return s.campaignError(err, createResp)
 	}

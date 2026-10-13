@@ -82,8 +82,8 @@ func TestGetLatestPost(t *testing.T) {
 	if len(p.Tags) != 5 || p.Tags[0] != "go" {
 		t.Fatalf("tags = %#v", p.Tags)
 	}
-	if p.Published != "" && !strings.HasPrefix(p.Published, "Mon, 02 Jan 2006") {
-		t.Fatalf("published = %q", p.Published)
+	if p.Published != "Mon, 02 Jan 2006 22:04:05 +0000" {
+		t.Fatalf("published = %q（gofeed 会把 -0700 时区归一化为 UTC）", p.Published)
 	}
 	if p.Summary != "hello <b>world</b>" {
 		t.Fatalf("summary = %q", p.Summary)
@@ -240,16 +240,17 @@ func TestPreviewEmailSentRecord(t *testing.T) {
 
 func TestSendCampaign(t *testing.T) {
 	var createBody []byte
-	var authHeader string
+	postAuth, putAuth := "", ""
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader = r.Header.Get("Authorization")
 		switch {
 		case r.Method == "POST" && r.URL.Path == "/api/campaigns":
+			postAuth = r.Header.Get("Authorization")
 			var data map[string]any
 			json.NewDecoder(r.Body).Decode(&data)
 			createBody, _ = json.Marshal(data)
 			fmt.Fprint(w, `{"data":{"id":42}}`)
 		case r.Method == "PUT" && r.URL.Path == "/api/campaigns/42/status":
+			putAuth = r.Header.Get("Authorization")
 			fmt.Fprint(w, `{"data":{"id":42}}`)
 		default:
 			w.WriteHeader(404)
@@ -269,8 +270,12 @@ func TestSendCampaign(t *testing.T) {
 	if !strings.Contains(string(createBody), `"lists":[1]`) {
 		t.Fatalf("campaign 请求体应携带 list id: %s", createBody)
 	}
-	if authHeader != "token u:k" {
-		t.Fatalf("Authorization = %q", authHeader)
+	// 创建与启动两个请求都必须携带 listmonk 凭据
+	if postAuth != "token u:k" {
+		t.Fatalf("POST Authorization = %q", postAuth)
+	}
+	if putAuth != "token u:k" {
+		t.Fatalf("PUT Authorization = %q", putAuth)
 	}
 
 	// 已发送记录落盘，非 force 再次发送被拒

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -86,9 +87,9 @@ func TestGenerateFrontmatterFromAI(t *testing.T) {
 
 func TestGenerateFrontmatterCache(t *testing.T) {
 	resetFMCache(t)
-	hits := 0
+	var hits atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		hits++
+		hits.Add(1)
 		fmt.Fprint(w, `{"choices":[{"message":{"content":"{\"description\":\"缓存\"}"}}]}`)
 	}))
 	t.Cleanup(srv.Close)
@@ -102,15 +103,15 @@ func TestGenerateFrontmatterCache(t *testing.T) {
 	if ok, _ := GenerateFrontmatter(content, "test-key", srv.URL, "m", t0.Add(10*time.Minute)); !ok {
 		t.Fatal("缓存命中应成功")
 	}
-	if hits != 1 {
-		t.Fatalf("hits = %d, TTL 内应只有 1 次请求", hits)
+	if hits.Load() != 1 {
+		t.Fatalf("hits = %d, TTL 内应只有 1 次请求", hits.Load())
 	}
 	// TTL 过期重新请求
 	if ok, _ := GenerateFrontmatter(content, "test-key", srv.URL, "m", t0.Add(31*time.Minute)); !ok {
 		t.Fatal("过期后重新生成应成功")
 	}
-	if hits != 2 {
-		t.Fatalf("hits = %d, 过期后应有 2 次请求", hits)
+	if hits.Load() != 2 {
+		t.Fatalf("hits = %d, 过期后应有 2 次请求", hits.Load())
 	}
 }
 

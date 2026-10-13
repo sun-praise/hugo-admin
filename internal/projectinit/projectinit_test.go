@@ -41,6 +41,26 @@ func overrideThemeRepo(t *testing.T, repo string) {
 	t.Cleanup(func() { defaultThemeRepo = old })
 }
 
+// fakeHugoNewSite 模拟 `hugo new site <path>` 的最小行为。
+const fakeHugoNewSite = `#!/bin/sh
+if [ "$1 $2" = "new site" ]; then
+  mkdir -p "$3"
+  printf 'baseURL = "https://example.org/"\n' > "$3/hugo.toml"
+  exit 0
+fi
+exit 1
+`
+
+// useFakeHugo 把受控的假 hugo 放进 PATH，测试不依赖真实 hugo 安装。
+func useFakeHugo(t *testing.T, script string) {
+	t.Helper()
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "hugo"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
 func TestValidateTargetPath(t *testing.T) {
 	adminRoot := t.TempDir()
 
@@ -95,6 +115,7 @@ func TestCreateSiteErrors(t *testing.T) {
 }
 
 func TestCreateSiteToml(t *testing.T) {
+	useFakeHugo(t, fakeHugoNewSite)
 	overrideThemeRepo(t, newLocalGitRepo(t))
 	adminRoot := t.TempDir()
 	target := filepath.Join(t.TempDir(), "site")
@@ -131,6 +152,7 @@ func TestCreateSiteToml(t *testing.T) {
 }
 
 func TestCreateSiteYaml(t *testing.T) {
+	useFakeHugo(t, fakeHugoNewSite)
 	overrideThemeRepo(t, newLocalGitRepo(t))
 	target := filepath.Join(t.TempDir(), "site-yaml")
 
@@ -143,6 +165,25 @@ func TestCreateSiteYaml(t *testing.T) {
 	// yaml 模式下 hugo new site 生成的 hugo.toml 应被删除
 	if _, err := os.Stat(filepath.Join(target, "hugo.toml")); !os.IsNotExist(err) {
 		t.Fatal("yaml 模式下应删除 hugo.toml")
+	}
+}
+
+func TestCreateSiteHugoFailure(t *testing.T) {
+	adminRoot := t.TempDir()
+	target := filepath.Join(t.TempDir(), "site")
+
+	// hugo 命令存在但执行失败
+	useFakeHugo(t, "#!/bin/sh\nexit 1\n")
+	if _, err := CreateSite(adminRoot, target, "toml"); err == nil ||
+		!strings.Contains(err.Error(), "创建 Hugo 站点失败") {
+		t.Fatalf("err = %v, 应为创建站点失败", err)
+	}
+
+	// PATH 中没有 hugo
+	t.Setenv("PATH", t.TempDir())
+	if _, err := CreateSite(adminRoot, target, "toml"); err == nil ||
+		!strings.Contains(err.Error(), "未找到 hugo 命令") {
+		t.Fatalf("err = %v, 应为未找到 hugo", err)
 	}
 }
 
