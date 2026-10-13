@@ -8,8 +8,8 @@
 >   （仅安全修复，不再新增功能）。完整 Python 历史在该分支。
 
 
-[![Tests](https://github.com/Svtter/hugo-admin/workflows/Tests/badge.svg)](https://github.com/Svtter/hugo-admin/actions)
-[![License](https://img.shields.io/github/license/Svtter/hugo-admin)](https://github.com/Svtter/hugo-admin/blob/main/LICENSE)
+[![Tests](https://github.com/sun-praise/hugo-admin/workflows/Tests/badge.svg)](https://github.com/sun-praise/hugo-admin/actions)
+[![License](https://img.shields.io/github/license/sun-praise/hugo-admin)](https://github.com/sun-praise/hugo-admin/blob/main/LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
 [![文档](https://img.shields.io/badge/文档-mkdocs--material-blue)](https://sun-praise.github.io/hugo-admin/)
 [![Hugo](https://img.shields.io/badge/hugo-compatible-ff4088)](https://gohugo.io/)
@@ -46,7 +46,7 @@
 从 GHCR 拉取镜像并使用 Docker Compose 启动：
 ```bash
 # 克隆仓库
-git clone https://github.com/Svtter/hugo-admin.git
+git clone https://github.com/sun-praise/hugo-admin.git
 cd hugo-admin
 # 启动服务
 docker compose up -d
@@ -60,7 +60,7 @@ docker compose up -d
 #### 安装步骤
 1. 克隆仓库:
 ```bash
-git clone https://github.com/Svtter/hugo-admin.git
+git clone https://github.com/sun-praise/hugo-admin.git
 cd hugo-admin
 ```
 2. 安装依赖:

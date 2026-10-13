@@ -64,6 +64,6 @@ Hugo Admin 是一个用于管理 Hugo 静态站点的轻量级 Web 管理界面�
 
 ## 获取帮助
 
-- 在 GitHub 提交 [Issue](https://github.com/Svtter/hugo-admin/issues)
-- 查看 [GitHub Discussions](https://github.com/Svtter/hugo-admin/discussions)
-- 查阅 [README](https://github.com/Svtter/hugo-admin/blob/main/README.md) 与 [中文 README](https://github.com/Svtter/hugo-admin/blob/main/README.zh-CN.md)
+- 在 GitHub 提交 [Issue](https://github.com/sun-praise/hugo-admin/issues)
+- 查看 [GitHub Discussions](https://github.com/sun-praise/hugo-admin/discussions)
+- 查阅 [README](https://github.com/sun-praise/hugo-admin/blob/main/README.md) 与 [中文 README](https://github.com/sun-praise/hugo-admin/blob/main/README.zh-CN.md)
