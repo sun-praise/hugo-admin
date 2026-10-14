@@ -1,5 +1,6 @@
-# Codecov 配置：覆盖率统计排除生成代码与 main 装配包
-# （与 awesome-go 的口径约定一致：非生成代码每包语句覆盖 ≥80%）
+# Codecov 配置：覆盖率仅作报告（informational），不作为合并门禁。
+# ignore 采用 glob 语法（非正则）；cmd/ 为 main 装配入口，
+# 按惯例与 awesome-go 的"非生成代码每包语句覆盖 ≥80%"口径一致地排除。
 coverage:
   status:
     project:
@@ -10,6 +11,4 @@ coverage:
         informational: true
 
 ignore:
-  - "proto/.*"        # protoc 生成代码
-  - "cmd/.*"          # main 装配入口
-  - "poc/.*"          # 概念验证，不入库统计
+  - "cmd/**"
