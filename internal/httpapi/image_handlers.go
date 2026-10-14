@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/svtter/hugo-admin/internal/posts"
+	"github.com/sun-praise/hugo-admin/v3/internal/posts"
 )
 
 // 对齐 routes/image_routes.py 的上传与列表。

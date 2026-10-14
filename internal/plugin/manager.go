@@ -19,7 +19,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	pb "github.com/svtter/hugo-admin/proto"
+	pb "github.com/sun-praise/hugo-admin/v3/proto"
 )
 
 const (

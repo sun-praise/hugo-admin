@@ -3,7 +3,7 @@ package httpapi
 import (
 	"net/http"
 
-	"github.com/svtter/hugo-admin/internal/posts"
+	"github.com/sun-praise/hugo-admin/v3/internal/posts"
 )
 
 // 对齐 routes/file_routes.py 的文件读写端点。

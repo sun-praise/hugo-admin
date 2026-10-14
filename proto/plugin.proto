@@ -1,7 +1,7 @@
 syntax = "proto3";
 package hugo_admin.plugin;
 
-option go_package = "github.com/svtter/hugo-admin/proto";
+option go_package = "github.com/sun-praise/hugo-admin/v3/proto";
 
 // ============================================
 // Core service — every plugin MUST implement

@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/svtter/hugo-admin/internal/db"
+	"github.com/sun-praise/hugo-admin/v3/internal/db"
 )
 
 const defaultTitle = "新对话"

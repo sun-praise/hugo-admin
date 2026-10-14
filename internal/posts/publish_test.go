@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/svtter/hugo-admin/internal/frontmatter"
+	"github.com/sun-praise/hugo-admin/v3/internal/frontmatter"
 )
 
 func seedPublishFixture(t *testing.T) string {

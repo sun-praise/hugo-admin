@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/git"
+	"github.com/sun-praise/hugo-admin/v3/internal/git"
 	"trpc.group/trpc-go/trpc-agent-go/tool"
 )
 

@@ -1,4 +1,4 @@
-module github.com/svtter/hugo-admin
+module github.com/sun-praise/hugo-admin/v3
 
 go 1.24
 

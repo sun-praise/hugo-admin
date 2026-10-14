@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/realtime"
+	"github.com/sun-praise/hugo-admin/v3/internal/realtime"
 )
 
 const (

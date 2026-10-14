@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v4.24.4
-// source: plugin.proto
+// source: proto/plugin.proto
 
 package proto
 
@@ -239,7 +239,7 @@ var PluginService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "plugin.proto",
+	Metadata: "proto/plugin.proto",
 }
 
 const (
@@ -375,7 +375,7 @@ var ImageUploader_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "plugin.proto",
+	Metadata: "proto/plugin.proto",
 }
 
 const (
@@ -525,5 +525,5 @@ var TTSGenerator_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "plugin.proto",
+	Metadata: "proto/plugin.proto",
 }

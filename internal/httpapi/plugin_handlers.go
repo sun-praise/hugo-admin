@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/plugin"
-	pb "github.com/svtter/hugo-admin/proto"
+	"github.com/sun-praise/hugo-admin/v3/internal/plugin"
+	pb "github.com/sun-praise/hugo-admin/v3/proto"
 )
 
 // 对齐 routes/plugin_routes.py 全部端点。

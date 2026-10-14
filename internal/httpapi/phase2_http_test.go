@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/svtter/hugo-admin/internal/aigen"
-	"github.com/svtter/hugo-admin/internal/db"
-	"github.com/svtter/hugo-admin/internal/plugin"
+	"github.com/sun-praise/hugo-admin/v3/internal/aigen"
+	"github.com/sun-praise/hugo-admin/v3/internal/db"
+	"github.com/sun-praise/hugo-admin/v3/internal/plugin"
 )
 
 // fakeHugoBin 把输出日志后挂住的假 hugo 放进 PATH（httpapi 无法直改 Manager 私有字段）。

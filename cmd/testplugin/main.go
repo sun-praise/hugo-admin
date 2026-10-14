@@ -14,7 +14,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	pb "github.com/svtter/hugo-admin/proto"
+	pb "github.com/sun-praise/hugo-admin/v3/proto"
 )
 
 type server struct {

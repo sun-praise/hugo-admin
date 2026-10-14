@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/posts"
-	"github.com/svtter/hugo-admin/internal/util"
-	pb "github.com/svtter/hugo-admin/proto"
+	"github.com/sun-praise/hugo-admin/v3/internal/posts"
+	"github.com/sun-praise/hugo-admin/v3/internal/util"
+	pb "github.com/sun-praise/hugo-admin/v3/proto"
 )
 
 // 对齐 routes/tts_routes.py：文章级 TTS。

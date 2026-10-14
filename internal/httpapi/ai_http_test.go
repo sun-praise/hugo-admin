@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/svtter/hugo-admin/internal/ai"
-	"github.com/svtter/hugo-admin/internal/chathistory"
-	"github.com/svtter/hugo-admin/internal/db"
-	"github.com/svtter/hugo-admin/internal/git"
+	"github.com/sun-praise/hugo-admin/v3/internal/ai"
+	"github.com/sun-praise/hugo-admin/v3/internal/chathistory"
+	"github.com/sun-praise/hugo-admin/v3/internal/db"
+	"github.com/sun-praise/hugo-admin/v3/internal/git"
 )
 
 // mockAnthropicTextOnly：按请求 stream 与否返回 SSE 流或 JSON。

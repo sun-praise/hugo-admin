@@ -3,7 +3,7 @@ package httpapi
 import (
 	"net/http"
 
-	"github.com/svtter/hugo-admin/internal/git"
+	"github.com/sun-praise/hugo-admin/v3/internal/git"
 )
 
 // 对齐 routes/publish_routes.py 的 git 端点。

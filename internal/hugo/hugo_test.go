@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/realtime"
+	"github.com/sun-praise/hugo-admin/v3/internal/realtime"
 )
 
 // fakeHugo 写一个假 hugo 脚本：输出两行日志后挂住（直到被杀）。

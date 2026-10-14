@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/aigen"
-	"github.com/svtter/hugo-admin/internal/frontmatter"
-	"github.com/svtter/hugo-admin/internal/posts"
-	"github.com/svtter/hugo-admin/internal/realtime"
+	"github.com/sun-praise/hugo-admin/v3/internal/aigen"
+	"github.com/sun-praise/hugo-admin/v3/internal/frontmatter"
+	"github.com/sun-praise/hugo-admin/v3/internal/posts"
+	"github.com/sun-praise/hugo-admin/v3/internal/realtime"
 )
 
 var fixedNow = time.Date(2026, 10, 12, 10, 0, 0, 0, time.UTC)

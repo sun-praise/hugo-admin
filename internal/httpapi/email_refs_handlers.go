@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/svtter/hugo-admin/internal/email"
+	"github.com/sun-praise/hugo-admin/v3/internal/email"
 )
 
 // 对齐 email_routes.py 与 references_routes.py。

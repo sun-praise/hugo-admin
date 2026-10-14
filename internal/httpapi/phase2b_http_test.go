@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/svtter/hugo-admin/internal/auth"
-	"github.com/svtter/hugo-admin/internal/config"
-	"github.com/svtter/hugo-admin/internal/hugo"
-	"github.com/svtter/hugo-admin/internal/realtime"
+	"github.com/sun-praise/hugo-admin/v3/internal/auth"
+	"github.com/sun-praise/hugo-admin/v3/internal/config"
+	"github.com/sun-praise/hugo-admin/v3/internal/hugo"
+	"github.com/sun-praise/hugo-admin/v3/internal/realtime"
 )
 
 // newTestServerHugoRoot 与 newTestServerOpts 相同，但允许指定 cfg.HugoRoot

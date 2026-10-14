@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/svtter/hugo-admin/internal/frontmatter"
+	"github.com/sun-praise/hugo-admin/v3/internal/frontmatter"
 )
 
 func writeFile(t *testing.T, path, content string) {
