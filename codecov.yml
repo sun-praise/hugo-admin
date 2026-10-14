@@ -1,0 +1,15 @@
+# Codecov 配置：覆盖率统计排除生成代码与 main 装配包
+# （与 awesome-go 的口径约定一致：非生成代码每包语句覆盖 ≥80%）
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+ignore:
+  - "proto/.*"        # protoc 生成代码
+  - "cmd/.*"          # main 装配入口
+  - "poc/.*"          # 概念验证，不入库统计
