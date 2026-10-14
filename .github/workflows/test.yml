@@ -79,6 +79,10 @@ jobs:
     - name: Upload coverage reports
       uses: codecov/codecov-action@v7
       with:
+        # Codecov 已停止接受公共仓库的 tokenless 上传（报 Token required），
+        # 需先在 repo Settings → Secrets 配置 CODECOV_TOKEN
+        # （https://app.codecov.io/gh/sun-praise/hugo-admin/settings 获取）
+        token: ${{ secrets.CODECOV_TOKEN }}
         files: ./coverage.out
         flags: unittests
         name: codecov-umbrella
