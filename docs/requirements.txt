@@ -1,0 +1,5 @@
+# pages.yml 用 uv 安装本文件构建文档站（Python 实现移除后不再依赖 pyproject.toml）
+mkdocs==1.6.1
+mkdocs-material==9.6.8
+# 10.21.2 起修复与 Pygments 2.20+ 的兼容（代码块无标题时 filename=None 导致构建崩溃）
+pymdown-extensions==10.21.3
