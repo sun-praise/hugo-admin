@@ -47,7 +47,7 @@ hugo v0.121.1-00b46fed8e47f7bb0a85d7cfc2d9f1356379b740+extended linux/amd64 Buil
 1. **构建镜像**
 
 ```bash
-docker build -t hugo-admin:latest .
+docker build -f Dockerfile-go -t hugo-admin:latest .
 ```
 
 2. **运行容器**
@@ -60,9 +60,12 @@ docker run -d \
   -v $(pwd)/content:/app/content \
   -v $(pwd)/public:/app/public \
   -v $(pwd)/static:/app/static \
+  -v hugo-admin-data:/app/data \
   -e SECRET_KEY=your-secret-key \
   hugo-admin:latest
 ```
+
+> `-v hugo-admin-data:/app/data` 持久化 auth.json 等运行时数据，容器重建后登录凭据不丢失。
 
 3. **查看日志**
 
@@ -83,11 +86,9 @@ docker rm hugo-admin
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
-| `SECRET_KEY` | Flask 密钥 | `dev-secret-key-change-in-production` |
-| `FLASK_ENV` | Flask 环境 | `development` |
+| `SECRET_KEY` | 会话签名密钥 | `dev-secret-key-change-in-production` |
 | `HUGO_ROOT` | Hugo 根目录 | `/app` |
 | `CONTENT_DIR` | 内容目录 | `/app/content` |
-| `PUBLIC_DIR` | 发布目录 | `/app/public` |
 
 ### 端口映射
 
@@ -117,7 +118,7 @@ volumes:
 默认使用 **Hugo Extended v0.121.1**（包含 SCSS/SASS 支持）。如需使用其他版本，可以在构建时指定：
 
 ```bash
-docker build --build-arg HUGO_VERSION=0.120.0 -t hugo-admin:latest .
+docker build -f Dockerfile-go --build-arg HUGO_VERSION=0.163.3 -t hugo-admin:latest .
 ```
 
 或在 docker-compose.yml 中修改：

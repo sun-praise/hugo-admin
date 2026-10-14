@@ -357,3 +357,30 @@ func TestImportTOMLNativeDate(t *testing.T) {
 		t.Fatalf("date = %q", ds)
 	}
 }
+
+// TestPlaygroundWatchedEventsMatchBackend 契约测试：Playground 订阅的
+// article_import 封面事件名必须与后端 runCoverWithEmits 的广播字面量一致
+// （事件名再次漂移时在此失败，而不是两条日志静默消失）。
+func TestPlaygroundWatchedEventsMatchBackend(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "frontend", "src", "pages", "Playground.tsx"))
+	if err != nil {
+		t.Fatalf("读取 Playground.tsx: %v", err)
+	}
+	src := string(raw)
+	for _, evt := range []string{"article_import.cover_done", "article_import.cover_failed"} {
+		if !strings.Contains(src, "'"+evt+"'") {
+			t.Fatalf("Playground.tsx 缺少事件订阅 %q", evt)
+		}
+	}
+	// 后端侧同样钉住：任一侧改名（前端或后端）本测试都会红，
+	// 避免单向漂移静默复发
+	backend, err := os.ReadFile("importsvc.go")
+	if err != nil {
+		t.Fatalf("读取 importsvc.go: %v", err)
+	}
+	for _, evt := range []string{`"article_import.cover_done"`, `"article_import.cover_failed"`} {
+		if !strings.Contains(string(backend), evt) {
+			t.Fatalf("importsvc.go 缺少事件广播字面量 %s", evt)
+		}
+	}
+}

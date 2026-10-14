@@ -1,5 +1,5 @@
 # Hugo Admin (Go) Dockerfile — 单二进制运行时
-# 构建：docker build -f Dockerfile.go -t hugo-admin-go .
+# 构建：docker build -f Dockerfile-go -t hugo-admin-go .
 
 # ============ Stage 1: 前端构建 ============
 FROM node:22-slim AS frontend-build
