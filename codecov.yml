@@ -1,0 +1,14 @@
+# Codecov 配置：覆盖率仅作报告（informational），不作为合并门禁。
+# ignore 采用 glob 语法（非正则）；cmd/ 为 main 装配入口，
+# 按惯例与 awesome-go 的"非生成代码每包语句覆盖 ≥80%"口径一致地排除。
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+ignore:
+  - "cmd/**"

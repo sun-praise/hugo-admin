@@ -8,6 +8,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.pre-commit-config.yaml'
+      - 'codecov.yml'
       - '.github/workflows/test.yml'
   pull_request:
     branches: [ master, main, develop ]
