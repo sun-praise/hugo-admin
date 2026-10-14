@@ -12,6 +12,7 @@ import (
 
 	"github.com/sun-praise/hugo-admin/v3/internal/aigen"
 	"github.com/sun-praise/hugo-admin/v3/internal/db"
+	"github.com/sun-praise/hugo-admin/v3/internal/hugo"
 	"github.com/sun-praise/hugo-admin/v3/internal/plugin"
 )
 
@@ -40,7 +41,10 @@ func TestHealthWithoutLogin(t *testing.T) {
 
 func TestServerLifecycleHandlers(t *testing.T) {
 	fakeHugoBin(t)
-	ts := newTestServer(t)
+	// 持有 manager 引用：断言中途失败时也能回收假 hugo 进程
+	mgr := hugo.NewManager(t.TempDir(), "", nil)
+	t.Cleanup(func() { mgr.Stop() })
+	ts := newTestServerOpts(t, "", Options{Hugo: mgr})
 	client := ts.Client()
 	login(t, client, ts.URL)
 
@@ -118,6 +122,13 @@ func TestEmailParamValidation(t *testing.T) {
 }
 
 func TestPluginMarketAndImageUploadValidation(t *testing.T) {
+	// 市场请求改走本地端点，测试不依赖外网
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"version": 1, "plugins": []}`)
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(plugin.SetMarketURL(srv.URL))
+
 	ts := newTestServerOpts(t, "", Options{Plugins: plugin.NewManager(t.TempDir())})
 	client := ts.Client()
 	login(t, client, ts.URL)
@@ -245,6 +256,12 @@ func TestPasswordChangeFlow(t *testing.T) {
 		map[string]string{"username": "admin", "password": "admin"})
 	if status != 401 {
 		t.Fatalf("旧密码应失效: %d", status)
+	}
+	// 新密码可登录（证明密码确实被持久化修改，而非仅会话失效）
+	status, _ = doJSON(t, client, "POST", ts.URL+"/api/auth/login",
+		map[string]string{"username": "admin", "password": "new-pass-1"})
+	if status != 200 {
+		t.Fatalf("新密码应可登录: %d", status)
 	}
 }
 

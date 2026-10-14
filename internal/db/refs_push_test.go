@@ -24,6 +24,14 @@ func TestUpsertAndBatchReferences(t *testing.T) {
 	if err := d.UpsertReferences("post/a/index.md", refs[:1]); err != nil {
 		t.Fatalf("二次 upsert: %v", err)
 	}
+	// 单条 upsert 的替换语义读回断言：a 只剩第一条
+	mid, err := d.GetAllReferences()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(mid["post/a/index.md"]) != "[post/b/index.md]" {
+		t.Fatalf("单条替换后 a = %#v", mid["post/a/index.md"])
+	}
 
 	// 预置 post/z 的旧引用，验证批量事务的删除语义
 	if err := d.UpsertReferences("post/z/index.md",

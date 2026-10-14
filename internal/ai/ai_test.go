@@ -265,6 +265,10 @@ func TestReadOnlyToolsCallable(t *testing.T) {
 		t.Fatalf("git service: %v", err)
 	}
 	tools := readOnlyTools(Deps{ContentDir: contentDir, Git: gitSvc})
+	byName := map[string]tool.Tool{}
+	for _, tl := range tools {
+		byName[tl.Declaration().Name] = tl
+	}
 	call := func(t *testing.T, tl tool.Tool, args string) string {
 		t.Helper()
 		ct, ok := tl.(interface {
@@ -281,23 +285,23 @@ func TestReadOnlyToolsCallable(t *testing.T) {
 	}
 
 	// search_posts：命中与未命中
-	if out := call(t, tools[0], `{"query":"hello"}`); !strings.Contains(out, "Hello") {
+	if out := call(t, byName["search_posts"], `{"query":"hello"}`); !strings.Contains(out, "Hello") {
 		t.Fatalf("search 命中 = %q", out)
 	}
-	if out := call(t, tools[0], `{"query":"不存在关键词xyz"}`); !strings.Contains(out, "未找到") {
+	if out := call(t, byName["search_posts"], `{"query":"不存在关键词xyz"}`); !strings.Contains(out, "未找到") {
 		t.Fatalf("search 未命中 = %q", out)
 	}
 
 	// read_post：成功与失败
-	if out := call(t, tools[1], `{"file_path":"post/hello/index.md"}`); !strings.Contains(out, "正文") {
+	if out := call(t, byName["read_post"], `{"file_path":"post/hello/index.md"}`); !strings.Contains(out, "正文") {
 		t.Fatalf("read = %q", out)
 	}
-	if out := call(t, tools[1], `{"file_path":"post/none.md"}`); !strings.Contains(out, "读取失败") {
+	if out := call(t, byName["read_post"], `{"file_path":"post/none.md"}`); !strings.Contains(out, "读取失败") {
 		t.Fatalf("read 失败 = %q", out)
 	}
 
 	// git_status：真实 Service（temp 目录非 git 仓库，输出字段仍应成形）
-	if out := call(t, tools[2], `{}`); !strings.Contains(out, "Git 仓库状态") {
+	if out := call(t, byName["git_status"], `{}`); !strings.Contains(out, "Git 仓库状态") {
 		t.Fatalf("git_status = %q", out)
 	}
 }
