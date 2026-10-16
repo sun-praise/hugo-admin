@@ -97,3 +97,6 @@ jobs:
       with:
         name: coverage-profile
         path: coverage.out
+        # org 级 Actions 存储配额是共享池（artifact+日志+packages），profile
+        # 只为排查当次失败，留 3 天足够，勿用默认 90 天（sun-praise/latex-agent#6211）
+        retention-days: 3
