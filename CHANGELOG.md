@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-10-16
+
+### Added
+- 管理界面注入 Umami 访问统计（analysis.sun-praise.com，website `hugo-admin`）；`data-domains` 限定 `hugo-admin.sun-praise.com`，其余部署（本地 dev / 私有实例）零上报。
+
 ## [3.0.0] - 2026-10-09
 
 ### Added
