@@ -28,6 +28,16 @@ jobs:
             echo "::error::__version__.py ($file_ver) 与 tag ($tag) 不一致，请同步版本号"
             exit 1
           fi
+      - name: Check frontend/package.json matches tag
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg_ver=$(grep -oE '"version": "[0-9.]+"' frontend/package.json | head -1 | grep -oE '[0-9.]+')
+          echo "tag version: $tag"
+          echo "frontend/package.json: $pkg_ver"
+          if [ "$tag" != "$pkg_ver" ]; then
+            echo "::error::frontend/package.json ($pkg_ver) 与 tag ($tag) 不一致，请同步版本号"
+            exit 1
+          fi
 
   build-and-push:
     needs: verify-version
