@@ -10,6 +10,7 @@ on:
       - '.pre-commit-config.yaml'
       - 'codecov.yml'
       - '.github/workflows/test.yml'
+      - 'frontend/**'
   pull_request:
     branches: [ master, main, develop ]
 

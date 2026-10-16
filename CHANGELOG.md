@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-10-16
+
+### Added
+- 管理界面接入 Umami 访问统计（analysis.sun-praise.com，website `hugo-admin`）：应用挂载后按 `location.hostname` 运行时门控动态注入——仅公网 demo 域名（`hugo-admin.sun-praise.com`）加载脚本，本地 dev / 私有实例对该分析域**零网络请求**；标签另带 `data-domains` 上报兜底与 `referrerpolicy="no-referrer"`。契约由 `internal/analytics` Go 测试钉住。CI 新增 PR 期 `__version__.py` ↔ `frontend/package.json` 一致性对账。
+
+## [3.0.1] - 2026-10-14
+
+### Fixed
+- v3.0.1 发版时漏记 CHANGELOG，此处补记（内容为该次发布的管理端修复批次，详见对应 tag 的 commit 列表）。
+
 ## [3.0.0] - 2026-10-09
 
 ### Added
