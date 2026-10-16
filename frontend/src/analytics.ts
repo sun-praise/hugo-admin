@@ -10,7 +10,6 @@ const PUBLIC_HOST = 'hugo-admin.sun-praise.com'
 export function initAnalytics(): void {
   if (location.hostname !== PUBLIC_HOST) return
   const script = document.createElement('script')
-  script.defer = true
   script.src = 'https://analysis.sun-praise.com/script.js'
   script.setAttribute('data-website-id', '1922bd9a-6d58-4801-9bb1-f9cfe289139f')
   script.setAttribute('data-domains', PUBLIC_HOST)

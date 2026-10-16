@@ -31,6 +31,19 @@ func TestFrontendTrackerContract(t *testing.T) {
 	}
 }
 
+// TestMainCallsAnalytics pins the call site: analytics.ts 的 initAnalytics
+// 必须在 main.tsx 里被实际调用——删掉调用点会让整个 analytics.ts 静默失效
+// （契约测试全绿但统计消失）。
+func TestMainCallsAnalytics(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "frontend", "src", "main.tsx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "initAnalytics()") {
+		t.Fatal("frontend/src/main.tsx 未调用 initAnalytics()——tracker 不会被注入")
+	}
+}
+
 // TestIndexHTMLHasNoStaticTracker 保证 index.html 不静态携带 tracker：
 // 注入走应用挂载后的运行时门控，静态标签会让私有部署/本地 dev 也向
 // 分析域发起请求（data-domains 只挡上报、不挡加载）。
