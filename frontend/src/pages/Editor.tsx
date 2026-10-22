@@ -102,6 +102,8 @@ export default function Editor() {
   const insertMarkdownRef = useRef<(type: string) => void>(() => {});
   const [generatingCover, setGeneratingCover] = useState(false);
   const [generatingFm, setGeneratingFm] = useState(false);
+  // <lg 视口放下双栏,用页签在「编辑/预览」间切换;lg+ 始终双栏
+  const [mobilePane, setMobilePane] = useState<'edit' | 'preview'>('edit');
   const [fileMtime, setFileMtime] = useState<number | null>(null);
   const [conflictRemoteContent, setConflictRemoteContent] = useState<string | null>(null);
 
@@ -837,13 +839,13 @@ export default function Editor() {
       {/* 工具栏 */}
       <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-4 mb-4">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div className="flex items-center space-x-4">
-            <div>
+          <div className="flex min-w-0 items-center">
+            <div className="min-w-0">
               <label className="text-sm font-medium text-[#3f3f46]">当前文件:</label>
-              <span className="ml-2 text-[#52525b] font-mono text-sm">{currentFile}</span>
+              <span className="ml-2 break-all text-[#52525b] font-mono text-sm">{currentFile}</span>
             </div>
           </div>
-          <div className="flex items-center space-x-1">
+          <div className="flex flex-wrap items-center gap-1">
             <button onClick={() => setShowFrontmatterDrawer(true)} title="Frontmatter" className="p-2 border border-[#e4e4e7] text-[#3f3f46] rounded-lg hover:bg-[#f4f4f5] transition-colors">
               <FileCode className="w-5 h-5" />
             </button>
@@ -933,7 +935,7 @@ export default function Editor() {
                 上传图片
               </label>
             </div>
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {images.map((image) => {
                 const isRemoteUrl = image.url.startsWith('http://') || image.url.startsWith('https://');
                 const articleDir = currentFile.replace(/[^/]+$/, '');
@@ -956,9 +958,9 @@ export default function Editor() {
         )}
       </div>
 
-      {/* Markdown 工具栏 */}
+      {/* Markdown 工具栏:窄屏单行横向滚动,避免换行挤压编辑区 */}
       <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-3 mb-4">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:pb-1">
           <button onClick={() => insertMarkdown('bold')} className="toolbar-btn" title="加粗 (Ctrl+B)">
             <Bold className="w-4 h-4" />
           </button>
@@ -968,7 +970,7 @@ export default function Editor() {
           <button onClick={() => insertMarkdown('heading')} className="toolbar-btn" title="标题">
             <Heading className="w-4 h-4" />
           </button>
-          <span className="border-l border-[#d4d4d8] mx-1" />
+          <span className="border-l border-[#d4d4d8] mx-1 flex-none" />
           <button onClick={() => insertMarkdown('link')} className="toolbar-btn" title="链接">
             <Link2 className="w-4 h-4" />
           </button>
@@ -978,7 +980,7 @@ export default function Editor() {
           <button onClick={() => insertMarkdown('image')} className="toolbar-btn" title="图片">
             <Image className="w-4 h-4" />
           </button>
-          <span className="border-l border-[#d4d4d8] mx-1" />
+          <span className="border-l border-[#d4d4d8] mx-1 flex-none" />
           <button onClick={() => insertMarkdown('ul')} className="toolbar-btn" title="无序列表">
             <List className="w-4 h-4" />
           </button>
@@ -997,10 +999,38 @@ export default function Editor() {
         </div>
       </div>
 
-      {/* 编辑器和预览 */}
+      {/* 编辑器和预览:<lg 单栏页签切换,lg+ 双栏并锁定视口高度 */}
       <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ height: 'calc(100vh - 380px)', minHeight: '500px' }}>
-          <div className="flex flex-col">
+        <div
+          className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-[#f4f4f5] p-1 lg:hidden"
+          role="tablist"
+          aria-label="编辑区视图切换"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mobilePane === 'edit'}
+            onClick={() => setMobilePane('edit')}
+            className={`h-10 cursor-pointer rounded-md text-sm font-medium transition-colors ${
+              mobilePane === 'edit' ? 'bg-white text-zinc-900 shadow-sm' : 'text-[#52525b]'
+            }`}
+          >
+            编辑
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mobilePane === 'preview'}
+            onClick={() => setMobilePane('preview')}
+            className={`h-10 cursor-pointer rounded-md text-sm font-medium transition-colors ${
+              mobilePane === 'preview' ? 'bg-white text-zinc-900 shadow-sm' : 'text-[#52525b]'
+            }`}
+          >
+            预览
+          </button>
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:h-[calc(100vh-380px)] lg:min-h-[500px]">
+          <div className={`flex min-h-0 flex-col ${mobilePane === 'edit' ? '' : 'max-lg:hidden'}`}>
             <div className="text-sm font-medium text-[#3f3f46] mb-2">编辑器</div>
             <textarea
               ref={textareaRef}
@@ -1008,7 +1038,7 @@ export default function Editor() {
               onChange={(e) => setContent(e.target.value)}
               onPaste={handlePaste}
               placeholder="在此输入 Markdown 内容..."
-              className="flex-1 w-full font-mono text-sm p-4 border border-[#e4e4e7] rounded-lg bg-white resize-none focus:ring-2 focus:ring-[#d4d4d8] focus:border-transparent outline-none"
+              className="h-[58vh] w-full font-mono text-sm p-4 border border-[#e4e4e7] rounded-lg bg-white resize-none focus:ring-2 focus:ring-[#d4d4d8] focus:border-transparent outline-none lg:h-auto lg:flex-1"
               style={{ lineHeight: 1.6 }}
             />
             <InlineEditOverlay
@@ -1018,9 +1048,9 @@ export default function Editor() {
               onDrift={handleInlineEditDrift}
             />
           </div>
-          <div className="flex flex-col">
+          <div className={`flex min-h-0 flex-col ${mobilePane === 'preview' ? '' : 'max-lg:hidden'}`}>
             <div className="text-sm font-medium text-[#3f3f46] mb-2">预览</div>
-            <div className="flex-1 overflow-y-auto p-4 border border-[#e4e4e7] rounded-lg bg-white">
+            <div className="h-[58vh] overflow-y-auto p-4 border border-[#e4e4e7] rounded-lg bg-white lg:h-auto lg:flex-1">
               {previewEl}
             </div>
           </div>
