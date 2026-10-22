@@ -244,7 +244,7 @@ export default function Posts() {
         className="hidden"
       />
       {/* 搜索和筛选 */}
-      <div className="mt-6 rounded-[10px] border border-[#e4e4e7] bg-white p-6 mb-6">
+      <div className="mt-6 rounded-[10px] border border-[#e4e4e7] bg-white p-4 mb-6 sm:p-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-[#3f3f46] mb-2">搜索</label>
@@ -301,10 +301,10 @@ export default function Posts() {
           </div>
         ) : (
           <div>
-            <div className="px-6 py-4 border-b border-[#e4e4e7]">
+            <div className="px-4 py-4 border-b border-[#e4e4e7] sm:px-6">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-lg font-medium">共 {pagination.total} 篇文章</h3>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={refreshCache}
                     disabled={refreshing}
@@ -332,7 +332,7 @@ export default function Posts() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 px-6 py-3 border-b border-[#e4e4e7]">
+            <div className="flex items-center gap-4 px-4 py-3 border-b border-[#e4e4e7] sm:px-6">
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -340,7 +340,7 @@ export default function Posts() {
                   checked={selectAll}
                   onChange={toggleSelectAll}
                   disabled={posts.length === 0}
-                  className="w-4 h-4 border-[#e4e4e7] rounded text-blue-600 focus:ring-2 focus:ring-[#d4d4d8]"
+                  className="h-5 w-5 border-[#e4e4e7] rounded text-blue-600 focus:ring-2 focus:ring-[#d4d4d8]"
                 />
                 <label htmlFor="select-all" className="text-sm font-medium text-[#3f3f46] cursor-pointer">
                   全选 ({selectedPosts.size} / {posts.length})
@@ -364,14 +364,14 @@ export default function Posts() {
                 </div>
               )}
               {posts.map((post) => (
-                <div key={post.path} className="p-6 hover:bg-[#f4f4f5] transition-colors">
+                <div key={post.path} className="p-4 hover:bg-[#f4f4f5] transition-colors sm:p-6">
                   <div className="flex items-start justify-between">
                     <div className="flex-shrink-0 mr-4 pt-1">
                       <input
                         type="checkbox"
                         checked={selectedPosts.has(post.path)}
                         onChange={() => togglePostSelection(post.path)}
-                        className="w-4 h-4 border-[#e4e4e7] rounded text-blue-600 focus:ring-2 focus:ring-[#d4d4d8]"
+                        className="h-5 w-5 border-[#e4e4e7] rounded text-blue-600 focus:ring-2 focus:ring-[#d4d4d8]"
                       />
                     </div>
                     {post.cover_url && (
@@ -379,7 +379,7 @@ export default function Posts() {
                         <img
                           src={post.cover_url}
                           alt={post.title}
-                          className="w-24 h-16 object-cover rounded-lg bg-[#f4f4f5]"
+                          className="h-14 w-20 object-cover rounded-lg bg-[#f4f4f5] sm:h-16 sm:w-24"
                           onError={(e) => (e.currentTarget.style.display = 'none')}
                         />
                       </Link>
@@ -389,7 +389,7 @@ export default function Posts() {
                         <h4 className="text-lg font-medium text-zinc-900 hover:text-blue-600 mb-2">{post.title}</h4>
                       </Link>
                       <p className="text-[#52525b] text-sm mb-3 line-clamp-2">{post.description || post.excerpt}</p>
-                      <div className="flex flex-wrap items-center gap-4 text-sm text-[#52525b]">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-[#52525b]">
                         <span className="flex items-center">
                           <Calendar className="w-4 h-4 mr-1" />
                           {post.date}
@@ -439,7 +439,7 @@ export default function Posts() {
       {pagination.total > 0 && (
         <nav
           aria-label="分页"
-          className="rounded-[10px] border border-[#e4e4e7] bg-white px-6 py-3 mt-6 flex items-center justify-between flex-wrap gap-3"
+          className="rounded-[10px] border border-[#e4e4e7] bg-white px-4 py-3 mt-6 sm:px-6 flex items-center justify-between flex-wrap gap-3"
         >
           <div className="text-sm text-[#52525b]">
             第 <span className="font-medium text-[#3f3f46]">{pagination.page}</span> / {pagination.total_pages} 页

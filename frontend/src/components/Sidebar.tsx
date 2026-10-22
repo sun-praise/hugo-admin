@@ -42,8 +42,9 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   },
 ];
 
-// 对齐重设计原型:浅色侧边栏,232px;窄屏(<860px)自动折叠为图标栏。
-export default function Sidebar() {
+// 对齐重设计原型:浅色侧边栏,桌面(≥860px)常驻 232px;
+// 窄屏收进抽屉(open 控制),由 Topbar 汉堡按钮唤出。
+export default function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const me = useMe();
   const [postCount, setPostCount] = useState<number | null>(null);
@@ -68,18 +69,24 @@ export default function Sidebar() {
     } catch {
       // 忽略：无论如何都跳转登录页
     }
+    onClose();
     navigate('/login', { replace: true });
   }
 
   const initial = (me?.username || 'U').slice(0, 1).toUpperCase();
 
   return (
-    <aside className="sticky top-0 flex h-screen w-[232px] flex-col border-r border-[#e4e4e7] bg-white px-3 pb-3 pt-4 max-[860px]:w-[60px] max-[860px]:px-2.5">
-      <div className="flex items-center gap-2.5 px-2 pb-[18px] max-[860px]:justify-center max-[860px]:px-0">
+    <aside
+      aria-label="侧边导航"
+      className={`sticky top-0 z-50 flex h-screen w-[232px] flex-none flex-col border-r border-[#e4e4e7] bg-white px-3 pb-3 pt-4 transition-transform duration-200 ease-out max-[860px]:fixed max-[860px]:inset-y-0 max-[860px]:left-0 max-[860px]:w-[272px] max-[860px]:shadow-2xl ${
+        open ? 'max-[860px]:translate-x-0' : 'max-[860px]:-translate-x-full'
+      }`}
+    >
+      <div className="flex items-center gap-2.5 px-2 pb-[18px]">
         <div className="grid h-7 w-7 flex-none place-items-center rounded-lg bg-zinc-900 text-[14px] font-bold text-white">
           H
         </div>
-        <div className="min-w-0 leading-[1.3] max-[860px]:hidden">
+        <div className="min-w-0 leading-[1.3]">
           <strong className="block text-[14px] tracking-[-0.01em]">Hugo Blog</strong>
           <span className="block text-[12px] text-[#9ca3a8]">管理控制台</span>
         </div>
@@ -88,7 +95,7 @@ export default function Sidebar() {
       <nav aria-label="主导航" className="flex flex-col gap-0.5">
         {NAV_GROUPS.map((group) => (
           <div key={group.label}>
-            <div className="px-2.5 pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#9ca3a8] max-[860px]:hidden">
+            <div className="px-2.5 pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#9ca3a8]">
               {group.label}
             </div>
             {group.items.map((item) => (
@@ -97,8 +104,9 @@ export default function Sidebar() {
                 to={item.to}
                 end={item.end}
                 title={item.label}
+                onClick={onClose}
                 className={({ isActive }) =>
-                  `flex h-[34px] items-center gap-2.5 rounded-md px-2.5 text-[13.5px] font-medium transition-colors max-[860px]:justify-center max-[860px]:px-0 ${
+                  `flex h-[34px] items-center gap-2.5 rounded-md px-2.5 text-[13.5px] font-medium transition-colors max-[860px]:h-[42px] ${
                     isActive
                       ? 'bg-[#ebebeb] text-zinc-900 [&_svg]:text-zinc-900'
                       : 'text-[#52525b] hover:bg-[#f4f4f5] hover:text-zinc-900'
@@ -106,9 +114,9 @@ export default function Sidebar() {
                 }
               >
                 <item.icon className="h-4 w-4 flex-none text-[#9ca3a8]" />
-                <span className="max-[860px]:hidden">{item.label}</span>
+                <span>{item.label}</span>
                 {item.to === '/posts' && postCount !== null && (
-                  <span className="ml-auto font-mono text-[11px] font-medium text-[#9ca3a8] max-[860px]:hidden">
+                  <span className="ml-auto font-mono text-[11px] font-medium text-[#9ca3a8]">
                     {postCount}
                   </span>
                 )}
@@ -119,11 +127,11 @@ export default function Sidebar() {
       </nav>
 
       <div className="mt-auto border-t border-[#e4e4e7] pt-3">
-        <div className="flex items-center gap-2.5 px-2 py-1.5 max-[860px]:justify-center max-[860px]:px-0">
-          <div className="grid h-7 w-7 flex-none place-items-center rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-[12px] font-semibold text-white max-[860px]:hidden">
+        <div className="flex items-center gap-2.5 px-2 py-1.5">
+          <div className="grid h-7 w-7 flex-none place-items-center rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-[12px] font-semibold text-white">
             {initial}
           </div>
-          <div className="min-w-0 leading-[1.3] max-[860px]:hidden">
+          <div className="min-w-0 leading-[1.3]">
             <strong className="block text-[13px]">{me?.username || '…'}</strong>
             <span className="block text-[11.5px] text-[#9ca3a8]">管理员</span>
           </div>
@@ -131,7 +139,7 @@ export default function Sidebar() {
             onClick={handleLogout}
             title="退出登录"
             aria-label="退出登录"
-            className="ml-auto grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-md border-0 bg-transparent text-[#9ca3a8] hover:bg-[#f4f4f5] hover:text-zinc-900 max-[860px]:mx-auto"
+            className="ml-auto grid h-[38px] w-[38px] cursor-pointer place-items-center rounded-md border-0 bg-transparent text-[#9ca3a8] hover:bg-[#f4f4f5] hover:text-zinc-900"
           >
             <LogOut className="h-[15px] w-[15px]" />
           </button>

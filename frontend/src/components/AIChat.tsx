@@ -286,9 +286,9 @@ export default function AIChat() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+    <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 flex flex-col items-end sm:bottom-6 sm:right-6">
       {isOpen && (
-        <div className="bg-white w-96 h-[500px] rounded-[10px] shadow-2xl border border-[#e4e4e7] flex flex-col mb-4 overflow-hidden fade-in">
+        <div className="bg-white w-[min(384px,calc(100vw-32px))] h-[500px] max-h-[calc(100dvh-96px)] rounded-[10px] shadow-2xl border border-[#e4e4e7] flex flex-col mb-4 overflow-hidden fade-in">
           <div className="bg-zinc-900 text-white px-4 py-3 flex justify-between items-center">
             <div className="flex items-center space-x-2">
               <span className="dot-pulse" aria-hidden="true" />
@@ -336,7 +336,7 @@ export default function AIChat() {
                             e.stopPropagation();
                             deleteSession(s.session_id);
                           }}
-                          className="px-2 text-[#9ca3a8] hover:text-red-500 opacity-0 group-hover:opacity-100"
+                          className="px-2 py-2 text-[#9ca3a8] hover:text-red-500 opacity-0 group-hover:opacity-100 max-[860px]:opacity-100"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
