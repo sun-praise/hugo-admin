@@ -102,7 +102,8 @@ export default function Editor() {
   const insertMarkdownRef = useRef<(type: string) => void>(() => {});
   const [generatingCover, setGeneratingCover] = useState(false);
   const [generatingFm, setGeneratingFm] = useState(false);
-  // <lg 视口放下双栏,用页签在「编辑/预览」间切换;lg+ 始终双栏
+  // 窄屏下低频 AI 操作收进菜单,常驻按钮只留高频操作
+  const [aiMenuOpen, setAiMenuOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<'edit' | 'preview'>('edit');
   const [fileMtime, setFileMtime] = useState<number | null>(null);
   const [conflictRemoteContent, setConflictRemoteContent] = useState<string | null>(null);
@@ -858,17 +859,65 @@ export default function Editor() {
             <button onClick={() => setShowImageManager(!showImageManager)} title="图片管理" className="p-2 border border-[#e4e4e7] text-[#3f3f46] rounded-lg hover:bg-[#f4f4f5] transition-colors">
               <Image className="w-5 h-5" />
             </button>
-            <button onClick={generateCoverImage} disabled={generatingCover || !currentFile} title={generatingCover ? '生成中...' : 'AI 生成封面'} className="p-2 border border-purple-400 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            {/* ≥640px:AI 操作平铺;窄屏收进下方 AI 菜单 */}
+            <button onClick={generateCoverImage} disabled={generatingCover || !currentFile} title={generatingCover ? '生成中...' : 'AI 生成封面'} className="p-2 border border-purple-400 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-[639px]:hidden">
               <Sparkles className="w-5 h-5" />
             </button>
-            <button onClick={generateFrontmatterFromAI} disabled={generatingFm || !currentFile} title={generatingFm ? '生成中...' : 'AI 生成 Frontmatter'} className="p-2 border border-amber-400 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <button onClick={generateFrontmatterFromAI} disabled={generatingFm || !currentFile} title={generatingFm ? '生成中...' : 'AI 生成 Frontmatter'} className="p-2 border border-amber-400 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-[639px]:hidden">
               <Wand2 className="w-5 h-5" />
             </button>
             {ttsAvailable && (
-              <button onClick={generateSpeech} disabled={generatingTts || !currentFile} title={generatingTts ? '生成语音中...' : '生成语音播报'} className="p-2 border border-emerald-400 text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <button onClick={generateSpeech} disabled={generatingTts || !currentFile} title={generatingTts ? '生成语音中...' : '生成语音播报'} className="p-2 border border-emerald-400 text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-[639px]:hidden">
                 <Headphones className="w-5 h-5" />
               </button>
             )}
+            <div className="relative max-[639px]:block hidden">
+              <button
+                onClick={() => setAiMenuOpen((v) => !v)}
+                aria-expanded={aiMenuOpen}
+                aria-haspopup="menu"
+                title="AI 操作"
+                className="p-2 border border-[#e4e4e7] text-[#3f3f46] rounded-lg hover:bg-[#f4f4f5] transition-colors"
+              >
+                <Sparkles className="w-5 h-5" />
+              </button>
+              {aiMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setAiMenuOpen(false)} aria-hidden="true" />
+                  <div role="menu" className="absolute right-0 top-full mt-1.5 z-30 w-44 rounded-lg border border-[#e4e4e7] bg-white py-1 shadow-xl">
+                    <button
+                      role="menuitem"
+                      onClick={() => { setAiMenuOpen(false); generateCoverImage(); }}
+                      disabled={generatingCover || !currentFile}
+                      className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left text-[13.5px] text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Sparkles className="h-4 w-4 flex-none" />
+                      {generatingCover ? '封面生成中…' : 'AI 生成封面'}
+                    </button>
+                    <button
+                      role="menuitem"
+                      onClick={() => { setAiMenuOpen(false); generateFrontmatterFromAI(); }}
+                      disabled={generatingFm || !currentFile}
+                      className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left text-[13.5px] text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Wand2 className="h-4 w-4 flex-none" />
+                      {generatingFm ? 'Frontmatter 生成中…' : 'AI 生成 Frontmatter'}
+                    </button>
+                    {ttsAvailable && (
+                      <button
+                        role="menuitem"
+                        onClick={() => { setAiMenuOpen(false); generateSpeech(); }}
+                        disabled={generatingTts || !currentFile}
+                        className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left text-[13.5px] text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Headphones className="h-4 w-4 flex-none" />
+                        {generatingTts ? '语音生成中…' : '生成语音播报'}
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
             <span className="border-l border-[#d4d4d8] mx-1 h-6" />
             <button onClick={() => saveFile()} disabled={saving || !hasChanges} title={saving ? '保存中...' : hasChanges ? '保存 (Ctrl+S)' : '已保存'} className="p-2 bg-zinc-900 text-white rounded-lg hover:bg-[#2e2e33] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               <Save className="w-5 h-5" />
