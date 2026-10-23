@@ -16,6 +16,7 @@ type Config struct {
 	ContentDir    string // Hugo 内容目录，默认 <root>/content
 	HugoRoot      string // Hugo 项目根（git 仓库），默认 <root>
 	Version       string // 从 __version__.py 读取，读不到则回退
+	APIToken      string // API_TOKEN，机器客户端 Bearer 鉴权；空 = 关闭 token 登录
 }
 
 // Load 依序加载 .env 与环境变量；root 为仓库根目录（解析相对路径用）。
@@ -33,6 +34,7 @@ func Load(root string) *Config {
 		ContentDir:    envOr("CONTENT_DIR", filepath.Join(root, "content")),
 		HugoRoot:      envOr("HUGO_ROOT", root),
 		Version:       readVersion(filepath.Join(root, "__version__.py")),
+		APIToken:      envOr("API_TOKEN", ""),
 	}
 	return c
 }

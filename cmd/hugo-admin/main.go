@@ -94,6 +94,7 @@ func main() {
 		Plugins:  pluginMgr,
 		Refs:     refsSvc,
 		Settings: settingsSvc, EnvAPIKey: os.Getenv("AI_API_KEY"),
+		APIToken: cfg.APIToken,
 	})
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,

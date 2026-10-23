@@ -43,8 +43,9 @@ type Result struct {
 
 // Import 对齐 import_markdown：核心导入流程。
 // broker 非 nil 时封面走后台任务（SSE 事件），否则同步生成。
+// draft 控制导入文章的草稿位（multipart UI 恒为 true；JSON API 可显式放行）。
 func Import(contentDir, filename string, raw []byte, title string,
-	genFM, genCover bool, aiCfg AICfg, imgCfg ImageCfg,
+	genFM, genCover bool, draft bool, aiCfg AICfg, imgCfg ImageCfg,
 	broker *realtime.Broker, eventScope string, now time.Time) Result {
 
 	warnings := []string{}
@@ -65,7 +66,7 @@ func Import(contentDir, filename string, raw []byte, title string,
 	// 组装 frontmatter（保留已有富化字段，date 用已有或东八区当前）
 	fm := map[string]any{
 		"title": resolvedTitle,
-		"draft": true,
+		"draft": draft,
 	}
 	if date, ok := existingFM["date"].(string); ok && strings.TrimSpace(date) != "" {
 		fm["date"] = date

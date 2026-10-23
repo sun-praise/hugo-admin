@@ -120,7 +120,17 @@ func formBool(v string, def bool) bool {
 }
 
 // POST /api/article/import（multipart: file + title + 开关）
+// Content-Type: application/json 时走 JSON 模式（机器客户端友好）：
+// {filename?, title?, content, generate_frontmatter?=false,
+//
+//	generate_cover?=false, draft?=true}——AI 开关默认关闭、可显式
+//
+// 指定草稿位，语义对 agent 客户端可预测。
 func (s *Server) handleArticleImport(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		s.handleArticleImportJSON(w, r)
+		return
+	}
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{
@@ -159,6 +169,7 @@ func (s *Server) handleArticleImport(w http.ResponseWriter, r *http.Request) {
 		r.FormValue("title"),
 		formBool(r.FormValue("generate_frontmatter"), true),
 		formBool(r.FormValue("generate_cover"), true),
+		true,
 		importsvc.AICfg{APIKey: apiKey, BaseURL: baseURL, Model: model},
 		imgCfg, s.broker, eventScope, time.Now())
 
@@ -180,4 +191,69 @@ func (s *Server) handleArticleImport(w http.ResponseWriter, r *http.Request) {
 		"event_scope":   result.EventScope,
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// jsonBool 取 JSON 字段布尔值，缺省/类型不符时用 def。
+func jsonBool(data map[string]any, key string, def bool) bool {
+	if v, ok := data[key].(bool); ok {
+		return v
+	}
+	return def
+}
+
+// handleArticleImportJSON 是 /api/article/import 的 JSON 模式，供机器
+// 客户端（agent 等）免 multipart、免文件系统直接投递 Markdown。
+// 与 multipart UI 模式的差异：AI 开关默认关闭（可预测、无外部依赖），
+// draft 可显式指定（默认 true 草稿）。路径派生与唯一目录语义与
+// multipart 模式一致，永不覆盖既有文章；更新请走 /api/file/save。
+func (s *Server) handleArticleImportJSON(w http.ResponseWriter, r *http.Request) {
+	data := jsonDict(r)
+	content, _ := data["content"].(string)
+	if strings.TrimSpace(content) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"success": false, "message": "content 为空"})
+		return
+	}
+	filename, _ := data["filename"].(string)
+	if strings.TrimSpace(filename) == "" {
+		filename = "import.md"
+	}
+	ext := strings.ToLower(filepath.Ext(filename))
+	if ext != ".md" && ext != ".markdown" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"success": false, "message": fmt.Sprintf("不支持的文件类型: %s", strings.TrimPrefix(ext, "."))})
+		return
+	}
+	title, _ := data["title"].(string)
+
+	apiKey, baseURL, model := s.aiConfig()
+	imgCfg := importsvc.ImageCfg{
+		APIKey: os.Getenv("OPENROUTER_API_KEY"),
+		Model:  os.Getenv("IMAGE_GEN_MODEL"),
+	}
+
+	result := importsvc.Import(s.cfg.ContentDir, filename, []byte(content), title,
+		jsonBool(data, "generate_frontmatter", false),
+		jsonBool(data, "generate_cover", false),
+		jsonBool(data, "draft", true),
+		importsvc.AICfg{APIKey: apiKey, BaseURL: baseURL, Model: model},
+		imgCfg, s.broker, util.NewOperationID(), time.Now())
+
+	if result.Path == "" {
+		msg := strings.Join(result.Warnings, "; ")
+		if msg == "" {
+			msg = "导入失败"
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"success": false, "message": msg})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success":       true,
+		"path":          result.Path,
+		"title":         result.Title,
+		"warnings":      result.Warnings,
+		"cover_pending": result.CoverPending,
+		"event_scope":   result.EventScope,
+	})
 }

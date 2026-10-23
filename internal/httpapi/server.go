@@ -4,6 +4,7 @@
 package httpapi
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -47,6 +48,7 @@ type Options struct {
 	Refs      *refs.Service
 	Settings  *settings.Service
 	EnvAPIKey string
+	APIToken  string // 机器客户端 Bearer 鉴权；空 = 关闭 token 登录
 }
 
 type Server struct {
@@ -63,6 +65,7 @@ type Server struct {
 	settingsSvc   *settings.Service
 	sessionAPIKey string
 	envAPIKey     string
+	apiToken      string
 	mux           *http.ServeMux
 }
 
@@ -70,7 +73,8 @@ func New(cfg *config.Config, store *auth.Store, broker *realtime.Broker, opts Op
 	s := &Server{cfg: cfg, store: store, broker: broker, mux: http.NewServeMux(),
 		gitSvc: opts.Git, hugo: opts.Hugo, database: opts.Database,
 		aiSvc: opts.AI, chat: opts.Chat, pluginMgr: opts.Plugins,
-		refsSvc: opts.Refs, settingsSvc: opts.Settings, envAPIKey: opts.EnvAPIKey}
+		refsSvc: opts.Refs, settingsSvc: opts.Settings, envAPIKey: opts.EnvAPIKey,
+		apiToken: opts.APIToken}
 	s.routes()
 	return s
 }
@@ -206,10 +210,15 @@ func (s *Server) recoverMiddleware(next http.Handler) http.Handler {
 }
 
 // guardMiddleware 复刻 Python install_auth_guard：未登录访问非白名单的
-// /api/* 一律 401。
+// /api/* 一律 401。机器客户端可通过 Authorization: Bearer <API_TOKEN>
+// 等价通过（API_TOKEN 未配置时 Bearer 通道关闭）。
 func (s *Server) guardMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/api/") || publicAPIPath[r.URL.Path] {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if s.bearerAuthorized(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -221,6 +230,21 @@ func (s *Server) guardMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// bearerAuthorized 校验 Authorization: Bearer <token>；常数时间比较，
+// token 未配置时恒为 false（不暴露通道是否开启）。
+func (s *Server) bearerAuthorized(r *http.Request) bool {
+	if s.apiToken == "" {
+		return false
+	}
+	const prefix = "Bearer "
+	authz := r.Header.Get("Authorization")
+	if len(authz) <= len(prefix) || !strings.EqualFold(authz[:len(prefix)], prefix) {
+		return false
+	}
+	given := authz[len(prefix):]
+	return subtle.ConstantTimeCompare([]byte(given), []byte(s.apiToken)) == 1
 }
 
 // ============ 会话 ============
