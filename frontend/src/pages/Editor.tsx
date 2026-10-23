@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, useContext } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Save,
@@ -47,6 +47,7 @@ import {
   undoTextareaReplace,
 } from '../utils/selectionReplace';
 import { ConflictModal } from '../components/ConflictModal';
+import { PaletteBridgeContext, type PalettePost } from '../components/PaletteBridgeContext';
 
 // Mermaid is heavy (~800KB); load it lazily and only when the preview
 // actually contains a ```mermaid block. Initialised once per session.
@@ -114,13 +115,11 @@ export default function Editor() {
   const [fmDateLocal, setFmDateLocal] = useState('');
   const [fmExtraFields, setFmExtraFields] = useState<Array<{ key: string; value: string }>>([]);
   const [images, setImages] = useState<ImageItem[]>([]);
-  const [showRefModal, setShowRefModal] = useState(false);
-  const [refSearchQuery, setRefSearchQuery] = useState('');
-  const [refSearchResults, setRefSearchResults] = useState<Array<{ path: string; title: string }>>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const saveFileRef = useRef<(force?: boolean) => Promise<void>>(async () => {});
   const insertMarkdownRef = useRef<(type: string) => void>(() => {});
+  const insertPostRef = useRef<(post: PalettePost) => void>(() => {});
   const [generatingCover, setGeneratingCover] = useState(false);
   const [generatingFm, setGeneratingFm] = useState(false);
   // 窄屏下低频 AI 操作收进菜单,常驻按钮只留高频操作
@@ -197,11 +196,24 @@ export default function Editor() {
 
   const currentFile = fullPath;
 
+  // 全局 ⌘K 面板的编辑器侧桥:注册插入回调后,编辑页内 ⌘K 即为"插入引用"模式
+  const { setInsertHandler, open: openRefPalette } = useContext(PaletteBridgeContext);
+
   // audioUrl 直接从 frontmatter.audio 派生，避免在 effect 里 setState（react-hooks/set-state-in-effect）
   const audioUrl = typeof frontmatter.audio === 'string' ? frontmatter.audio : '';
 
   const updatePreview = useCallback(() => {
-    let html = renderMarkdown(content || '', { mermaid: true });
+    // [文本]({{< ref "path" >}}) 要先于 markdown 渲染替换成链接:
+    // marked 会把 shortcode 里的 < > 转义掉,渲染后再匹配就来不及了。
+    // 裸 ref shortcode 仍走下方渲染后替换。
+    const src = (content || '').replace(
+      /\[([^\]]*)\]\(\{\{<\s*ref\s+"([^"]+)"\s*>\}\}\)/g,
+      (_: string, text: string, path: string) => {
+        const p = escapeHtml(path);
+        return `<a href="/editor/${p}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${p}">🔗 ${text}</a>`;
+      },
+    );
+    let html = renderMarkdown(src, { mermaid: true });
     if (currentFile) {
       const articleDir = currentFile.replace(/[^/]+$/, '');
       html = html.replace(/<img\s+src="([^"]+)"/g, (_, src) => {
@@ -247,10 +259,6 @@ export default function Editor() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && showRefModal) {
-        setShowRefModal(false);
-        return;
-      }
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         if (hasChanges && !saving) saveFileRef.current();
@@ -266,7 +274,7 @@ export default function Editor() {
     }
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [hasChanges, saving, showRefModal]);
+  }, [hasChanges, saving]);
 
   function syncFmEdit(fm: Frontmatter) {
     const reserved = ['tags', 'categories'];
@@ -387,11 +395,6 @@ export default function Editor() {
         insertion = `| 列1 | 列2 | 列3 |\n| --- | --- | --- |\n| 内容 | 内容 | 内容 |`;
         cursorOffset = insertion.length;
         break;
-      case 'ref':
-        setShowRefModal(true);
-        setRefSearchQuery('');
-        setRefSearchResults([]);
-        return;
     }
 
     const newContent = content.substring(0, start) + insertion + content.substring(end);
@@ -761,33 +764,23 @@ export default function Editor() {
     toast('图片链接已复制');
   }
 
-  async function searchRefs() {
-    if (!refSearchQuery.trim()) {
-      setRefSearchResults([]);
-      return;
-    }
-    try {
-      const data = await get<{ posts: Array<{ path: string; title: string }> }>(`/api/posts/search?q=${encodeURIComponent(refSearchQuery)}`);
-      setRefSearchResults(data.posts || []);
-    } catch (error) {
-      console.error('Failed to search refs:', error);
-    }
-  }
-
-  function insertRef(item: { path: string; title: string }) {
+  // 把选中文章的引用插到光标处:有选中文本时包成 [文本](ref) 链接,
+  // 否则插入裸 ref shortcode(Hugo 渲染为站内链接,反向链接也按此识别)
+  const insertPost = useCallback((postItem: PalettePost) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
+    const ref = `{{< ref "${postItem.path}" >}}`;
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const insertion = `{{< ref "${item.path}" >}}`;
+    const selectedText = content.substring(start, end);
+    const insertion = selectedText ? `[${selectedText}](${ref})` : ref;
     const newContent = content.substring(0, start) + insertion + content.substring(end);
     setContent(newContent);
-    setShowRefModal(false);
     requestAnimationFrame(() => {
       textarea.focus();
       textarea.setSelectionRange(start + insertion.length, start + insertion.length);
     });
-  }
+  }, [content]);
 
   function handlePaste(e: React.ClipboardEvent) {
     const items = e.clipboardData.items;
@@ -865,7 +858,15 @@ export default function Editor() {
   useEffect(() => {
     saveFileRef.current = saveFile;
     insertMarkdownRef.current = insertMarkdown;
-  }, [saveFile, insertMarkdown]);
+    insertPostRef.current = insertPost;
+  }, [saveFile, insertMarkdown, insertPost]);
+
+  // 编辑页挂载期间,把插入回调登记给全局 ⌘K 面板(经 ref 转发,注册引用稳定)
+  useEffect(() => {
+    if (!currentFile) return;
+    setInsertHandler({ insert: (post) => insertPostRef.current(post) });
+    return () => setInsertHandler(null);
+  }, [currentFile, setInsertHandler]);
 
   useEffect(() => {
     (async () => {
@@ -1219,7 +1220,7 @@ export default function Editor() {
           <button onClick={() => insertMarkdown('link')} className="toolbar-btn" title="链接">
             <Link2 className="w-4 h-4" />
           </button>
-          <button onClick={() => insertMarkdown('ref')} className="toolbar-btn" title="文章引用">
+          <button onClick={openRefPalette} className="toolbar-btn" title="文章引用 (⌘K 搜索插入)">
             <ArrowLeftRight className="w-4 h-4" />
           </button>
           <button onClick={() => insertMarkdown('image')} className="toolbar-btn" title="图片">
@@ -1413,45 +1414,6 @@ export default function Editor() {
             </div>
           </div>
         </>
-      )}
-
-      {/* 引用搜索弹窗 */}
-      {showRefModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowRefModal(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="p-4 border-b">
-              <h3 className="text-lg font-medium mb-3">搜索文章引用</h3>
-              <input
-                type="text"
-                value={refSearchQuery}
-                onChange={(e) => { setRefSearchQuery(e.target.value); searchRefs(); }}
-                placeholder="输入关键词搜索文章..."
-                className="w-full px-4 py-2 border border-[#e4e4e7] rounded-lg focus:ring-2 focus:ring-[#d4d4d8] outline-none"
-                autoFocus
-              />
-            </div>
-            <div className="max-h-80 overflow-y-auto">
-              {refSearchResults.map((item) => (
-                <div key={item.path} onClick={() => insertRef(item)} className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-[#e4e4e7] flex items-center gap-3">
-                  <span className="text-blue-500 text-lg">🔗</span>
-                  <div className="min-w-0">
-                    <div className="font-medium text-zinc-900 truncate">{item.title || '(无标题)'}</div>
-                    <div className="text-sm text-[#9ca3a8] truncate">{item.path}</div>
-                  </div>
-                </div>
-              ))}
-              {refSearchQuery && refSearchResults.length === 0 && (
-                <div className="p-6 text-center text-[#9ca3a8]">未找到匹配的文章</div>
-              )}
-              {!refSearchQuery && (
-                <div className="p-6 text-center text-[#9ca3a8]">输入关键词开始搜索</div>
-              )}
-            </div>
-            <div className="p-3 border-t bg-[#f4f4f5] flex justify-end">
-              <button onClick={() => setShowRefModal(false)} className="btn btn-ghost">取消</button>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* 反向链接面板 */}

@@ -1,9 +1,10 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import CommandPalette from './CommandPalette';
 import Loading from './Loading';
+import { PaletteBridgeContext, type PaletteInsertHandler, type PalettePost } from './PaletteBridgeContext';
 
 // AIChat pulls in the markdown renderer (highlight.js) — load it as a lazy
 // chunk so it stays out of the entry bundle; the floating widget mounts a
@@ -16,10 +17,17 @@ export default function Layout() {
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // 编辑器(等页面)注册的插入回调;非空时 ⌘K 面板以"插入引用"模式打开
+  const [insertHandler, setInsertHandler] = useState<PaletteInsertHandler | null>(null);
 
   const openPalette = useCallback(() => setPaletteOpen(true), []);
   const closePalette = useCallback(() => setPaletteOpen(false), []);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+
+  const paletteBridge = useMemo(
+    () => ({ setInsertHandler, open: openPalette }),
+    [openPalette],
+  );
 
   // 全局快捷键:⌘K/Ctrl+K 开关面板;N 新建文章(原型键盘约定);Esc 收起移动端抽屉
   useEffect(() => {
@@ -54,32 +62,46 @@ export default function Layout() {
   }, [sidebarOpen]);
 
   return (
-    <div className="grid min-h-screen grid-cols-[232px_minmax(0,1fr)] max-[860px]:block">
-      <Sidebar open={sidebarOpen} onClose={closeSidebar} />
-      {sidebarOpen && (
-        <div
-          className="hidden fixed inset-0 z-40 bg-zinc-900/40 max-[860px]:block"
-          onClick={closeSidebar}
-          aria-hidden="true"
+    <PaletteBridgeContext.Provider value={paletteBridge}>
+      <div className="grid min-h-screen grid-cols-[232px_minmax(0,1fr)] max-[860px]:block">
+        <Sidebar open={sidebarOpen} onClose={closeSidebar} />
+        {sidebarOpen && (
+          <div
+            className="hidden fixed inset-0 z-40 bg-zinc-900/40 max-[860px]:block"
+            onClick={closeSidebar}
+            aria-hidden="true"
+          />
+        )}
+        <div className="flex min-w-0 flex-col">
+          <Topbar onOpenPalette={openPalette} onOpenSidebar={() => setSidebarOpen(true)} />
+          <main className="w-full max-w-[1760px] flex-1 px-8 pb-14 pt-7 max-[860px]:px-4 max-[860px]:pb-10 max-[860px]:pt-4">
+            <Suspense fallback={<Loading />}>
+              <Outlet />
+            </Suspense>
+          </main>
+        </div>
+        <Suspense fallback={null}>
+          <AIChat />
+        </Suspense>
+        <CommandPaletteWrapper
+          open={paletteOpen}
+          onClose={closePalette}
+          onInsertPost={insertHandler ? (post: PalettePost) => insertHandler.insert(post) : undefined}
         />
-      )}
-      <div className="flex min-w-0 flex-col">
-        <Topbar onOpenPalette={openPalette} onOpenSidebar={() => setSidebarOpen(true)} />
-        <main className="w-full max-w-[1760px] flex-1 px-8 pb-14 pt-7 max-[860px]:px-4 max-[860px]:pb-10 max-[860px]:pt-4">
-          <Suspense fallback={<Loading />}>
-            <Outlet />
-          </Suspense>
-        </main>
       </div>
-      <Suspense fallback={null}>
-        <AIChat />
-      </Suspense>
-      <CommandPaletteWrapper open={paletteOpen} onClose={closePalette} />
-    </div>
+    </PaletteBridgeContext.Provider>
   );
 }
 
 // 条件挂载:关闭即卸载,面板状态天然重置
-function CommandPaletteWrapper({ open, onClose }: { open: boolean; onClose: () => void }) {
-  return open ? <CommandPalette onClose={onClose} /> : null;
+function CommandPaletteWrapper({
+  open,
+  onClose,
+  onInsertPost,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onInsertPost?: (post: PalettePost) => void;
+}) {
+  return open ? <CommandPalette onClose={onClose} onInsertPost={onInsertPost} /> : null;
 }
