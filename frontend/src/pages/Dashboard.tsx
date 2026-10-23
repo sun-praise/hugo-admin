@@ -103,7 +103,7 @@ export default function Dashboard() {
     return counts;
   }, [posts, thisMonday]);
 
-  const recentPosts = posts.slice(0, 5);
+  const recentPosts = posts.slice(0, 15);
   const topTags = [...tags].sort((a, b) => b.count - a.count).slice(0, 3).map((t) => t.name);
   const topCategories = [...categories].sort((a, b) => b.count - a.count).slice(0, 3).map((c) => c.name);
   // git 状态失败时(如非 git 目录)返回体可能缺少数组字段,做防御
