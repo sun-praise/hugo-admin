@@ -210,3 +210,107 @@ func TestMonitorLogsStaleCmdNotClearState(t *testing.T) {
 		t.Fatal("旧进程的迟到收尸不应清掉新实例的 isRunning")
 	}
 }
+
+func TestPreviewLifecycle(t *testing.T) {
+	m := NewManager(t.TempDir(), "http://0.0.0.0:1313", nil)
+	t.Cleanup(func() { m.StopPreview(); m.Stop() })
+
+	// 未运行
+	if st := m.PreviewStatus(); st["running"] != false {
+		t.Fatalf("初始预览状态 = %#v", st)
+	}
+
+	// 参数与命令校验
+	if _, ok, msg := m.StartPreview(""); ok || msg != "主题名称不能为空" {
+		t.Fatalf("空主题 start = %v %q", ok, msg)
+	}
+	m.command = "hugo-definitely-not-exists"
+	if _, ok, msg := m.StartPreview("demo"); ok || msg != "未找到 hugo 命令，请确保 Hugo 已安装" {
+		t.Fatalf("缺命令 start = %v %q", ok, msg)
+	}
+
+	m.command = fakeHugo(t)
+	url, ok, msg := m.StartPreview("demo")
+	if !ok || !strings.Contains(msg, "预览服务器已启动") {
+		t.Fatalf("start = %v %q", ok, msg)
+	}
+	if !strings.HasPrefix(url, "http://0.0.0.0:") {
+		t.Fatalf("预览 URL 应复用主配置主机: %q", url)
+	}
+
+	st := m.PreviewStatus()
+	if st["running"] != true || st["theme"] != "demo" || st["url"] != url || st["port"] == nil {
+		t.Fatalf("预览状态 = %#v", st)
+	}
+	firstPID := st["pid"]
+
+	// 预览不影响主服务器：主服务器仍可启动且互不干扰
+	if ok, _ := m.Start(false, ""); !ok {
+		t.Fatal("预览运行中主服务器启动失败")
+	}
+	if m.Status()["running"] != true {
+		t.Fatal("主服务器应处于运行状态")
+	}
+
+	// 切换预览主题：旧实例被替换
+	url2, ok, _ := m.StartPreview("other")
+	if !ok {
+		t.Fatal("切换预览失败")
+	}
+	st = m.PreviewStatus()
+	if st["theme"] != "other" || st["url"] != url2 || st["pid"] == firstPID {
+		t.Fatalf("切换后预览状态 = %#v (旧 pid %v)", st, firstPID)
+	}
+
+	// 停止预览：主服务器不受影响；重复停止被拒
+	if ok, msg := m.StopPreview(); !ok || msg != "预览服务器已停止" {
+		t.Fatalf("stop = %v %q", ok, msg)
+	}
+	if st := m.PreviewStatus(); st["running"] != false {
+		t.Fatalf("停止后预览状态 = %#v", st)
+	}
+	if m.Status()["running"] != true {
+		t.Fatal("停止预览不应影响主服务器")
+	}
+	if ok, msg := m.StopPreview(); ok || msg != "预览服务器未运行" {
+		t.Fatalf("重复 stop = %v %q", ok, msg)
+	}
+}
+
+func TestPreviewProcessExitAutoCorrectsStatus(t *testing.T) {
+	// 假 hugo 立即退出（模拟端口占用/构建失败）
+	dir := t.TempDir()
+	script := filepath.Join(dir, "hugo")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\necho started\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m := NewManager(t.TempDir(), "", nil)
+	m.command = script
+
+	if _, ok, _ := m.StartPreview("demo"); !ok {
+		t.Fatal("start 失败")
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if m.PreviewStatus()["running"] == false {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("进程退出后预览状态未纠正: %#v", m.PreviewStatus())
+}
+
+func TestPreviewBaseURL(t *testing.T) {
+	cases := map[string]string{
+		"":                              "http://0.0.0.0:9000",
+		"http://0.0.0.0:1313":           "http://0.0.0.0:9000",
+		"http://192.168.1.5:1313":       "http://192.168.1.5:9000",
+		"https://blog.example.com:8443": "http://blog.example.com:9000",
+		"not a url":                     "http://0.0.0.0:9000",
+	}
+	for in, want := range cases {
+		if got := previewBaseURL(in, 9000); got != want {
+			t.Errorf("previewBaseURL(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

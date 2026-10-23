@@ -7,6 +7,8 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -22,6 +24,17 @@ const (
 	defaultServerURL = "http://0.0.0.0:1313"
 	maxLogs          = 1000
 )
+
+// previewServer 是主题预览用的临时 Hugo 实例：独立端口、独立生命周期，
+// 与主服务器（m.cmd）互不影响，用于切换主题前并排预览效果。
+type previewServer struct {
+	cmd    *exec.Cmd
+	exited chan struct{}
+	port   int
+	url    string
+	theme  string
+	logs   []map[string]any
+}
 
 type Manager struct {
 	hugoRoot  string
@@ -39,6 +52,11 @@ type Manager struct {
 	// exited 在 monitorLogs 完成收尸（cmd.Wait 返回）后关闭，
 	// 供 Stop 等待进程退出、processAlive 判断进程已死。访问需持有 m.mu。
 	exited chan struct{}
+
+	// preview 主题预览实例（nil = 未运行）。访问需持有 m.mu；
+	// previewMu 串行化 StartPreview/StopPreview，避免并发起停互相踩踏。
+	preview   *previewServer
+	previewMu sync.Mutex
 }
 
 func NewManager(hugoRoot, serverURL string, broker *realtime.Broker) *Manager {
@@ -265,6 +283,180 @@ func procMemoryMB(pid int) (float64, bool) {
 
 // ServerURL 返回当前 Hugo 预览服务器基础 URL。
 func (m *Manager) ServerURL() string { return m.serverURL }
+
+// SetServerURL 更新预览服务器基础 URL（设置页保存后生效）。
+
+// ============ 主题预览实例（独立端口，不影响主服务器） ============
+
+// StartPreview 启动主题预览服务器：自动挑选空闲端口，绑定 --theme 启动
+// 临时实例；已有预览实例会先停止（切换预览主题）。返回可访问的 URL。
+// 主服务器与预览实例互不影响。
+func (m *Manager) StartPreview(theme string) (string, bool, string) {
+	m.previewMu.Lock()
+	defer m.previewMu.Unlock()
+
+	if theme == "" {
+		return "", false, "主题名称不能为空"
+	}
+	bin := m.command
+	if _, err := exec.LookPath(bin); err != nil {
+		return "", false, "未找到 hugo 命令，请确保 Hugo 已安装"
+	}
+
+	// 先摘下旧实例再等待退出：等待不能持有 m.mu（monitorPreviewLogs 要拿锁写日志）
+	m.mu.Lock()
+	old := m.preview
+	m.preview = nil
+	m.mu.Unlock()
+	if old != nil {
+		m.terminatePreview(old)
+	}
+
+	port, err := pickFreePort()
+	if err != nil {
+		return "", false, fmt.Sprintf("分配预览端口失败: %v", err)
+	}
+	baseURL := previewBaseURL(m.serverURL, port)
+
+	args := []string{
+		"server", "--bind=0.0.0.0", "-b", baseURL,
+		"-p", strconv.Itoa(port), "--disableFastRender", "-D",
+		"--theme", theme,
+	}
+	cmd := exec.Command(bin, args...)
+	cmd.Dir = m.hugoRoot
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", false, fmt.Sprintf("启动失败: %v", err)
+	}
+	cmd.Stderr = cmd.Stdout
+	if err := cmd.Start(); err != nil {
+		return "", false, fmt.Sprintf("启动失败: %v", err)
+	}
+
+	p := &previewServer{
+		cmd:    cmd,
+		exited: make(chan struct{}),
+		port:   port,
+		url:    baseURL,
+		theme:  theme,
+	}
+	m.mu.Lock()
+	m.preview = p
+	m.mu.Unlock()
+	go m.monitorPreviewLogs(stdout, p)
+	return baseURL, true, "预览服务器已启动"
+}
+
+// StopPreview 停止主题预览服务器（主服务器不受影响）。
+func (m *Manager) StopPreview() (bool, string) {
+	m.previewMu.Lock()
+	defer m.previewMu.Unlock()
+
+	m.mu.Lock()
+	p := m.preview
+	m.preview = nil
+	m.mu.Unlock()
+	if p == nil {
+		return false, "预览服务器未运行"
+	}
+	m.terminatePreview(p)
+	return true, "预览服务器已停止"
+}
+
+// PreviewStatus 返回预览实例状态；进程已死时自动纠正为未运行。
+func (m *Manager) PreviewStatus() map[string]any {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	p := m.preview
+	if p != nil {
+		select {
+		case <-p.exited:
+			m.preview = nil
+			p = nil
+		default:
+		}
+	}
+	status := map[string]any{
+		"running": false, "theme": nil, "url": nil, "port": nil, "pid": nil,
+	}
+	if p != nil {
+		status["running"] = true
+		status["theme"] = p.theme
+		status["url"] = p.url
+		status["port"] = p.port
+		status["pid"] = p.cmd.Process.Pid
+	}
+	return status
+}
+
+// terminatePreview 对预览进程 SIGTERM 优雅停止，5 秒后 SIGKILL。
+// 不得持有 m.mu 调用：monitorPreviewLogs 需要拿锁写日志、收尸后关闭 exited。
+func (m *Manager) terminatePreview(p *previewServer) {
+	if p.cmd.Process == nil {
+		return
+	}
+	_ = p.cmd.Process.Signal(syscall.SIGTERM)
+	select {
+	case <-p.exited:
+	case <-time.After(5 * time.Second):
+		_ = p.cmd.Process.Kill()
+		<-p.exited
+	}
+}
+
+// monitorPreviewLogs 消费预览实例 stdout（仅内存缓冲，不进主日志 SSE 流）；
+// stdout EOF 即进程退出：Wait 收尸并关闭 exited，PreviewStatus 据此自动纠正。
+func (m *Manager) monitorPreviewLogs(stdout io.Reader, p *previewServer) {
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		m.mu.Lock()
+		p.logs = append(p.logs, map[string]any{
+			"timestamp": time.Now().Format("15:04:05"),
+			"level":     "INFO",
+			"message":   line,
+		})
+		if len(p.logs) > maxLogs {
+			p.logs = p.logs[len(p.logs)-maxLogs:]
+		}
+		m.mu.Unlock()
+	}
+	_ = p.cmd.Wait()
+	close(p.exited)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// 仅当仍是本实例时才清空：切换预览期间旧 goroutine 迟到的收尸
+	// 不得把新实例误清
+	if m.preview == p {
+		m.preview = nil
+	}
+}
+
+// pickFreePort 向内核要一个空闲 TCP 端口（关闭监听后归还，存在理论竞态，
+// 对开发预览场景可接受）。
+func pickFreePort() (int, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
+}
+
+// previewBaseURL 由主服务器 URL 的 host 拼出预览实例 baseURL（换端口不换主机），
+// 保持与用户配置的访问地址一致（如内网 IP）。
+func previewBaseURL(serverURL string, port int) string {
+	host := "0.0.0.0"
+	if u, err := url.Parse(serverURL); err == nil && u.Hostname() != "" {
+		host = u.Hostname()
+	}
+	return fmt.Sprintf("http://%s:%d", host, port)
+}
 
 // SetServerURL 更新预览服务器基础 URL（设置页保存后生效）。
 func (m *Manager) SetServerURL(url string) { m.serverURL = url }
