@@ -16,6 +16,8 @@ import {
   listConfigs,
   getConfigFile,
   saveConfigFile,
+  del,
+  post,
 } from '../utils/api';
 import type { AvailableTheme, ConfigFileInfo } from '../utils/api';
 import type { Settings as SettingsType, Theme } from '../types';
@@ -30,6 +32,11 @@ export default function SettingsPage() {
   const [apiKeySource, setApiKeySource] = useState('none');
   const [apiKeyHint, setApiKeyHint] = useState('');
   const [listmonkApiKeyInput, setListmonkApiKeyInput] = useState('');
+  const [apiTokenInfo, setApiTokenInfo] = useState<{ enabled: boolean; masked: string; source: string }>({
+    enabled: false, masked: '', source: 'none',
+  });
+  const [newToken, setNewToken] = useState('');
+  const [tokenBusy, setTokenBusy] = useState(false);
   const [form, setForm] = useState<SettingsType>({
     hugo: { base_dir: '', server_url: '' },
     ai: { base_url: '', model: '', api_key_source: 'none', api_key_hint: '' },
@@ -83,6 +90,7 @@ export default function SettingsPage() {
     fetchSettings();
     fetchThemes();
     fetchActiveProject();
+    fetchAPIToken();
   }, []);
 
   useEffect(() => {
@@ -229,6 +237,68 @@ export default function SettingsPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function fetchAPIToken() {
+    try {
+      const data = await get<{ success: boolean; enabled?: boolean; masked?: string; source?: string }>('/api/settings/api-token');
+      if (data.success) {
+        setApiTokenInfo({ enabled: !!data.enabled, masked: data.masked || '', source: data.source || 'none' });
+      }
+    } catch {
+      // 静默失败：token 状态非关键
+    }
+  }
+
+  async function handleRegenerateToken() {
+    if (
+      !confirm(
+        apiTokenInfo.enabled && apiTokenInfo.source === 'settings'
+          ? '确认重新生成 API Token？旧 Token 将立即失效，使用它的 agent 需要更新。'
+          : '确认生成 API Token？生成后 agent 即可通过 Bearer Token 调用管理 API。',
+      )
+    ) {
+      return;
+    }
+    setTokenBusy(true);
+    try {
+      const data = await post<{ success: boolean; token?: string; message?: string }>('/api/settings/api-token/regenerate');
+      if (!data.success || !data.token) {
+        throw new Error(data.message || '生成失败');
+      }
+      setNewToken(data.token);
+      toast('已生成新 API Token');
+      await fetchAPIToken();
+    } catch (error) {
+      toast((error as Error).message);
+    } finally {
+      setTokenBusy(false);
+    }
+  }
+
+  async function handleDisableToken() {
+    if (!confirm('确认停用 API Token？停用后 Bearer 通道回退到环境变量 API_TOKEN（若已配置），否则关闭。')) {
+      return;
+    }
+    setTokenBusy(true);
+    try {
+      const data = await del<{ success: boolean; message?: string }>('/api/settings/api-token');
+      if (!data.success) {
+        throw new Error(data.message || '停用失败');
+      }
+      setNewToken('');
+      toast('已停用 API Token');
+      await fetchAPIToken();
+    } catch (error) {
+      toast((error as Error).message);
+    } finally {
+      setTokenBusy(false);
+    }
+  }
+
+  function copyNewToken() {
+    navigator.clipboard.writeText(newToken);
+    toast('已复制到剪贴板');
   }
 
   async function fetchThemes() {
@@ -516,6 +586,53 @@ export default function SettingsPage() {
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
                     未保存密钥时会自动回退到环境变量（<code>DEEPSEEK_API_KEY</code> 或 <code>AI_API_KEY</code>）。
                   </div>
+                </div>
+              </div>
+
+              <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-6">
+                <h3 className="text-lg font-medium mb-4">API 访问</h3>
+                <div className="space-y-4">
+                  <p className="text-sm text-[#52525b]">
+                    供外部 agent 携带 <code>Authorization: Bearer &lt;token&gt;</code> 调用管理 API（例如导入 Markdown），
+                    权限与管理员登录等价，请妥善保管。
+                  </p>
+                  <div className="flex items-center gap-2 text-sm text-[#3f3f46]">
+                    <span className={`dot-pulse ${apiTokenInfo.enabled ? '' : 'is-off'}`} aria-hidden="true" />
+                    {apiTokenInfo.enabled ? (
+                      <span>
+                        已启用 <span className="font-mono text-[13px]">{apiTokenInfo.masked}</span>
+                        （来源：{apiTokenInfo.source === 'settings' ? '设置' : '环境变量 API_TOKEN'}）
+                      </span>
+                    ) : (
+                      <span>未启用，Bearer 通道关闭</span>
+                    )}
+                  </div>
+                  {newToken && (
+                    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
+                      <p className="mb-2 font-medium text-amber-800">新 Token 仅此一次展示，请立即复制保存：</p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 overflow-x-auto rounded bg-white px-2 py-1.5 font-mono text-[13px]">
+                          {newToken}
+                        </code>
+                        <button type="button" onClick={copyNewToken} className="btn btn-sm btn-primary">
+                          复制
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button type="button" onClick={handleRegenerateToken} disabled={tokenBusy} className="btn btn-primary">
+                      {apiTokenInfo.enabled && apiTokenInfo.source === 'settings' ? '重新生成' : '生成 Token'}
+                    </button>
+                    {apiTokenInfo.enabled && apiTokenInfo.source === 'settings' && (
+                      <button type="button" onClick={handleDisableToken} disabled={tokenBusy} className="btn btn-ghost">
+                        停用
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-[#52525b]">
+                    设置中的 Token 优先于环境变量 <code>API_TOKEN</code>；重新生成后旧 Token 立即失效，无需重启服务。
+                  </p>
                 </div>
               </div>
 

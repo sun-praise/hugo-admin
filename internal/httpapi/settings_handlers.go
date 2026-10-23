@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -57,6 +59,24 @@ func (s *Server) toPublicSettings(st *settings.Settings) map[string]any {
 		aiPublic["api_key_source"] = "none"
 		aiPublic["api_key_configured"] = false
 		aiPublic["api_key_hint"] = ""
+	}
+
+	// 机器鉴权 token：settings 优先、env 回退（与 effectiveAPIToken 一致）
+	secPublic := public["security"].(map[string]any)
+	settingsToken, _ := st.Security["api_token"].(string)
+	switch {
+	case settingsToken != "":
+		secPublic["api_token_source"] = "settings"
+		secPublic["api_token_configured"] = true
+		secPublic["api_token_hint"] = settings.MaskAPIKey(settingsToken)
+	case s.apiToken != "":
+		secPublic["api_token_source"] = "env"
+		secPublic["api_token_configured"] = true
+		secPublic["api_token_hint"] = settings.MaskAPIKey(s.apiToken)
+	default:
+		secPublic["api_token_source"] = "none"
+		secPublic["api_token_configured"] = false
+		secPublic["api_token_hint"] = ""
 	}
 	return public
 }
@@ -418,6 +438,74 @@ func (s *Server) handleContentFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.ServeFile(w, r, full)
+}
+
+// ============ 机器鉴权 Token 管理（/api/settings/api-token） ============
+
+// GET /api/settings/api-token —— 只回脱敏形态与来源，永不回明文；
+// 明文仅在 regenerate 响应中出现一次。
+func (s *Server) handleAPITokenGet(w http.ResponseWriter, r *http.Request) {
+	masked, source := "", "none"
+	if s.settingsSvc != nil {
+		if st, err := s.settingsSvc.GetSettings(); err == nil {
+			if tok, _ := st.Security["api_token"].(string); tok != "" {
+				masked, source = settings.MaskAPIKey(tok), "settings"
+			}
+		}
+	}
+	if source == "none" && s.apiToken != "" {
+		masked, source = settings.MaskAPIKey(s.apiToken), "env"
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true, "enabled": source != "none",
+		"masked": masked, "source": source,
+	})
+}
+
+// POST /api/settings/api-token/regenerate —— 生成 48 位十六进制新 token，
+// 落盘 settings 并在响应中一次性返回明文。
+func (s *Server) handleAPITokenRegenerate(w http.ResponseWriter, r *http.Request) {
+	buf := make([]byte, 24)
+	if _, err := rand.Read(buf); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"success": false, "message": "生成随机 token 失败"})
+		return
+	}
+	token := hex.EncodeToString(buf)
+	st, err := s.settingsSvc.UpdateSettings(map[string]any{
+		"security": map[string]any{"api_token": token},
+	})
+	if err != nil {
+		status := http.StatusInternalServerError
+		if _, isValidation := err.(*settings.ValidationError); isValidation {
+			status = http.StatusBadRequest
+		}
+		writeJSON(w, status, map[string]any{
+			"success": false, "message": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true, "token": token,
+		"masked": settings.MaskAPIKey(token),
+		"settings": s.toPublicSettings(st),
+	})
+}
+
+// DELETE /api/settings/api-token —— 停用设置里的 token；若环境变量
+// API_TOKEN 仍在，Bearer 通道回退到 env token。
+func (s *Server) handleAPITokenDelete(w http.ResponseWriter, r *http.Request) {
+	st, err := s.settingsSvc.UpdateSettings(map[string]any{
+		"security": map[string]any{"api_token": ""},
+	})
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"success": false, "message": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true, "message": "已停用设置中的 API Token",
+		"settings": s.toPublicSettings(st),
+	})
 }
 
 // ============ 工具 ============

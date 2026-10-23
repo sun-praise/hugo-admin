@@ -5,16 +5,17 @@
 
 ## 前置配置
 
-设置环境变量 `API_TOKEN`（也支持写入 `.env` 文件）：
+机器鉴权 Token 有两个来源，**设置页优先**：
 
-```bash
-API_TOKEN=<足够长的随机串>   # 例如 openssl rand -hex 32 生成
-```
+1. **设置页（推荐）**：管理界面 → 设置 → 常规设置 → 「API 访问」→ 生成 Token。
+   明文仅生成时展示一次，可随时重新生成（旧 token 立即失效）或停用，无需重启服务。
+2. **环境变量 `API_TOKEN`**（也支持写入 `.env`）：适合 IaC/无头部署做引导；
+   设置页未配置 token 时回退到该值，两者都未配置则 Bearer 通道关闭，
+   所有请求仍走会话认证（行为与旧版一致）。
 
-- `API_TOKEN` **未配置时 Bearer 通道关闭**，所有请求仍走会话认证（行为与旧版一致）。
 - 配置后，携带 `Authorization: Bearer <API_TOKEN>` 的请求等价于已登录管理员，
   可访问全部 `/api/*` 端点——请把 token 当作管理员凭据保管。
-- 校验使用常数时间比较，不暴露通道是否开启。
+- 校验使用常数时间比较，不暴露通道是否开启；怀疑泄露时在设置页重新生成即可。
 
 ## 导入文章：POST /api/article/import
 
@@ -105,4 +106,8 @@ path = r.json()["path"]          # 后续可用 /api/file/save 更新
 
 - Bearer token 与管理员会话等权，仅建议在可信内网/部署边界内使用；
   公网部署务必走 HTTPS。
-- 泄露疑似时直接轮换 `API_TOKEN` 并重启服务即可，无需改任何数据文件。
+- token 的日常管理（生成/轮换/停用）都在设置页「API 访问」卡片完成，
+  立即生效；API 端点仅三个：
+  - `GET /api/settings/api-token` —— 脱敏形态与来源
+  - `POST /api/settings/api-token/regenerate` —— 生成新 token（响应含一次明文）
+  - `DELETE /api/settings/api-token` —— 停用（回退环境变量或关闭）
