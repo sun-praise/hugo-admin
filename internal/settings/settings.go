@@ -25,6 +25,7 @@ type Settings struct {
 	Hugo     map[string]any `json:"hugo"`
 	Listmonk map[string]any `json:"listmonk"`
 	Theme    map[string]any `json:"theme"`
+	Security map[string]any `json:"security"`
 }
 
 type Service struct {
@@ -136,6 +137,18 @@ func (s *Service) UpdateSettings(updates map[string]any) (*Settings, error) {
 		}
 	}
 
+	// Security
+	if secUpdates, ok := updates["security"].(map[string]any); ok {
+		if v, ok := secUpdates["api_token"]; ok {
+			token, _ := v.(string)
+			token = strings.TrimSpace(token)
+			if token != "" && len([]rune(token)) < 8 {
+				return nil, &ValidationError{"API Token 至少 8 个字符"}
+			}
+			current.Security["api_token"] = token
+		}
+	}
+
 	normalized, err := normalizeAndValidate(current)
 	if err != nil {
 		return nil, err
@@ -149,6 +162,7 @@ func (s *Service) UpdateSettings(updates map[string]any) (*Settings, error) {
 // ToPublicSettings 对齐 to_public_settings：隐藏敏感值。
 func (s *Service) ToPublicSettings(st *Settings) map[string]any {
 	apiKey, _ := st.Listmonk["api_key"].(string)
+	secToken, _ := st.Security["api_token"].(string)
 	return map[string]any{
 		"ai": map[string]any{
 			"base_url": strOrDef(st.AI, "base_url", "https://api.deepseek.com"),
@@ -166,6 +180,9 @@ func (s *Service) ToPublicSettings(st *Settings) map[string]any {
 		},
 		"theme": map[string]any{
 			"name": strOrDef(st.Theme, "name", ""),
+		},
+		"security": map[string]any{
+			"api_token": MaskAPIKey(secToken),
 		},
 	}
 }
@@ -221,6 +238,11 @@ func (s *Service) loadUnlocked() (*Settings, error) {
 			st.Theme["name"] = v
 		}
 	}
+	if sec, ok := fileSettings["security"].(map[string]any); ok {
+		if v, ok := sec["api_token"]; ok {
+			st.Security["api_token"] = v
+		}
+	}
 
 	// listmonk 未配置时从 ~/.config/secret.yml 迁移
 	migrated := false
@@ -255,7 +277,8 @@ func (s *Service) defaults_() *Settings {
 			"api_key":      "",
 			"blog_list_id": 1,
 		},
-		Theme: map[string]any{"name": ""},
+		Theme:    map[string]any{"name": ""},
+		Security: map[string]any{"api_token": ""},
 	}
 }
 
@@ -369,6 +392,9 @@ func normalizeAndValidate(st *Settings) (*Settings, error) {
 		},
 		Theme: map[string]any{
 			"name": strings.TrimSpace(fmt.Sprintf("%v", orNil(st.Theme["name"], ""))),
+		},
+		Security: map[string]any{
+			"api_token": strings.TrimSpace(fmt.Sprintf("%v", orNil(st.Security["api_token"], ""))),
 		},
 	}, nil
 }

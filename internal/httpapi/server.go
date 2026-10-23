@@ -134,6 +134,9 @@ func (s *Server) routes() {
 	m.HandleFunc("DELETE /api/plugins/{name}/tts/{audio_id}", s.handlePluginTTSDelete)
 	m.HandleFunc("GET /api/settings", s.handleSettingsGet)
 	m.HandleFunc("PUT /api/settings", s.handleSettingsPut)
+	m.HandleFunc("GET /api/settings/api-token", s.handleAPITokenGet)
+	m.HandleFunc("POST /api/settings/api-token/regenerate", s.handleAPITokenRegenerate)
+	m.HandleFunc("DELETE /api/settings/api-token", s.handleAPITokenDelete)
 	m.HandleFunc("GET /api/config", s.handleConfigList)
 	m.HandleFunc("GET /api/config/{filename}", s.handleConfigGet)
 	m.HandleFunc("PUT /api/config/{filename}", s.handleConfigPut)
@@ -234,17 +237,20 @@ func (s *Server) guardMiddleware(next http.Handler) http.Handler {
 
 // bearerAuthorized 校验 Authorization: Bearer <token>；常数时间比较，
 // token 未配置时恒为 false（不暴露通道是否开启）。
+// token 解析自 settings security.api_token，回退环境变量 API_TOKEN；
+// 仅在请求确带 Bearer 头时才读设置，普通会话请求零额外 I/O。
 func (s *Server) bearerAuthorized(r *http.Request) bool {
-	if s.apiToken == "" {
-		return false
-	}
 	const prefix = "Bearer "
 	authz := r.Header.Get("Authorization")
 	if len(authz) <= len(prefix) || !strings.EqualFold(authz[:len(prefix)], prefix) {
 		return false
 	}
+	token := s.effectiveAPIToken()
+	if token == "" {
+		return false
+	}
 	given := authz[len(prefix):]
-	return subtle.ConstantTimeCompare([]byte(given), []byte(s.apiToken)) == 1
+	return subtle.ConstantTimeCompare([]byte(given), []byte(token)) == 1
 }
 
 // ============ 会话 ============
@@ -463,4 +469,17 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	_ = enc.Encode(v)
+}
+
+// effectiveAPIToken 返回当前生效的机器鉴权 token：
+// settings security.api_token 优先（设置页可管理），回退环境变量 API_TOKEN。
+func (s *Server) effectiveAPIToken() string {
+	if s.settingsSvc != nil {
+		if st, err := s.settingsSvc.GetSettings(); err == nil {
+			if tok, _ := st.Security["api_token"].(string); tok != "" {
+				return tok
+			}
+		}
+	}
+	return s.apiToken
 }

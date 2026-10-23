@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sun-praise/hugo-admin/v3/internal/settings"
 )
 
 // 机器客户端 Bearer 鉴权：API_TOKEN 配置后可等价通过全局守卫。
@@ -144,5 +146,92 @@ func TestArticleImportJSONValidation(t *testing.T) {
 		"content": "x", "filename": "post.txt"})
 	if status != 400 || !strings.Contains(body["message"].(string), "txt") {
 		t.Fatalf("bad ext = %d %#v", status, body)
+	}
+}
+
+// 设置页管理的 token：regenerate 落盘并即时生效（settings 优先于 env）、
+// GET 只回脱敏形态、DELETE 停用后回退 env。
+// Bearer 探测用无 cookie 客户端，排除登录会话干扰。
+func TestAPITokenManagedViaSettings(t *testing.T) {
+	contentDir := t.TempDir()
+	ts := newTestServerOpts(t, contentDir, Options{
+		APIToken: "env-fallback-token",
+		Settings: settings.NewService(filepath.Join(t.TempDir(), "settings.json"), nil, ""),
+	})
+	client := ts.Client()
+	login(t, client, ts.URL)
+	bare := &http.Client{} // 无 cookie jar，纯 Bearer 通道
+
+	// 初始来源 env
+	status, body := doJSON(t, client, "GET", ts.URL+"/api/settings/api-token", nil)
+	if status != 200 || body["source"] != "env" || body["enabled"] != true {
+		t.Fatalf("get = %d %#v", status, body)
+	}
+
+	// regenerate：明文一次性返回、masked 脱敏
+	status, body = doJSON(t, client, "POST", ts.URL+"/api/settings/api-token/regenerate", nil)
+	if status != 200 || body["token"] == "" {
+		t.Fatalf("regenerate = %d %#v", status, body)
+	}
+	newToken := body["token"].(string)
+	if len(newToken) < 32 || newToken == "env-fallback-token" {
+		t.Fatalf("token = %q", newToken)
+	}
+	if body["masked"].(string) == newToken {
+		t.Fatal("masked 不应等于明文")
+	}
+
+	// settings token 优先：旧 env token 立即失效、新 token 生效
+	req, _ := http.NewRequest("GET", ts.URL+"/api/posts", nil)
+	req.Header.Set("Authorization", "Bearer env-fallback-token")
+	resp, err := bare.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("old env token = %d, settings 应优先", resp.StatusCode)
+	}
+	req, _ = http.NewRequest("GET", ts.URL+"/api/posts", nil)
+	req.Header.Set("Authorization", "Bearer "+newToken)
+	resp, err = bare.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("new token = %d", resp.StatusCode)
+	}
+
+	// GET 只回 masked + source=settings
+	status, body = doJSON(t, client, "GET", ts.URL+"/api/settings/api-token", nil)
+	if body["source"] != "settings" || body["masked"] == "" || body["masked"] == newToken {
+		t.Fatalf("get after regen = %#v", body)
+	}
+
+	// DELETE 停用 → 旧 settings token 失效，回退 env token
+	status, _ = doJSON(t, client, "DELETE", ts.URL+"/api/settings/api-token", nil)
+	if status != 200 {
+		t.Fatalf("delete = %d", status)
+	}
+	req, _ = http.NewRequest("GET", ts.URL+"/api/posts", nil)
+	req.Header.Set("Authorization", "Bearer "+newToken)
+	resp, err = bare.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("deleted token = %d, 应失效", resp.StatusCode)
+	}
+	req, _ = http.NewRequest("GET", ts.URL+"/api/posts", nil)
+	req.Header.Set("Authorization", "Bearer env-fallback-token")
+	resp, err = bare.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("env fallback = %d", resp.StatusCode)
 	}
 }
