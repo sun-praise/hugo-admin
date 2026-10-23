@@ -101,6 +101,7 @@ nav:
   - 开发文档:
     - Frontmatter 重构: FRONTMATTER_REFACTOR.md
     - 整体发布功能: development/system-publish.md
+    - Agent 导入 API: development/agent-import-api.md
     - 测试报告: TEST_REPORT.md
   - 参考文档:
     - 修复列表: FIXES.md

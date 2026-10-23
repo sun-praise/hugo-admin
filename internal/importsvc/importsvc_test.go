@@ -62,7 +62,7 @@ func readArticle(t *testing.T, contentDir, path string) (string, map[string]any)
 
 func TestImportDerivesTitleFromHeading(t *testing.T) {
 	contentDir := t.TempDir()
-	res := Import(contentDir, "file.md", []byte("# Hello Hugo\n\n正文"), "", false, false, AICfg{}, ImageCfg{}, nil, "", fixedNow)
+	res := Import(contentDir, "file.md", []byte("# Hello Hugo\n\n正文"), "", false, false, true, AICfg{}, ImageCfg{}, nil, "", fixedNow)
 
 	if res.Title != "Hello Hugo" {
 		t.Fatalf("Title = %q", res.Title)
@@ -103,7 +103,7 @@ func TestImportTitlePriority(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			res := Import(t.TempDir(), tc.filename, []byte(tc.raw), tc.title, false, false, AICfg{}, ImageCfg{}, nil, "", fixedNow)
+			res := Import(t.TempDir(), tc.filename, []byte(tc.raw), tc.title, false, false, true, AICfg{}, ImageCfg{}, nil, "", fixedNow)
 			if res.Title != tc.want {
 				t.Fatalf("Title = %q, want %q", res.Title, tc.want)
 			}
@@ -121,7 +121,7 @@ func TestImportKeepsExistingFrontmatter(t *testing.T) {
 		"categories: [cat]\n" +
 		"cover: /img/old.png\n" +
 		"---\n正文内容\n"
-	res := Import(contentDir, "x.md", []byte(raw), "", false, false, AICfg{}, ImageCfg{}, nil, "", fixedNow)
+	res := Import(contentDir, "x.md", []byte(raw), "", false, false, true, AICfg{}, ImageCfg{}, nil, "", fixedNow)
 
 	_, fm := readArticle(t, contentDir, res.Path)
 	if fm["date"] != "2026-01-02T03:04:05+08:00" {
@@ -141,8 +141,8 @@ func TestImportKeepsExistingFrontmatter(t *testing.T) {
 
 func TestImportUniqueDirectory(t *testing.T) {
 	contentDir := t.TempDir()
-	r1 := Import(contentDir, "f.md", []byte("# Same Title\n正文一"), "", false, false, AICfg{}, ImageCfg{}, nil, "", fixedNow)
-	r2 := Import(contentDir, "f.md", []byte("# Same Title\n正文二"), "", false, false, AICfg{}, ImageCfg{}, nil, "", fixedNow)
+	r1 := Import(contentDir, "f.md", []byte("# Same Title\n正文一"), "", false, false, true, AICfg{}, ImageCfg{}, nil, "", fixedNow)
+	r2 := Import(contentDir, "f.md", []byte("# Same Title\n正文二"), "", false, false, true, AICfg{}, ImageCfg{}, nil, "", fixedNow)
 	if r1.Path == r2.Path {
 		t.Fatalf("重复标题应生成唯一目录: %q vs %q", r1.Path, r2.Path)
 	}
@@ -157,7 +157,7 @@ func TestImportWriteFailure(t *testing.T) {
 	if err := os.WriteFile(blocker, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	res := Import(blocker, "f.md", []byte("# T\n"), "", false, false, AICfg{}, ImageCfg{}, nil, "", fixedNow)
+	res := Import(blocker, "f.md", []byte("# T\n"), "", false, false, true, AICfg{}, ImageCfg{}, nil, "", fixedNow)
 	if res.Path != "" {
 		t.Fatalf("Path = %q, 应为空", res.Path)
 	}
@@ -167,7 +167,7 @@ func TestImportWriteFailure(t *testing.T) {
 }
 
 func TestImportFrontmatterGenNoKey(t *testing.T) {
-	res := Import(t.TempDir(), "f.md", []byte("# 独特标题一\n正文"), "", true, false, AICfg{}, ImageCfg{}, nil, "", fixedNow)
+	res := Import(t.TempDir(), "f.md", []byte("# 独特标题一\n正文"), "", true, false, true, AICfg{}, ImageCfg{}, nil, "", fixedNow)
 	found := false
 	for _, w := range res.Warnings {
 		if strings.Contains(w, "AI API Key") {
@@ -182,7 +182,7 @@ func TestImportFrontmatterGenNoKey(t *testing.T) {
 func TestImportFrontmatterGenAI(t *testing.T) {
 	srv := aiChatServer(t, `{"description":"AI 摘要","tags":["ai-tag"],"categories":["ai-cat"]}`, 0)
 	contentDir := t.TempDir()
-	res := Import(contentDir, "f.md", []byte("# 独特标题二\n正文内容"), "", true, false,
+	res := Import(contentDir, "f.md", []byte("# 独特标题二\n正文内容"), "", true, false, true,
 		AICfg{APIKey: "k", BaseURL: srv.URL, Model: "m"}, ImageCfg{}, nil, "", fixedNow)
 
 	_, fm := readArticle(t, contentDir, res.Path)
@@ -197,7 +197,7 @@ func TestImportFrontmatterGenAI(t *testing.T) {
 	// markdown 代码块包裹的响应同样可解析
 	contentDir2 := t.TempDir()
 	srv2 := aiChatServer(t, "```json\n{\"description\":\"代码块摘要\"}\n```", 0)
-	res = Import(contentDir2, "f.md", []byte("# 独特标题三\n正文内容"), "", true, false,
+	res = Import(contentDir2, "f.md", []byte("# 独特标题三\n正文内容"), "", true, false, true,
 		AICfg{APIKey: "k", BaseURL: srv2.URL}, ImageCfg{}, nil, "", fixedNow)
 	_, fm = readArticle(t, contentDir2, res.Path)
 	if fm["description"] != "代码块摘要" {
@@ -207,7 +207,7 @@ func TestImportFrontmatterGenAI(t *testing.T) {
 
 func TestImportFrontmatterGenAIFailure(t *testing.T) {
 	srv := aiChatServer(t, "", http.StatusInternalServerError)
-	res := Import(t.TempDir(), "f.md", []byte("# 独特标题四\n正文内容"), "", true, false,
+	res := Import(t.TempDir(), "f.md", []byte("# 独特标题四\n正文内容"), "", true, false, true,
 		AICfg{APIKey: "k", BaseURL: srv.URL}, ImageCfg{}, nil, "", fixedNow)
 	found := false
 	for _, w := range res.Warnings {
@@ -221,7 +221,7 @@ func TestImportFrontmatterGenAIFailure(t *testing.T) {
 }
 
 func TestImportCoverNoKey(t *testing.T) {
-	res := Import(t.TempDir(), "f.md", []byte("# 独特标题五\n正文"), "", false, true,
+	res := Import(t.TempDir(), "f.md", []byte("# 独特标题五\n正文"), "", false, true, true,
 		AICfg{}, ImageCfg{}, nil, "", fixedNow)
 	found := false
 	for _, w := range res.Warnings {
@@ -237,7 +237,7 @@ func TestImportCoverNoKey(t *testing.T) {
 func TestImportCoverSync(t *testing.T) {
 	overrideCoverEndpoint(t, coverServer(t).URL)
 	contentDir := t.TempDir()
-	res := Import(contentDir, "f.md", []byte("# 独特标题六\n正文"), "", false, true,
+	res := Import(contentDir, "f.md", []byte("# 独特标题六\n正文"), "", false, true, true,
 		AICfg{}, ImageCfg{APIKey: "k"}, nil, "", fixedNow)
 
 	if res.CoverPending {
@@ -261,7 +261,7 @@ func TestImportCoverBackground(t *testing.T) {
 	ch := broker.Subscribe()
 	defer broker.Unsubscribe(ch)
 
-	res := Import(contentDir, "f.md", []byte("# 独特标题七\n正文"), "", false, true,
+	res := Import(contentDir, "f.md", []byte("# 独特标题七\n正文"), "", false, true, true,
 		AICfg{}, ImageCfg{APIKey: "k"}, broker, "test-scope", fixedNow)
 
 	if !res.CoverPending {
@@ -312,7 +312,7 @@ func TestImportTOMLFrontmatter(t *testing.T) {
 	dir := t.TempDir()
 	raw := []byte("+++\ntitle = \"外部文章\"\ndate = \"2019-03-05\"\ntags = [\"imported\"]\ncategories = [\"Test\"]\n+++\n\n外部正文\n")
 
-	res := Import(dir, "外部文章.md", raw, "", false, false, AICfg{}, ImageCfg{}, nil, "", time.Now())
+	res := Import(dir, "外部文章.md", raw, "", false, false, true, AICfg{}, ImageCfg{}, nil, "", time.Now())
 	if !strings.HasPrefix(res.Path, "post/") || res.Path == "" {
 		t.Fatalf("path = %q warnings = %#v", res.Path, res.Warnings)
 	}
@@ -341,7 +341,7 @@ func TestImportTOMLFrontmatter(t *testing.T) {
 func TestImportTOMLNativeDate(t *testing.T) {
 	dir := t.TempDir()
 	raw := []byte("+++\ndate = 2018-06-01\n+++\n\n正文\n")
-	res := Import(dir, "native.md", raw, "给定的标题", false, false, AICfg{}, ImageCfg{}, nil, "", time.Now())
+	res := Import(dir, "native.md", raw, "给定的标题", false, false, true, AICfg{}, ImageCfg{}, nil, "", time.Now())
 	if res.Path == "" {
 		t.Fatalf("path 为空 warnings = %#v", res.Warnings)
 	}
