@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-10-23
+
+### Added
+- 手机端适配（#174）：侧边栏 <860px 由图标栏改为抽屉导航——顶栏汉堡按钮唤出、遮罩点击/Esc/路由跳转收起、打开时锁定背景滚动；编辑器 <1024px 改为「编辑/预览」页签单栏切换，写作区固定 58vh（lg+ 双栏不变），Markdown 工具栏窄屏单行横向滚动；<640px 低频 AI 操作（生成封面/生成 Frontmatter/生成语音）收进 ✨ 弹出菜单，顶部操作按钮一行放下。
+
+### Changed
+- 触屏（pointer: coarse）点击目标加大：`.btn` 32→36px、Markdown 工具栏按钮 32→40px；输入控件统一 16px 字号，避免 iOS 聚焦时页面自动放大；viewport 增加 `viewport-fit=cover` 与 `interactive-widget=resizes-content`，AIChat 悬浮钮避让安全区。
+- 顶栏窄屏紧凑化：搜索收缩为图标钮、Hugo 状态胶囊 <430px 只留圆点；Posts 头部操作按钮组允许换行（修复 390px 下溢出屏幕）、内边距/封面/复选框响应式；AIChat 面板宽度收敛进视口、触屏下会话删除按钮不再仅 hover 可见。
+
+### CI
+- coverage-profile artifact 加 retention-days 3 天（org 共享存储配额防护，见 latex-agent#6211）。
+
 ## [3.0.2] - 2026-10-16
 
 ### Added
