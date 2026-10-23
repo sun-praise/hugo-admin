@@ -17,6 +17,7 @@ import {
 
 import { get } from '../utils/api';
 import { createNewPost, publishSystem, pushLatestEmail, pushSpecificEmail } from '../utils/actions';
+import type { PalettePost } from './PaletteBridgeContext';
 
 interface Command {
   group: string;
@@ -33,13 +34,26 @@ interface SearchHit {
 
 // ⌘K 命令面板:页面跳转 + 快捷操作 + 文章搜索(对齐重设计原型,功能真实)。
 // 由父组件条件挂载,关闭即卸载,状态天然重置。
-export default function CommandPalette({ onClose }: { onClose: () => void }) {
+//
+// 编辑器通过 PaletteBridgeContext 注册插入回调后,onInsertPost 非空,
+// 面板进入"插入引用"模式:文章条目排在最前、回车把引用插到光标处而非跳转,
+// 空查询时先展示最近文章,省一次输入。
+export default function CommandPalette({
+  onClose,
+  onInsertPost,
+}: {
+  onClose: () => void;
+  onInsertPost?: (post: PalettePost) => void;
+}) {
   const navigate = useNavigate();
+  const insertMode = !!onInsertPost;
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   // hits 与产出它的查询绑定,渲染时按当前查询过滤,天然过期即失效
   const [search, setSearch] = useState<{ q: string; items: SearchHit[] }>({ q: '', items: [] });
   const searchSeq = useRef(0);
+  // 插入模式下打开面板(空查询)时先展示的最近文章
+  const [recent, setRecent] = useState<SearchHit[]>([]);
 
   const commands = useMemo<Command[]>(
     () => [
@@ -68,19 +82,37 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
   // 仅展示由当前查询产出的结果(清空/改词后旧结果自动失效)
   const hits = useMemo(() => (search.q === trimmed ? search.items : []), [search, trimmed]);
 
-  const searchCommands = useMemo<Command[]>(
-    () =>
-      hits.slice(0, 30).map((h) => ({
-        group: '文章',
-        icon: FileText,
-        label: h.title || h.path,
-        hint: h.path,
-        run: () => navigate(`/editor/${h.path}`),
-      })),
-    [hits, navigate],
-  );
+  // 插入模式:面板刚打开(空查询)时拉一次最近文章,按日期倒序
+  useEffect(() => {
+    if (!insertMode) return;
+    let cancelled = false;
+    get<{ posts?: Array<{ path: string; title: string }> }>('/api/posts?page=1&per_page=15')
+      .then((d) => {
+        if (!cancelled) setRecent((d.posts || []).map((p) => ({ path: p.path, title: p.title })));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [insertMode]);
 
-  const items = useMemo(() => [...filtered, ...searchCommands], [filtered, searchCommands]);
+  const articleCommands = useMemo<Command[]>(() => {
+    const showRecent = insertMode && !trimmed;
+    const list = showRecent ? recent : hits;
+    return list.slice(0, 30).map((h) => ({
+      group: showRecent ? '最近文章' : '文章',
+      icon: FileText,
+      label: h.title || h.path,
+      hint: h.path,
+      run: insertMode && onInsertPost ? () => onInsertPost(h) : () => navigate(`/editor/${h.path}`),
+    }));
+  }, [insertMode, trimmed, recent, hits, navigate, onInsertPost]);
+
+  // 插入模式文章优先(当前意图是引用);浏览模式维持命令在前
+  const items = useMemo(
+    () => (insertMode ? [...articleCommands, ...filtered] : [...filtered, ...articleCommands]),
+    [filtered, articleCommands, insertMode],
+  );
 
   // 文章搜索(防抖 250ms);结果携带其查询串,竞态响应自然过期
   useEffect(() => {
@@ -148,7 +180,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
                 onClose();
               }
             }}
-            placeholder="搜索文章、跳转页面、执行操作…"
+            placeholder={insertMode ? '搜索文章，回车插入引用…' : '搜索文章、跳转页面、执行操作…'}
             autoComplete="off"
             spellCheck={false}
             className="h-full min-w-0 flex-1 border-0 bg-transparent text-[15px] text-zinc-900 outline-none placeholder:text-[#9ca3a8]"
@@ -193,7 +225,8 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
             <kbd className="kbd">↓</kbd> 导航
           </span>
           <span>
-            <kbd className="kbd mr-1">↵</kbd>选择
+            <kbd className="kbd mr-1">↵</kbd>
+            {insertMode ? '插入 / 执行' : '选择'}
           </span>
           <span>
             <kbd className="kbd mr-1">esc</kbd>关闭
