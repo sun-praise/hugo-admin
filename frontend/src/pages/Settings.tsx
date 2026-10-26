@@ -964,7 +964,7 @@ export default function SettingsPage() {
                         <div className="text-sm text-[#3f3f46]">
                           预览主题：<strong>{previewThemeName}</strong>
                           <span className="ml-2 text-xs text-[#52525b]">
-                            独立端口运行，不影响主服务器；确认效果后可点「启用」
+                            独立端口运行，不影响主服务器；预览基于最新文章的简化副本，确认效果后可点「启用」
                           </span>
                         </div>
                         <div className="flex gap-2">

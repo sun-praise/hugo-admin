@@ -11,6 +11,9 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -288,15 +291,20 @@ func (m *Manager) ServerURL() string { return m.serverURL }
 
 // ============ 主题预览实例（独立端口，不影响主服务器） ============
 
-// StartPreview 启动主题预览服务器：自动挑选空闲端口，绑定 --theme 启动
-// 临时实例；已有预览实例会先停止（切换预览主题）。返回可访问的 URL。
-// 主服务器与预览实例互不影响。
+// StartPreview 启动主题预览服务器：自动挑选空闲端口，在独立覆盖站点
+// （.admin/preview/site）中以指定主题渲染。不直接复用站点原配置——module/
+// vendor/主题专属配置会压住 --theme 或与目标主题冲突（如内容 frontmatter
+// 打崩其他主题的模板）；覆盖站点只采样最新若干篇、剥成最小 frontmatter，
+// 任何主题都能干净渲染。已有预览实例会先停止（切换预览主题）。
 func (m *Manager) StartPreview(theme string) (string, bool, string) {
 	m.previewMu.Lock()
 	defer m.previewMu.Unlock()
 
 	if theme == "" {
 		return "", false, "主题名称不能为空"
+	}
+	if !previewThemeNameRE.MatchString(theme) {
+		return "", false, fmt.Sprintf("主题名称不合法: %s", theme)
 	}
 	bin := m.command
 	if _, err := exec.LookPath(bin); err != nil {
@@ -318,13 +326,17 @@ func (m *Manager) StartPreview(theme string) (string, bool, string) {
 	}
 	baseURL := previewBaseURL(m.serverURL, port)
 
+	siteDir, err := m.preparePreviewSite(theme, baseURL)
+	if err != nil {
+		return "", false, fmt.Sprintf("准备预览站点失败: %v", err)
+	}
+
 	args := []string{
 		"server", "--bind=0.0.0.0", "-b", baseURL,
 		"-p", strconv.Itoa(port), "--disableFastRender", "-D",
-		"--theme", theme,
 	}
 	cmd := exec.Command(bin, args...)
-	cmd.Dir = m.hugoRoot
+	cmd.Dir = siteDir
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", false, fmt.Sprintf("启动失败: %v", err)
@@ -346,6 +358,151 @@ func (m *Manager) StartPreview(theme string) (string, bool, string) {
 	m.mu.Unlock()
 	go m.monitorPreviewLogs(stdout, p)
 	return baseURL, true, "预览服务器已启动"
+}
+
+var previewThemeNameRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+
+// previewSampleCount 预览采样的文章数：够看出主题列表页/文章页效果即可。
+const previewSampleCount = 8
+
+// preparePreviewSite 在 <hugoRoot>/.admin/preview/site 生成独立覆盖站点：
+// hugo.toml 只声明预览主题与通用兼容项；themes 符号链接到站点 themes/；
+// content 为最新若干篇的采样副本（仅保留标题/日期，剥离主题专属
+// frontmatter）；采样正文里用到的 shortcode 生成空桩，未知 shortcode
+// 渲染为空而不是构建失败。
+func (m *Manager) preparePreviewSite(theme, baseURL string) (string, error) {
+	siteDir := filepath.Join(m.hugoRoot, ".admin", "preview", "site")
+	if err := os.RemoveAll(siteDir); err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Join(siteDir, "layouts", "_shortcodes"), 0o755); err != nil {
+		return "", err
+	}
+	// 放进 post/ 分区：主题（如 PaperMod）按 mainSections/Type 过滤列表页，
+	// 根级页面的 Type 是 page 不会出现在首页列表
+	if err := os.MkdirAll(filepath.Join(siteDir, "content", "post"), 0o755); err != nil {
+		return "", err
+	}
+	cfg := fmt.Sprintf(`baseURL = '%s'
+title = '主题预览'
+theme = '%s'
+defaultContentLanguage = 'zh-cn'
+ignoreErrors = ['error-missing-shortcode']
+
+[security]
+  allowContent = ['.*']
+
+[markup.goldmark.renderer]
+  unsafe = true
+`, baseURL, theme)
+	if err := os.WriteFile(filepath.Join(siteDir, "hugo.toml"), []byte(cfg), 0o644); err != nil {
+		return "", err
+	}
+	// 预览前置校验（ThemeExists）保证 themes/<theme> 存在
+	if err := os.Symlink(filepath.Join("..", "..", "..", "themes"), filepath.Join(siteDir, "themes")); err != nil {
+		return "", err
+	}
+	return siteDir, m.writePreviewSample(siteDir)
+}
+
+// writePreviewSample 采样 content/ 最新若干篇 .md，剥 frontmatter 只留
+// 标题/日期；正文中的 shortcode 名生成空桩布局。
+func (m *Manager) writePreviewSample(siteDir string) error {
+	type sample struct {
+		path    string
+		modTime time.Time
+	}
+	var samples []sample
+	_ = filepath.WalkDir(filepath.Join(m.hugoRoot, "content"), func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+		base := filepath.Base(path)
+		if base == "_index.md" || strings.HasPrefix(base, "_index.") {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		samples = append(samples, sample{path, info.ModTime()})
+		return nil
+	})
+	sort.Slice(samples, func(i, j int) bool { return samples[i].modTime.After(samples[j].modTime) })
+	if len(samples) > previewSampleCount {
+		samples = samples[:previewSampleCount]
+	}
+
+	shortcodes := map[string]bool{}
+	for i, s := range samples {
+		raw, err := os.ReadFile(s.path)
+		if err != nil {
+			continue
+		}
+		title, body := splitFrontMatter(string(raw))
+		if title == "" {
+			title = strings.TrimSuffix(filepath.Base(s.path), ".md")
+		}
+		doc := fmt.Sprintf("+++\ntitle = %q\ndate = %q\ndraft = false\n+++\n\n%s",
+			title, s.modTime.Format("2006-01-02T15:04:05"), body)
+		name := filepath.Join(siteDir, "content", "post", fmt.Sprintf("post-%02d.md", i+1))
+		if err := os.WriteFile(name, []byte(doc), 0o644); err != nil {
+			return err
+		}
+		for _, sc := range shortcodeNames(body) {
+			shortcodes[sc] = true
+		}
+	}
+	for sc := range shortcodes {
+		stub := filepath.Join(siteDir, "layouts", "_shortcodes", sc+".html")
+		if err := os.WriteFile(stub, nil, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var titleLineRE = regexp.MustCompile(`(?m)^\s*title\s*[:=]\s*(.+)$`)
+
+// splitFrontMatter 剥离 ---/+++ 围栏的前置元数据，返回其中的 title 与正文；
+// 无围栏时全文即正文。
+func splitFrontMatter(raw string) (title, body string) {
+	body = raw
+	nl := strings.IndexByte(raw, '\n')
+	if nl <= 0 {
+		return "", body
+	}
+	fence := strings.TrimSpace(raw[:nl])
+	if fence != "---" && fence != "+++" {
+		return "", body
+	}
+	closer := "\n" + fence
+	rest := raw[nl+1:]
+	end := strings.Index(rest, closer)
+	if end < 0 {
+		return "", body
+	}
+	fm := rest[:end]
+	body = strings.TrimLeft(rest[end+len(closer):], "\r\n")
+	if m := titleLineRE.FindStringSubmatch(fm); m != nil {
+		title = strings.Trim(strings.TrimSpace(m[1]), `"'`)
+	}
+	return title, body
+}
+
+var shortcodeRE = regexp.MustCompile(`\{\{[<%]\s*([A-Za-z0-9_-]+)`)
+
+// shortcodeNames 提取正文中用到的 shortcode 名（去重，保持首现顺序）。
+func shortcodeNames(body string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, m := range shortcodeRE.FindAllStringSubmatch(body, -1) {
+		if !seen[m[1]] {
+			seen[m[1]] = true
+			out = append(out, m[1])
+		}
+	}
+	return out
 }
 
 // StopPreview 停止主题预览服务器（主服务器不受影响）。

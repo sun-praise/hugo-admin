@@ -244,6 +244,16 @@ func TestPreviewLifecycle(t *testing.T) {
 	}
 	firstPID := st["pid"]
 
+	// 覆盖站点就位：hugo.toml 声明预览主题，themes 软链存在
+	siteDir := filepath.Join(m.hugoRoot, ".admin", "preview", "site")
+	siteCfg, err := os.ReadFile(filepath.Join(siteDir, "hugo.toml"))
+	if err != nil || !strings.Contains(string(siteCfg), "theme = 'demo'") {
+		t.Fatalf("覆盖站点 hugo.toml 缺预览主题: %q %v", siteCfg, err)
+	}
+	if _, err := os.Lstat(filepath.Join(siteDir, "themes")); err != nil {
+		t.Fatalf("themes 软链缺失: %v", err)
+	}
+
 	// 预览不影响主服务器：主服务器仍可启动且互不干扰
 	if ok, _ := m.Start(false, ""); !ok {
 		t.Fatal("预览运行中主服务器启动失败")
