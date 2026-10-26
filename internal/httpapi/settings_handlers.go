@@ -398,8 +398,13 @@ func (s *Server) handleThemeActivate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "message": err.Error()})
 		return
 	}
+	note, _ := result["config_note"].(string)
+	msg := "主题已激活"
+	if note != "" {
+		msg = "主题已激活：" + note + "；重启 Hugo 服务器后生效"
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"success": true, "message": "主题已激活", "theme": result,
+		"success": true, "message": msg, "theme": result,
 	})
 }
 

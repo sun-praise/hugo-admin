@@ -213,7 +213,299 @@ func (s *Service) ActivateTheme(name string) (map[string]any, error) {
 	if err := s.setActive(name); err != nil {
 		return nil, fmt.Errorf("保存活跃主题失败: %v", err)
 	}
-	return map[string]any{"name": name}, nil
+	// 把主题写进站点配置，让（重启或热加载后的）Hugo 真正渲染它；
+	// 找不到配置文件时只保留管理设置（项目未初始化等场景）。
+	note, err := s.ApplyToSite(name)
+	if err != nil {
+		return nil, fmt.Errorf("写入站点配置失败: %v", err)
+	}
+	return map[string]any{"name": name, "config_note": note}, nil
+}
+
+// ============ 启用时写站点配置 ============
+
+var (
+	reImportHeader = regexp.MustCompile(`^\s*\[\[imports\]\]`)
+	reAnyTableHead = regexp.MustCompile(`^\s*\[`)
+	reImportPath   = regexp.MustCompile(`^\s*path\s*=\s*["'](.+?)["']`)
+	reTOMLThemeKey = regexp.MustCompile(`(?m)^(\s*)theme\s*=.*$`)
+	reYAMLThemeKey = regexp.MustCompile(`(?m)^(\s*)theme\s*:.*$`)
+	reShortcodeUse = regexp.MustCompile(`\{\{[<%]\s*([A-Za-z0-9_-]+)`)
+)
+
+// stubMarker 空桩文件里的标记注释：清理时只删带标记的文件，避免误删
+// 用户手写的同名 shortcode 覆盖。
+const stubMarker = "hugo-admin 主题切换空桩"
+
+// hugoBuiltinShortcodes Hugo 内置 shortcode：无需主题提供，缺失也不打桩
+// （打了反而把内链/媒体渲染清空）。
+var hugoBuiltinShortcodes = map[string]bool{
+	"ref": true, "relref": true, "figure": true, "highlight": true,
+	"youtube": true, "vimeo": true, "twitter": true, "x": true,
+	"gist": true, "instagram": true, "comment": true,
+}
+
+// ApplyToSite 把主题写入站点配置使其在下次服务器启动（或配置热加载）时
+// 真正渲染：
+//   - 经典站点（根目录 hugo.toml/config.toml/yaml）：替换或追加 theme 键
+//   - 配置目录站点（config/_default/）：module.toml（或 config.toml）里有
+//     [[imports]] 时把主题插到 imports 首位（Hugo 组件按首个匹配解析，
+//     首位优先级最高）；否则同样写 theme 键
+//   - 内容用到而主题未提供的 shortcode 在站点根 layouts/_shortcodes/ 生成
+//     空桩，避免切换后构建失败；切换到已提供该 shortcode 的主题时自动清桩
+//
+// 被修改的文件先写 <file>.hugo-admin.bak 滚动备份。返回变更说明。
+func (s *Service) ApplyToSite(name string) (string, error) {
+	if !s.ThemeExists(name) {
+		return "", fmt.Errorf("主题不存在: %s", name)
+	}
+	var notes []string
+
+	cfgPath := s.findConfigFile()
+	if cfgPath != "" {
+		note, err := s.applyThemeInConfig(cfgPath, name)
+		if err != nil {
+			return "", err
+		}
+		if note != "" {
+			notes = append(notes, note)
+		}
+	}
+
+	if err := s.syncShortcodeStubs(name); err != nil {
+		return "", fmt.Errorf("同步 shortcode 空桩失败: %v", err)
+	}
+
+	if len(notes) == 0 {
+		return "未找到站点配置文件，仅更新管理设置", nil
+	}
+	return strings.Join(notes, "；"), nil
+}
+
+// findConfigFile 按优先级定位站点主配置：配置目录模式下，含 [[imports]]
+// 的 module.toml 优先（module 站点靠它定优先级），其次 config/_default/
+// 的 config.toml|yaml；经典站点取根目录 hugo.toml 等四个经典名。
+// 找不到返回 ""。
+func (s *Service) findConfigFile() string {
+	hasImports := func(p string) bool {
+		data, err := os.ReadFile(p)
+		return err == nil && reImportHeader.MatchString(string(data))
+	}
+	moduleToml := filepath.Join(s.hugoRoot, "config", "_default", "module.toml")
+	if hasImports(moduleToml) {
+		return moduleToml
+	}
+	for _, rel := range []string{
+		filepath.Join("config", "_default", "config.toml"),
+		filepath.Join("config", "_default", "config.yaml"),
+		"hugo.toml", "config.toml", "hugo.yaml", "config.yaml",
+	} {
+		p := filepath.Join(s.hugoRoot, rel)
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			return p
+		}
+	}
+	return ""
+}
+
+// applyThemeInConfig 把 name 写进单个配置文件，返回变更说明（无变化返回 ""）。
+func (s *Service) applyThemeInConfig(path, name string) (string, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	content := string(raw)
+
+	var updated string
+	if strings.HasSuffix(path, ".toml") && reImportHeader.MatchString(content) {
+		updated = upsertFirstImport(content, name)
+	} else if strings.HasSuffix(path, ".toml") {
+		updated = setTOMLThemeKey(content, name)
+	} else {
+		updated = setYAMLThemeKey(content, name)
+	}
+	if updated == content {
+		return fmt.Sprintf("站点配置已指向主题 %s", name), nil
+	}
+	if err := backupFile(path); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+		return "", err
+	}
+	rel, _ := filepath.Rel(s.hugoRoot, path)
+	return fmt.Sprintf("已写入 %s（备份 .hugo-admin.bak）", rel), nil
+}
+
+// upsertFirstImport 把主题的 [[imports]] 块提到 imports 首位：先移除已有的
+// 同 path 块（避免重复），再在首个块前插入。Hugo 组件按导入顺序首个匹配
+// 生效，首位即最高优先级。
+func upsertFirstImport(content, name string) string {
+	lines := strings.Split(content, "\n")
+	owner := map[int]int{} // 行号 -> 所属块起始行（仅块内行）
+	blockPath := map[int]string{}
+	var starts []int
+	cur := -1
+	for i, ln := range lines {
+		if reImportHeader.MatchString(ln) {
+			cur = i
+			starts = append(starts, i)
+			owner[i] = cur
+			continue
+		}
+		if cur >= 0 {
+			if reAnyTableHead.MatchString(ln) {
+				cur = -1
+				continue
+			}
+			owner[i] = cur
+			if m := reImportPath.FindStringSubmatch(ln); m != nil {
+				blockPath[cur] = m[1]
+			}
+		}
+	}
+	if len(starts) == 0 {
+		return content
+	}
+	newBlock := []string{"[[imports]]", fmt.Sprintf("path = %q", name), ""}
+	out := make([]string, 0, len(lines)+len(newBlock))
+	inserted := false
+	for i, ln := range lines {
+		if i == starts[0] && !inserted {
+			out = append(out, newBlock...)
+			inserted = true
+		}
+		if start, in := owner[i]; in && blockPath[start] == name {
+			continue // 目标主题的旧块已由插入的新块替代
+		}
+		out = append(out, ln)
+	}
+	if !inserted {
+		out = append(out, newBlock...)
+	}
+	return strings.Join(out, "\n")
+}
+
+func setTOMLThemeKey(content, name string) string {
+	if reTOMLThemeKey.MatchString(content) {
+		return reTOMLThemeKey.ReplaceAllString(content, `${1}theme = "`+name+`"`)
+	}
+	return strings.TrimRight(content, "\n") + "\n\ntheme = \"" + name + "\"\n"
+}
+
+func setYAMLThemeKey(content, name string) string {
+	if reYAMLThemeKey.MatchString(content) {
+		return reYAMLThemeKey.ReplaceAllString(content, `${1}theme: `+name)
+	}
+	return strings.TrimRight(content, "\n") + "\n\ntheme: " + name + "\n"
+}
+
+// backupFile 写 <path>.hugo-admin.bak 滚动备份（每次覆盖）。
+func backupFile(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path+".hugo-admin.bak", data, 0o644)
+}
+
+// syncShortcodeStubs 让站点根 layouts/_shortcodes/ 恰好补齐「内容用到而
+// 主题未提供」的 shortcode：缺失的生成空桩；根桩中主题已提供的删除
+// （项目布局优先级高于主题，残留空桩会覆盖新主题的真实实现）。
+func (s *Service) syncShortcodeStubs(themeName string) error {
+	used, err := s.scanContentShortcodes()
+	if err != nil {
+		return err
+	}
+	provided, err := s.themeShortcodes(themeName)
+	if err != nil {
+		return err
+	}
+	stubDir := filepath.Join(s.hugoRoot, "layouts", "_shortcodes")
+	entries, _ := os.ReadDir(stubDir)
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".html") {
+			continue
+		}
+		sc := strings.TrimSuffix(e.Name(), ".html")
+		if !provided[sc] {
+			continue
+		}
+		// 只删自己生成的空桩（带标记注释），用户手写的同名覆盖不动
+		p := filepath.Join(stubDir, e.Name())
+		data, err := os.ReadFile(p)
+		if err == nil && strings.Contains(string(data), stubMarker) {
+			_ = os.Remove(p)
+		}
+	}
+	missing := map[string]bool{}
+	for sc := range used {
+		if !provided[sc] && !hugoBuiltinShortcodes[sc] {
+			missing[sc] = true
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	if err := os.MkdirAll(stubDir, 0o755); err != nil {
+		return err
+	}
+	for sc := range missing {
+		p := filepath.Join(stubDir, sc+".html")
+		if _, err := os.Stat(p); err == nil {
+			continue
+		}
+		stub := "{{/* " + stubMarker + "：主题未提供该 shortcode，渲染为空；可删除 */}}"
+		if err := os.WriteFile(p, []byte(stub), 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// scanContentShortcodes 扫描 content/ 下 .md 里用到的 shortcode 名
+// （无 content 目录返回空集）。
+func (s *Service) scanContentShortcodes() (map[string]bool, error) {
+	used := map[string]bool{}
+	root := filepath.Join(s.hugoRoot, "content")
+	if _, err := os.Stat(root); err != nil {
+		return used, nil
+	}
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		for _, m := range reShortcodeUse.FindAllStringSubmatch(string(raw), -1) {
+			used[m[1]] = true
+		}
+		return nil
+	})
+	return used, err
+}
+
+// themeShortcodes 收集主题提供的 shortcode 名（layouts 下 shortcodes /
+// _shortcodes 目录里的 *.html）。
+func (s *Service) themeShortcodes(themeName string) (map[string]bool, error) {
+	provided := map[string]bool{}
+	base := filepath.Join(s.themesDir, themeName, "layouts")
+	err := filepath.WalkDir(base, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".html") {
+			return nil
+		}
+		dir := filepath.Base(filepath.Dir(path))
+		if dir == "shortcodes" || dir == "_shortcodes" {
+			provided[strings.TrimSuffix(filepath.Base(path), ".html")] = true
+		}
+		return nil
+	})
+	if os.IsNotExist(err) {
+		return provided, nil
+	}
+	return provided, err
 }
 
 // DetectSubmodules 是可用的 submodule 检测（按 hugoRoot）。

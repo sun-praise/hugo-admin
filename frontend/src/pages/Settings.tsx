@@ -437,7 +437,7 @@ export default function SettingsPage() {
       }
       setActiveTheme(name);
       setForm((prev) => ({ ...prev, theme: { name } }));
-      toast(`已激活主题: ${name}`);
+      toast(data.message || `已激活主题: ${name}`);
     } catch (error) {
       setErrorMessage((error as Error).message);
     }

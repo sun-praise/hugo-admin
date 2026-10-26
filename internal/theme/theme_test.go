@@ -279,3 +279,132 @@ func TestDefaultThemesShape(t *testing.T) {
 		}
 	}
 }
+
+// mkThemeShortcode 造一个提供指定 shortcode 的主题目录。
+func mkThemeShortcode(t *testing.T, root, theme, sc string) {
+	t.Helper()
+	p := filepath.Join(root, "themes", theme, "layouts", "shortcodes")
+	if err := os.MkdirAll(p, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(p, sc+".html"), []byte("REAL"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestApplyToSite(t *testing.T) {
+	t.Run("经典站点替换 theme 键并备份", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		cfg := filepath.Join(root, "hugo.toml")
+		if err := os.WriteFile(cfg, []byte("title = 'x'\ntheme = \"old\"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		svc := NewService(root, nil, nil)
+		if _, err := svc.ApplyToSite("new"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		data, _ := os.ReadFile(cfg)
+		if !strings.Contains(string(data), `theme = "new"`) || strings.Contains(string(data), `"old"`) {
+			t.Fatalf("theme 键未替换: %s", data)
+		}
+		bak, err := os.ReadFile(cfg + ".hugo-admin.bak")
+		if err != nil || !strings.Contains(string(bak), `"old"`) {
+			t.Fatalf("备份缺失: %v", err)
+		}
+	})
+
+	t.Run("无 theme 键时追加", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		cfg := filepath.Join(root, "hugo.toml")
+		if err := os.WriteFile(cfg, []byte("title = 'x'\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewService(root, nil, nil).ApplyToSite("new"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		data, _ := os.ReadFile(cfg)
+		if !strings.Contains(string(data), `theme = "new"`) {
+			t.Fatalf("theme 键未追加: %s", data)
+		}
+	})
+
+	t.Run("module imports 插首位且可来回切换", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		mkThemeShortcode(t, root, "old", "gallery")
+		dir := filepath.Join(root, "config", "_default")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mod := filepath.Join(dir, "module.toml")
+		if err := os.WriteFile(mod, []byte("[[imports]]\npath = \"old\"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		svc := NewService(root, nil, nil)
+		if _, err := svc.ApplyToSite("new"); err != nil {
+			t.Fatalf("apply new: %v", err)
+		}
+		data, _ := os.ReadFile(mod)
+		got := string(data)
+		if strings.Index(got, `"new"`) > strings.Index(got, `"old"`) {
+			t.Fatalf("new 应在 imports 首位:\n%s", got)
+		}
+		if strings.Count(got, "[[imports]]") != 2 {
+			t.Fatalf("imports 块数量异常:\n%s", got)
+		}
+		// 切回 old：old 块唯一且居首
+		if _, err := svc.ApplyToSite("old"); err != nil {
+			t.Fatalf("apply old: %v", err)
+		}
+		data, _ = os.ReadFile(mod)
+		got = string(data)
+		if strings.Index(got, `"old"`) > strings.Index(got, `"new"`) {
+			t.Fatalf("old 应在 imports 首位:\n%s", got)
+		}
+		if strings.Count(got, `"old"`) != 1 || strings.Count(got, `"new"`) != 1 {
+			t.Fatalf("块未去重:\n%s", got)
+		}
+	})
+
+	t.Run("shortcode 空桩按主题能力自动同步", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "old", "gallery") // old 提供 gallery
+		// new 不提供 gallery
+		if err := os.MkdirAll(filepath.Join(root, "themes", "new", "layouts"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		content := filepath.Join(root, "content")
+		if err := os.MkdirAll(content, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(content, "a.md"), []byte("{{< gallery x >}}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		svc := NewService(root, nil, nil)
+		if _, err := svc.ApplyToSite("new"); err != nil {
+			t.Fatalf("apply new: %v", err)
+		}
+		stub := filepath.Join(root, "layouts", "_shortcodes", "gallery.html")
+		if _, err := os.Stat(stub); err != nil {
+			t.Fatal("缺失 shortcode 应生成空桩")
+		}
+		// 切到提供 gallery 的 old：空桩应被清掉
+		if _, err := svc.ApplyToSite("old"); err != nil {
+			t.Fatalf("apply old: %v", err)
+		}
+		if _, err := os.Stat(stub); !os.IsNotExist(err) {
+			t.Fatal("主题已提供的 shortcode 空桩应被清理")
+		}
+	})
+
+	t.Run("无配置文件时静默跳过", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		note, err := NewService(root, nil, nil).ApplyToSite("new")
+		if err != nil || !strings.Contains(note, "未找到站点配置") {
+			t.Fatalf("note = %q, err = %v", note, err)
+		}
+	})
+}
