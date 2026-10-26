@@ -80,6 +80,7 @@ export default function SettingsPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState<string | null>(null);
   const [previewStopping, setPreviewStopping] = useState(false);
+  const [installingName, setInstallingName] = useState<string | null>(null);
   const [themesLoading, setThemesLoading] = useState(false);
   const [availableThemes, setAvailableThemes] = useState<AvailableTheme[]>([]);
   const [installUrl, setInstallUrl] = useState('');
@@ -350,8 +351,8 @@ export default function SettingsPage() {
   }
 
   async function handleInstallDefaultTheme(theme: AvailableTheme) {
-    if (installLoading) return;
-    setInstallLoading(true);
+    if (installingName) return;
+    setInstallingName(theme.name);
     setErrorMessage('');
     try {
       const result = await installTheme({
@@ -368,7 +369,7 @@ export default function SettingsPage() {
       setErrorMessage((error as Error).message);
       toast((error as Error).message);
     } finally {
-      setInstallLoading(false);
+      setInstallingName(null);
     }
   }
 
@@ -893,7 +894,7 @@ export default function SettingsPage() {
                             {installed ? (
                               <button
                                 onClick={() => handleActivateTheme(t.name)}
-                                disabled={isActive || installLoading}
+                                disabled={isActive}
                                 className="btn btn-ghost btn-sm"
                               >
                                 {isActive ? '已启用' : '启用'}
@@ -901,10 +902,10 @@ export default function SettingsPage() {
                             ) : (
                               <button
                                 onClick={() => handleInstallDefaultTheme(t)}
-                                disabled={installLoading}
+                                disabled={installingName === t.name}
                                 className="btn btn-primary btn-sm"
                               >
-                                {installLoading ? '安装中...' : '一键安装'}
+                                {installingName === t.name ? '安装中...' : '一键安装'}
                               </button>
                             )}
                           </div>
