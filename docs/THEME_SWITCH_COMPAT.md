@@ -82,6 +82,13 @@ ln -sf ~/.local/dart-sass/sass ~/.local/bin/sass
 （如 LoveIt 的 `[params.home]`）、侧栏、配色等需要按新主题的 params 约定
 调整 `params.toml`。这属于正常的主题迁移配置工作。
 
+注意一个隐蔽机制：主题目录可自带 `hugo.toml` 默认配置，会**填充站点未定义
+的键**。案例：LoveIt 的 `themes/LoveIt/hugo.toml` 默认
+`params.header.title.name = "My cool site"`，站点 `params.toml` 未配置该键
+（旧主题不使用它）时，头部导航站点名就会显示这个占位值——而浏览器标签页
+`<title>` 读 `Site.Title`（站点配置）仍然正确，两处不一致即是此因。处理：
+按新主题文档在 `params.toml` 显式配置同名键。
+
 ### 5. HTML 内容文件的安全策略
 
 内容目录含 `.html` 页面时，Hugo 0.163+ 默认拒绝 `text/html` 内容文件。
