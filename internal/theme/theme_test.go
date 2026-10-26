@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -257,5 +258,24 @@ func TestDetectSubmodules(t *testing.T) {
 	got := DetectSubmodules(root)
 	if !got["gamma"] {
 		t.Fatalf("应检测到 themes/gamma: %#v", got)
+	}
+}
+
+// TestDefaultThemesShape 钉住与前端 AvailableTheme 接口的契约：列表键是
+// repo（前端按 theme.repo 读取并作为 repo_url 回传安装接口；若键名漂移
+// 成 repo_url，一键安装会发出空 repo_url 而被 400 拒绝）。
+func TestDefaultThemesShape(t *testing.T) {
+	if len(DefaultThemes) == 0 {
+		t.Fatal("DefaultThemes 为空")
+	}
+	for _, th := range DefaultThemes {
+		name, _ := th["name"].(string)
+		repo, _ := th["repo"].(string)
+		if name == "" || repo == "" || !strings.HasPrefix(repo, "https://") {
+			t.Fatalf("DefaultThemes 项缺 name/repo: %#v", th)
+		}
+		if _, hasOld := th["repo_url"]; hasOld {
+			t.Fatalf("不应再用 repo_url 键: %#v", th)
+		}
 	}
 }

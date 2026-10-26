@@ -19,42 +19,42 @@ import (
 var DefaultThemes = []map[string]any{
 	{
 		"name":        "Fried-Rice",
-		"repo_url":    "https://github.com/Svtter/Fried-Rice",
+		"repo":        "https://github.com/Svtter/Fried-Rice",
 		"description": "svtter 的默认博客主题",
 	},
 	{
 		"name":        "PaperMod",
-		"repo_url":    "https://github.com/adityatelange/hugo-PaperMod",
+		"repo":        "https://github.com/adityatelange/hugo-PaperMod",
 		"description": "最流行的 Hugo 极简博客主题之一，速度快、开箱即用",
 	},
 	{
 		"name":        "stack",
-		"repo_url":    "https://github.com/CaiJimmy/hugo-theme-stack",
+		"repo":        "https://github.com/CaiJimmy/hugo-theme-stack",
 		"description": "卡片式布局，侧栏头像归档，中文社区热门",
 	},
 	{
 		"name":        "LoveIt",
-		"repo_url":    "https://github.com/dillonzq/LoveIt",
+		"repo":        "https://github.com/dillonzq/LoveIt",
 		"description": "功能丰富的双栏博客主题，中文文档完善",
 	},
 	{
 		"name":        "DoIt",
-		"repo_url":    "https://github.com/HEIGE-PCloud/DoIt",
+		"repo":        "https://github.com/HEIGE-PCloud/DoIt",
 		"description": "LoveIt 的活跃分支，持续维护、中文生态好",
 	},
 	{
 		"name":        "ananke",
-		"repo_url":    "https://github.com/theNewDynamic/gohugo-theme-ananke",
+		"repo":        "https://github.com/theNewDynamic/gohugo-theme-ananke",
 		"description": "Hugo 官方入门教程默认主题，稳妥朴素",
 	},
 	{
 		"name":        "congo",
-		"repo_url":    "https://github.com/jpanther/congo",
+		"repo":        "https://github.com/jpanther/congo",
 		"description": "现代化定制主题，深浅色与排版细节出色",
 	},
 	{
 		"name":        "terminal",
-		"repo_url":    "https://github.com/panr/hugo-theme-terminal",
+		"repo":        "https://github.com/panr/hugo-theme-terminal",
 		"description": "终端风格极简主题，程序员气质拉满",
 	},
 }
