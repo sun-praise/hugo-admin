@@ -98,6 +98,7 @@ nav:
     - 缓存使用: CACHE_USAGE.md
     - GitHub 设置: GITHUB_SETUP.md
     - 剪贴板图片粘贴: CLIPBOARD_IMAGE_PASTE.md
+    - 主题切换兼容性: THEME_SWITCH_COMPAT.md
   - 开发文档:
     - Frontmatter 重构: FRONTMATTER_REFACTOR.md
     - 整体发布功能: development/system-publish.md
