@@ -33,10 +33,14 @@ const (
 type previewServer struct {
 	cmd    *exec.Cmd
 	exited chan struct{}
-	port   int
-	url    string
-	theme  string
-	logs   []map[string]any
+	// ready 在 Hugo 打印「Web Server is available」后关闭：真实就绪的唯一
+	// 信号（cmd.Start() 只代表进程已 fork，端口被抢/主题编译失败时进程随后
+	// 立刻退出，此时起接口若已返回 ok，前端会挂一个空 iframe）。
+	ready chan struct{}
+	port  int
+	url   string
+	theme string
+	logs  []map[string]any
 }
 
 type Manager struct {
@@ -119,6 +123,8 @@ func (m *Manager) Start(debug bool, themeOverride string) (bool, string) {
 }
 
 // Stop 对齐 stop()：SIGTERM 优雅停止，5 秒后 SIGKILL。
+// 只停主实例：预览是独立的临时实例，「停止主服务器」不应连带杀掉用户
+// 正在对比的预览；进程退出时的统一回收见 cmd/hugo-admin/main.go。
 func (m *Manager) Stop() (bool, string) {
 	m.mu.Lock()
 	if !m.isRunning || m.cmd == nil {
@@ -347,6 +353,7 @@ func (m *Manager) StartPreview(theme string) (string, bool, string) {
 	p := &previewServer{
 		cmd:    cmd,
 		exited: make(chan struct{}),
+		ready:  make(chan struct{}),
 		port:   port,
 		url:    baseURL,
 		theme:  theme,
@@ -355,7 +362,49 @@ func (m *Manager) StartPreview(theme string) (string, bool, string) {
 	m.preview = p
 	m.mu.Unlock()
 	go m.monitorPreviewLogs(stdout, p)
-	return baseURL, true, "预览服务器已启动"
+
+	// 等 Hugo 真正就绪再返回：仅 Start() 成功不足以说明站点可访问。
+	// 提前退出/超时都把实例回收掉，并把日志尾部交给调用方做诊断。
+	select {
+	case <-p.ready:
+		return baseURL, true, "预览服务器已启动"
+	case <-p.exited:
+		return "", false, m.previewFailMessage(p, "预览进程在就绪前退出")
+	case <-time.After(previewReadyTimeout):
+		m.terminatePreview(p)
+		return "", false, m.previewFailMessage(p, "预览服务器未在预期时间内就绪")
+	}
+}
+
+// previewReadyTimeout 等待预览实例就绪的上限：首次渲染要编译主题 SCSS
+// （LoveIt/DoIt/Stack），留足余量。
+const previewReadyTimeout = 30 * time.Second
+
+// previewFailMessage 拼装启动失败信息：原因 + 日志尾部（Hugo 的
+// TOCSS-DART、端口占用等都只在 stdout 里有价值）。
+func (m *Manager) previewFailMessage(p *previewServer, reason string) string {
+	tail := m.previewLogTail(p, 5)
+	if tail == "" {
+		return "预览服务器启动失败: " + reason
+	}
+	return fmt.Sprintf("预览服务器启动失败: %s；日志末尾：%s", reason, tail)
+}
+
+// previewLogTail 取预览实例最近 n 行日志（不足则全取）。
+func (m *Manager) previewLogTail(p *previewServer, n int) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	start := 0
+	if len(p.logs) > n {
+		start = len(p.logs) - n
+	}
+	lines := make([]string, 0, len(p.logs)-start)
+	for _, l := range p.logs[start:] {
+		if msg, ok := l["message"].(string); ok {
+			lines = append(lines, msg)
+		}
+	}
+	return strings.Join(lines, " | ")
 }
 
 var previewThemeNameRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
@@ -381,11 +430,13 @@ func (m *Manager) preparePreviewSite(theme, baseURL string) (string, error) {
 	if err := os.MkdirAll(filepath.Join(siteDir, "content", "post"), 0o755); err != nil {
 		return "", err
 	}
+	// 注意：Hugo 没有能忽略 missing shortcode 的配置项（0.163.3 实测
+	// ignoreErrors/ignoreLogs 均不被识别，缺失 shortcode 直接构建失败），
+	// 唯一解法是下方为采样正文的每个 shortcode 生成空桩布局。
 	cfg := fmt.Sprintf(`baseURL = '%s'
 title = '主题预览'
 theme = '%s'
 defaultContentLanguage = 'zh-cn'
-ignoreErrors = ['error-missing-shortcode']
 
 [security]
   allowContent = ['.*']
@@ -562,13 +613,20 @@ func (m *Manager) terminatePreview(p *previewServer) {
 }
 
 // monitorPreviewLogs 消费预览实例 stdout（仅内存缓冲，不进主日志 SSE 流）；
-// stdout EOF 即进程退出：Wait 收尸并关闭 exited，PreviewStatus 据此自动纠正。
+// 见到就绪行关闭 ready；stdout EOF 即进程退出：Wait 收尸并关闭 exited，
+// PreviewStatus 据此自动纠正。
 func (m *Manager) monitorPreviewLogs(stdout io.Reader, p *previewServer) {
 	scanner := bufio.NewScanner(stdout)
+	var readyOnce sync.Once
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
+		}
+		// 就绪行形如 "Web Server is available at http://localhost:1313/
+		// (bind address 0.0.0.0)"，是 Hugo 唯一可靠的「可访问」信号
+		if strings.Contains(line, "Web Server is available") {
+			readyOnce.Do(func() { close(p.ready) })
 		}
 		m.mu.Lock()
 		p.logs = append(p.logs, map[string]any{

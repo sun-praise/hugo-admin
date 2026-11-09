@@ -287,20 +287,45 @@ func TestPreviewLifecycle(t *testing.T) {
 	}
 }
 
-func TestPreviewProcessExitAutoCorrectsStatus(t *testing.T) {
-	// 假 hugo 立即退出（模拟端口占用/构建失败）
+// 进程还没就绪就退出（端口被抢 / 主题编译失败，如缺 dart-sass）：启动必须
+// 返回失败并带上日志尾部，而不是 ok=true 让前端挂一个空 iframe。
+func TestPreviewFailsWhenProcessExitsBeforeReady(t *testing.T) {
 	dir := t.TempDir()
 	script := filepath.Join(dir, "hugo")
-	if err := os.WriteFile(script, []byte("#!/bin/sh\necho started\n"), 0o755); err != nil {
+	body := "#!/bin/sh\necho 'Start building sites ...'\necho 'ERROR TOCSS-DART: You need to install Dart Sass'\nexit 1\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	m := NewManager(t.TempDir(), "", nil)
 	m.command = script
 
-	if _, ok, _ := m.StartPreview("demo"); !ok {
-		t.Fatal("start 失败")
+	_, ok, msg := m.StartPreview("demo")
+	if ok {
+		t.Fatal("进程未就绪即退出时不应返回成功")
 	}
-	deadline := time.Now().Add(3 * time.Second)
+	if !strings.Contains(msg, "Dart Sass") {
+		t.Fatalf("失败信息应带日志尾部: %q", msg)
+	}
+	if st := m.PreviewStatus(); st["running"] != false {
+		t.Fatalf("失败后不应留有运行中实例: %#v", st)
+	}
+}
+
+// 就绪后才退出的实例：状态查询自动纠正为未运行（用户看到站点关了）。
+func TestPreviewProcessExitAutoCorrectsStatus(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "hugo")
+	body := "#!/bin/sh\necho 'Web Server is available at http://localhost:1313/'\nsleep 0.2\nexit 0\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m := NewManager(t.TempDir(), "", nil)
+	m.command = script
+
+	if _, ok, msg := m.StartPreview("demo"); !ok {
+		t.Fatalf("start 失败: %s", msg)
+	}
+	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		if m.PreviewStatus()["running"] == false {
 			return
