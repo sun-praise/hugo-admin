@@ -473,6 +473,33 @@ func TestApplyToSite(t *testing.T) {
 		}
 	})
 
+	t.Run("搬块后保持文件末尾换行", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "x", "gallery")
+		mkThemeShortcode(t, root, "y", "gallery")
+		dir := filepath.Join(root, "config", "_default")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mod := filepath.Join(dir, "module.toml")
+		// y 在末尾且块后没有空行
+		orig := "[[imports]]\npath = \"x\"\n[[imports]]\npath = \"y\"\n"
+		if err := os.WriteFile(mod, []byte(orig), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewService(root, nil, nil).ApplyToSite("y"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		got, _ := os.ReadFile(mod)
+		s := string(got)
+		if !strings.HasSuffix(s, "\n") {
+			t.Fatalf("文件末尾换行丢了:\n%q", s)
+		}
+		if strings.Index(s, `"y"`) > strings.Index(s, `"x"`) {
+			t.Fatalf("y 应在 x 之前:\n%s", s)
+		}
+	})
+
 	t.Run("用户已有同 path 导入时移到首位，不插重复块", func(t *testing.T) {
 		root := t.TempDir()
 		mkThemeShortcode(t, root, "x", "gallery")

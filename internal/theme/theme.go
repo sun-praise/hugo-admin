@@ -550,7 +550,12 @@ func moveBlockToFront(lines []string, b importBlock) string {
 		out = append(out, "")
 		out = append(out, tail...)
 	}
-	return strings.Join(out, "\n")
+	s := strings.Join(out, "\n")
+	// 原文件以换行结尾就保持以换行结尾，别留下「末尾缺换行」的 diff
+	if len(lines) > 0 && lines[len(lines)-1] == "" && !strings.HasSuffix(s, "\n") {
+		s += "\n"
+	}
+	return s
 }
 
 // setTOMLThemeKey 把 theme 键写在**顶层**：已有顶层 theme 行则替换，否则插到
@@ -561,13 +566,7 @@ func setTOMLThemeKey(content, name string) string {
 	lines := strings.Split(content, "\n")
 	value := `theme = "` + name + `"`
 	// 顶层区域 = 首个表头之前的所有行；之后的 theme = 属于表内键，不能碰
-	head := len(lines)
-	for i, ln := range lines {
-		if reAnyTableHead.MatchString(ln) {
-			head = i
-			break
-		}
-	}
+	head := firstTableIndex(lines)
 	for i := 0; i < head; i++ {
 		if reTopLevelThemeTOML.MatchString(lines[i]) {
 			lines[i] = value
