@@ -99,6 +99,24 @@ ln -sf ~/.local/dart-sass/sass ~/.local/bin/sass
   allowContent = ['.*']
 ```
 
+### 6. 预览实例（覆盖站点）
+
+「预览」不会动真实站点：它在 `<站点根>/.admin/preview/site/` 生成一个临时
+Hugo 站点，用随机空闲端口独立启动，与主服务器互不影响。覆盖站点只做三件事：
+
+- `hugo.toml` 仅声明预览主题、`defaultContentLanguage = 'zh-cn'`、
+  `[security] allowContent = ['.*']`（见类别 5）、`unsafe = true`
+- `themes` 软链接指向站点的 `themes/`（复用已安装主题）
+- `content/post/` 放**最新 8 篇**的采样副本：剥掉原有 frontmatter 只留
+  标题/日期，正文用到的 shortcode 生成空桩
+
+因此预览**不代表真实内容的渲染结果**——它验证的是主题本身的版式、配色与
+列表页效果。要做到「真实内容 + 新主题」的端到端确认，仍需启用主题后看真实
+站点（这也正是类别 1 那类 frontmatter 冲突只在启用后才暴露的原因）。
+
+该目录可随时删除，下次预览重新生成；建议在博客仓库 `.gitignore` 里加
+`.admin/`。
+
 ## 回滚
 
 启用主题会修改站点配置并写滚动备份，且：
