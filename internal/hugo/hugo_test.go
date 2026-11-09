@@ -250,6 +250,10 @@ func TestPreviewLifecycle(t *testing.T) {
 	if err != nil || !strings.Contains(string(siteCfg), "theme = 'demo'") {
 		t.Fatalf("覆盖站点 hugo.toml 缺预览主题: %q %v", siteCfg, err)
 	}
+	// 首页列表靠 section 名匹配，必须声明 mainSections 且采样落在 posts/
+	if !strings.Contains(string(siteCfg), "mainSections = ['posts']") {
+		t.Fatalf("覆盖站点缺 mainSections 声明（首页会渲染成空列表）: %q", siteCfg)
+	}
 	if _, err := os.Lstat(filepath.Join(siteDir, "themes")); err != nil {
 		t.Fatalf("themes 软链缺失: %v", err)
 	}
