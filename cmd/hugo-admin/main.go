@@ -117,4 +117,10 @@ func main() {
 	if err := httpSrv.Shutdown(ctx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
+	// 停掉 Hugo 主实例与主题预览实例：两者都是本进程的子进程，
+	// 不显式回收会在应用退出后继续占端口
+	if ok, _ := hugoMgr.StopPreview(); ok {
+		log.Printf("主题预览实例已回收")
+	}
+	hugoMgr.Stop()
 }

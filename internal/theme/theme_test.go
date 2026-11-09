@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -257,5 +258,299 @@ func TestDetectSubmodules(t *testing.T) {
 	got := DetectSubmodules(root)
 	if !got["gamma"] {
 		t.Fatalf("应检测到 themes/gamma: %#v", got)
+	}
+}
+
+// TestDefaultThemesShape 钉住与前端 AvailableTheme 接口的契约：列表键是
+// repo（前端按 theme.repo 读取并作为 repo_url 回传安装接口；若键名漂移
+// 成 repo_url，一键安装会发出空 repo_url 而被 400 拒绝）。
+func TestDefaultThemesShape(t *testing.T) {
+	if len(DefaultThemes) == 0 {
+		t.Fatal("DefaultThemes 为空")
+	}
+	for _, th := range DefaultThemes {
+		name, _ := th["name"].(string)
+		repo, _ := th["repo"].(string)
+		if name == "" || repo == "" || !strings.HasPrefix(repo, "https://") {
+			t.Fatalf("DefaultThemes 项缺 name/repo: %#v", th)
+		}
+		if _, hasOld := th["repo_url"]; hasOld {
+			t.Fatalf("不应再用 repo_url 键: %#v", th)
+		}
+	}
+}
+
+// mkThemeShortcode 造一个提供指定 shortcode 的主题目录。
+func mkThemeShortcode(t *testing.T, root, theme, sc string) {
+	t.Helper()
+	p := filepath.Join(root, "themes", theme, "layouts", "shortcodes")
+	if err := os.MkdirAll(p, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(p, sc+".html"), []byte("REAL"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestApplyToSite(t *testing.T) {
+	t.Run("经典站点替换 theme 键并备份", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		cfg := filepath.Join(root, "hugo.toml")
+		if err := os.WriteFile(cfg, []byte("title = 'x'\ntheme = \"old\"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		svc := NewService(root, nil, nil)
+		if _, err := svc.ApplyToSite("new"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		data, _ := os.ReadFile(cfg)
+		if !strings.Contains(string(data), `theme = "new"`) || strings.Contains(string(data), `"old"`) {
+			t.Fatalf("theme 键未替换: %s", data)
+		}
+		bak, err := os.ReadFile(cfg + ".hugo-admin.bak")
+		if err != nil || !strings.Contains(string(bak), `"old"`) {
+			t.Fatalf("备份缺失: %v", err)
+		}
+	})
+
+	t.Run("无 theme 键时追加", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		cfg := filepath.Join(root, "hugo.toml")
+		if err := os.WriteFile(cfg, []byte("title = 'x'\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewService(root, nil, nil).ApplyToSite("new"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		data, _ := os.ReadFile(cfg)
+		if !strings.Contains(string(data), `theme = "new"`) {
+			t.Fatalf("theme 键未追加: %s", data)
+		}
+	})
+
+	t.Run("module imports 插首位且可来回切换", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		mkThemeShortcode(t, root, "old", "gallery")
+		dir := filepath.Join(root, "config", "_default")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mod := filepath.Join(dir, "module.toml")
+		if err := os.WriteFile(mod, []byte("[[imports]]\npath = \"old\"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		svc := NewService(root, nil, nil)
+		if _, err := svc.ApplyToSite("new"); err != nil {
+			t.Fatalf("apply new: %v", err)
+		}
+		data, _ := os.ReadFile(mod)
+		got := string(data)
+		if strings.Index(got, `"new"`) > strings.Index(got, `"old"`) {
+			t.Fatalf("new 应在 imports 首位:\n%s", got)
+		}
+		if strings.Count(got, "[[imports]]") != 2 {
+			t.Fatalf("imports 块数量异常:\n%s", got)
+		}
+		// 切回 old：old 块唯一且居首
+		if _, err := svc.ApplyToSite("old"); err != nil {
+			t.Fatalf("apply old: %v", err)
+		}
+		data, _ = os.ReadFile(mod)
+		got = string(data)
+		if strings.Index(got, `"old"`) > strings.Index(got, `"new"`) {
+			t.Fatalf("old 应在 imports 首位:\n%s", got)
+		}
+		if strings.Count(got, `"old"`) != 1 || strings.Count(got, `"new"`) != 1 {
+			t.Fatalf("块未去重:\n%s", got)
+		}
+	})
+
+	t.Run("shortcode 空桩按主题能力自动同步", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "old", "gallery") // old 提供 gallery
+		// new 不提供 gallery
+		if err := os.MkdirAll(filepath.Join(root, "themes", "new", "layouts"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		content := filepath.Join(root, "content")
+		if err := os.MkdirAll(content, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(content, "a.md"), []byte("{{< gallery x >}}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		svc := NewService(root, nil, nil)
+		if _, err := svc.ApplyToSite("new"); err != nil {
+			t.Fatalf("apply new: %v", err)
+		}
+		stub := filepath.Join(root, "layouts", "_shortcodes", "gallery.html")
+		if _, err := os.Stat(stub); err != nil {
+			t.Fatal("缺失 shortcode 应生成空桩")
+		}
+		// 切到提供 gallery 的 old：空桩应被清掉
+		if _, err := svc.ApplyToSite("old"); err != nil {
+			t.Fatalf("apply old: %v", err)
+		}
+		if _, err := os.Stat(stub); !os.IsNotExist(err) {
+			t.Fatal("主题已提供的 shortcode 空桩应被清理")
+		}
+	})
+
+	t.Run("无配置文件时静默跳过", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		note, err := NewService(root, nil, nil).ApplyToSite("new")
+		if err != nil || !strings.Contains(note, "未找到站点配置") {
+			t.Fatalf("note = %q, err = %v", note, err)
+		}
+	})
+
+	// 回归：真实 hugo.toml 以表结尾，追加到末尾会落进最后一张表变成
+	// params.theme，Hugo 静默忽略 → 必须插到首个表头之前
+	t.Run("无 theme 键且文件以表结尾时插到顶层", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		cfg := filepath.Join(root, "hugo.toml")
+		orig := "baseURL = 'http://x/'\ntitle = 'x'\n\n[params]\n  author = 'me'\n"
+		if err := os.WriteFile(cfg, []byte(orig), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewService(root, nil, nil).ApplyToSite("new"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		data, _ := os.ReadFile(cfg)
+		got := string(data)
+		themeAt := strings.Index(got, `theme = "new"`)
+		tableAt := strings.Index(got, "[params]")
+		if themeAt < 0 || tableAt < 0 || themeAt > tableAt {
+			t.Fatalf("theme 键必须在 [params] 之前（否则变成表内键）:\n%s", got)
+		}
+		if !strings.Contains(got, "author = 'me'") {
+			t.Fatalf("原有内容被破坏:\n%s", got)
+		}
+	})
+
+	t.Run("表内 theme 键不被改写", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		cfg := filepath.Join(root, "hugo.toml")
+		orig := "title = 'x'\n\n[params]\n  theme = \"dark\"\n\n[markup]\n  theme = \"monokai\"\n"
+		if err := os.WriteFile(cfg, []byte(orig), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewService(root, nil, nil).ApplyToSite("new"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		data, _ := os.ReadFile(cfg)
+		got := string(data)
+		if !strings.Contains(got, `theme = "dark"`) || !strings.Contains(got, `theme = "monokai"`) {
+			t.Fatalf("表内 theme 键被误改:\n%s", got)
+		}
+		if strings.Count(got, `theme = "new"`) != 1 {
+			t.Fatalf("应在顶层写入一次 theme:\n%s", got)
+		}
+		if strings.Index(got, `theme = "new"`) > strings.Index(got, "[params]") {
+			t.Fatalf("顶层 theme 应插在首个表头之前:\n%s", got)
+		}
+	})
+
+	t.Run("YAML 顶层写入且不落进 params", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		cfg := filepath.Join(root, "hugo.yaml")
+		orig := "baseURL: https://x/\n\nparams:\n  author: me\n"
+		if err := os.WriteFile(cfg, []byte(orig), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewService(root, nil, nil).ApplyToSite("new"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		data, _ := os.ReadFile(cfg)
+		got := string(data)
+		if !strings.Contains(got, "theme: \"new\"") || !strings.Contains(got, "params:") {
+			t.Fatalf("YAML theme 键未写入:\n%s", got)
+		}
+		// theme 必须是顶格行（0 缩进），否则会被当成 params 的子键
+		for _, ln := range strings.Split(got, "\n") {
+			if strings.Contains(ln, "theme:") && strings.TrimLeft(ln, " \t") != ln {
+				t.Fatalf("theme 键被缩进（变成表内键）:\n%s", got)
+			}
+		}
+	})
+}
+
+// ActivateTheme 先写站点配置、后落 settings：settings 失败必须把配置还原，
+// 否则界面（读 settings）与 Hugo 实际渲染（读配置）会分叉。
+func TestActivateThemeRollsBackConfigWhenSettingsFails(t *testing.T) {
+	root := t.TempDir()
+	mkThemeShortcode(t, root, "new", "gallery")
+	cfg := filepath.Join(root, "hugo.toml")
+	orig := "title = 'x'\ntheme = \"old\"\n"
+	if err := os.WriteFile(cfg, []byte(orig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "themes", "old"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fail := func(string) error { return os.ErrPermission }
+	if _, err := NewService(root, fail, nil).ActivateTheme("new"); err == nil {
+		t.Fatal("settings 写入失败应报错")
+	}
+	data, _ := os.ReadFile(cfg)
+	if string(data) != orig {
+		t.Fatalf("settings 失败后配置应还原，实际:\n%s", data)
+	}
+	if _, err := os.Stat(cfg + ".hugo-admin.bak"); !os.IsNotExist(err) {
+		t.Fatal("回滚后不应残留备份文件")
+	}
+
+	// 成功路径：配置写了，settings 也写了
+	var saved string
+	ok := func(n string) error { saved = n; return nil }
+	if _, err := NewService(root, ok, nil).ActivateTheme("new"); err != nil {
+		t.Fatalf("activate: %v", err)
+	}
+	if saved != "new" {
+		t.Fatalf("settings 未写入: %q", saved)
+	}
+	data, _ = os.ReadFile(cfg)
+	if !strings.Contains(string(data), `theme = "new"`) {
+		t.Fatalf("配置未写入:\n%s", data)
+	}
+}
+
+// 配置已改写、随后空桩同步失败：applyToSite 必须自行回滚，不能把半成品
+// 交给调用方（否则 settings 旧 / 配置新，仍是双源分叉）。
+func TestApplyToSiteRollsBackWhenStubSyncFails(t *testing.T) {
+	root := t.TempDir()
+	mkThemeShortcode(t, root, "new", "other") // new 不提供 gallery
+	cfg := filepath.Join(root, "hugo.toml")
+	orig := "title = 'x'\ntheme = \"old\"\n"
+	if err := os.WriteFile(cfg, []byte(orig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "content"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "content", "a.md"), []byte("{{< gallery >}}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// layouts 占位成普通文件 → MkdirAll(layouts/_shortcodes) 必失败
+	if err := os.WriteFile(filepath.Join(root, "layouts"), []byte("not a dir"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := NewService(root, nil, nil).ApplyToSite("new"); err == nil {
+		t.Fatal("空桩同步失败应报错")
+	}
+	data, _ := os.ReadFile(cfg)
+	if string(data) != orig {
+		t.Fatalf("空桩同步失败后配置应还原，实际:\n%s", data)
+	}
+	if _, err := os.Stat(cfg + ".hugo-admin.bak"); !os.IsNotExist(err) {
+		t.Fatal("回滚后不应残留备份文件")
 	}
 }

@@ -350,7 +350,17 @@ func (s *Server) handleThemeList(w http.ResponseWriter, r *http.Request) {
 			"success": false, "message": fmt.Sprintf("获取主题失败: %v", err)})
 		return
 	}
-	active := theme.NewService(s.cfg.HugoRoot, nil, nil).ActiveTheme()
+	// 活跃主题与 activate 的持久化同源（settings.json），避免「启用后列表
+	// 仍显示旧主题」的双源不一致；无记录时回退解析 hugo.toml。
+	active := ""
+	if s.settingsSvc != nil {
+		if st, err := s.settingsSvc.GetSettings(); err == nil {
+			active, _ = st.Theme["name"].(string)
+		}
+	}
+	if active == "" {
+		active = svc.ActiveTheme()
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true, "themes": themes, "active_theme": active,
 	})
@@ -388,12 +398,19 @@ func (s *Server) handleThemeActivate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "message": err.Error()})
 		return
 	}
+	note, _ := result["config_note"].(string)
+	msg := "主题已激活"
+	if note != "" {
+		// Hugo dev server 会热加载配置，通常无需重启；只有进程已退出时
+		// 才要手动起，措辞两种情况都兜住
+		msg = "主题已激活：" + note + "；通常立即生效，未生效请重启 Hugo 服务器"
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"success": true, "message": "主题已激活", "theme": result,
+		"success": true, "message": msg, "theme": result,
 	})
 }
 
-// POST /api/themes/preview —— 主题预览重启 Hugo server
+// POST /api/themes/preview —— 启动主题预览服务器（独立端口，不影响主服务器）
 func (s *Server) handleThemePreview(w http.ResponseWriter, r *http.Request) {
 	data := jsonDict(r)
 	name, _ := data["name"].(string)
@@ -401,23 +418,38 @@ func (s *Server) handleThemePreview(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "message": "主题名称不能为空"})
 		return
 	}
-	svc := s.themeService()
-	if !svc.ThemeExists(name) {
+	if !s.themeService().ThemeExists(name) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"success": false, "message": fmt.Sprintf("主题不存在: %s", name)})
 		return
 	}
-	// 停止后带主题重启（对齐 preview_theme；不持久化活跃主题）
-	s.hugo.Stop()
-	ok, message := s.hugo.Start(false, name)
+	url, ok, message := s.hugo.StartPreview(name)
 	if !ok {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "message": message})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true, "message": "预览服务器已启动",
-		"preview_theme": name, "server_url": s.hugo.ServerURL(),
+		"preview_theme": name, "server_url": url,
+		"preview": s.hugo.PreviewStatus(),
 	})
+}
+
+// GET /api/themes/preview —— 查询预览服务器状态（页面刷新后恢复预览面板）
+func (s *Server) handleThemePreviewStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true, "preview": s.hugo.PreviewStatus(),
+	})
+}
+
+// DELETE /api/themes/preview —— 停止主题预览服务器
+func (s *Server) handleThemePreviewStop(w http.ResponseWriter, r *http.Request) {
+	ok, message := s.hugo.StopPreview()
+	status := http.StatusOK
+	if !ok {
+		status = http.StatusBadRequest
+	}
+	writeJSON(w, status, map[string]any{"success": ok, "message": message})
 }
 
 // ============ 内容静态文件（/api/content 与 /content） ============
@@ -486,7 +518,7 @@ func (s *Server) handleAPITokenRegenerate(w http.ResponseWriter, r *http.Request
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true, "token": token,
-		"masked": settings.MaskAPIKey(token),
+		"masked":   settings.MaskAPIKey(token),
 		"settings": s.toPublicSettings(st),
 	})
 }

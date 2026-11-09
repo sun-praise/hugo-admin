@@ -10,6 +10,8 @@ import {
   installTheme,
   activateTheme,
   previewTheme,
+  getThemePreviewStatus,
+  stopThemePreview,
   getActiveProject,
   resetActiveProject,
   cleanPlaceholderLayouts,
@@ -22,6 +24,21 @@ import {
 import type { AvailableTheme, ConfigFileInfo } from '../utils/api';
 import type { Settings as SettingsType, Theme } from '../types';
 type TabKey = 'general' | 'project' | 'themes' | 'config';
+
+// 预览实例绑在 0.0.0.0（或配置里的 127.0.0.1），浏览器直接访问会指向本机；
+// 回环地址一律换算成当前页面的主机名，远程访问才连得到服务器那台机器。
+function previewSrcOf(url: string): string {
+  try {
+    const u = new URL(url);
+    const loopback = ['0.0.0.0', '127.0.0.1', 'localhost', '::1', '[::1]'];
+    if (loopback.includes(u.hostname) && window.location.hostname) {
+      u.hostname = window.location.hostname;
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('general');
@@ -64,6 +81,10 @@ export default function SettingsPage() {
   const [themes, setThemes] = useState<Theme[]>([]);
   const [activeTheme, setActiveTheme] = useState<string | null>(null);
   const [previewThemeName, setPreviewThemeName] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<string | null>(null);
+  const [previewStopping, setPreviewStopping] = useState(false);
+  const [installingName, setInstallingName] = useState<string | null>(null);
   const [themesLoading, setThemesLoading] = useState(false);
   const [availableThemes, setAvailableThemes] = useState<AvailableTheme[]>([]);
   const [installUrl, setInstallUrl] = useState('');
@@ -318,11 +339,24 @@ export default function SettingsPage() {
     } finally {
       setThemesLoading(false);
     }
+    // 预览状态独立恢复（失败不阻塞主题列表）
+    try {
+      const st = await getThemePreviewStatus();
+      if (st.preview?.running && st.preview.theme && st.preview.url) {
+        setPreviewThemeName(st.preview.theme);
+        setPreviewUrl(st.preview.url);
+      } else {
+        setPreviewThemeName(null);
+        setPreviewUrl(null);
+      }
+    } catch {
+      /* 预览状态获取失败时静默忽略 */
+    }
   }
 
   async function handleInstallDefaultTheme(theme: AvailableTheme) {
-    if (installLoading) return;
-    setInstallLoading(true);
+    if (installingName) return;
+    setInstallingName(theme.name);
     setErrorMessage('');
     try {
       const result = await installTheme({
@@ -339,7 +373,7 @@ export default function SettingsPage() {
       setErrorMessage((error as Error).message);
       toast((error as Error).message);
     } finally {
-      setInstallLoading(false);
+      setInstallingName(null);
     }
   }
 
@@ -407,13 +441,15 @@ export default function SettingsPage() {
       }
       setActiveTheme(name);
       setForm((prev) => ({ ...prev, theme: { name } }));
-      toast(`已激活主题: ${name}`);
+      toast(data.message || `已激活主题: ${name}`);
     } catch (error) {
       setErrorMessage((error as Error).message);
     }
   }
 
   async function handlePreviewTheme(name: string) {
+    if (previewLoading || previewStopping) return;
+    setPreviewLoading(name);
     setErrorMessage('');
     try {
       const data = await previewTheme(name);
@@ -421,9 +457,32 @@ export default function SettingsPage() {
         throw new Error(data.message || '预览失败');
       }
       setPreviewThemeName(name);
-      toast(`正在预览主题: ${name}`);
+      setPreviewUrl(data.server_url || null);
+      toast(`预览服务器已启动: ${name}（独立端口，不影响主服务器）`);
     } catch (error) {
       setErrorMessage((error as Error).message);
+      toast((error as Error).message);
+    } finally {
+      setPreviewLoading(null);
+    }
+  }
+
+  async function handleStopPreview() {
+    if (previewStopping || previewLoading) return;
+    setPreviewStopping(true);
+    setErrorMessage('');
+    try {
+      const data = await stopThemePreview();
+      if (!data.success) {
+        throw new Error(data.message || '停止预览失败');
+      }
+      setPreviewThemeName(null);
+      setPreviewUrl(null);
+      toast('预览服务器已停止');
+    } catch (error) {
+      setErrorMessage((error as Error).message);
+    } finally {
+      setPreviewStopping(false);
     }
   }
 
@@ -839,7 +898,7 @@ export default function SettingsPage() {
                             {installed ? (
                               <button
                                 onClick={() => handleActivateTheme(t.name)}
-                                disabled={isActive || installLoading}
+                                disabled={isActive}
                                 className="btn btn-ghost btn-sm"
                               >
                                 {isActive ? '已启用' : '启用'}
@@ -847,10 +906,10 @@ export default function SettingsPage() {
                             ) : (
                               <button
                                 onClick={() => handleInstallDefaultTheme(t)}
-                                disabled={installLoading}
+                                disabled={installingName === t.name}
                                 className="btn btn-primary btn-sm"
                               >
-                                {installLoading ? '安装中...' : '一键安装'}
+                                {installingName === t.name ? '安装中...' : '一键安装'}
                               </button>
                             )}
                           </div>
@@ -886,9 +945,10 @@ export default function SettingsPage() {
                           <div className="flex gap-2">
                             <button
                               onClick={() => handlePreviewTheme(theme.name)}
+                              disabled={previewLoading !== null || previewStopping}
                               className="btn btn-ghost btn-sm"
                             >
-                              预览
+                              {previewLoading === theme.name ? '启动中...' : '预览'}
                             </button>
                             <button
                               onClick={() => handleActivateTheme(theme.name)}
@@ -903,9 +963,40 @@ export default function SettingsPage() {
                     </ul>
                   )}
 
-                  {previewThemeName && (
-                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                      当前预览主题: <strong>{previewThemeName}</strong>。停止并重新启动服务器后将恢复为已启用主题。
+                  {previewThemeName && previewUrl && (
+                    <div className="mb-4 border border-[#e4e4e7] rounded-lg overflow-hidden">
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-[#f4f4f5] border-b border-[#e4e4e7]">
+                        <div className="text-sm text-[#3f3f46]">
+                          预览主题：<strong>{previewThemeName}</strong>
+                          <span className="ml-2 text-xs text-[#52525b]">
+                            独立端口运行，不影响主服务器；预览基于最新文章的简化副本，确认效果后可点「启用」
+                          </span>
+                        </div>
+                        <div className="flex gap-2">
+                          <a
+                            href={previewSrcOf(previewUrl)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn-ghost btn-sm"
+                          >
+                            新窗口打开
+                          </a>
+                          <button
+                            onClick={handleStopPreview}
+                            disabled={previewStopping}
+                            className="btn btn-ghost btn-sm"
+                          >
+                            {previewStopping ? '停止中...' : '停止预览'}
+                          </button>
+                        </div>
+                      </div>
+                      <iframe
+                        key={previewUrl}
+                        src={previewSrcOf(previewUrl)}
+                        title={`主题预览：${previewThemeName}`}
+                        className="w-full bg-white"
+                        style={{ height: 560, border: 0 }}
+                      />
                     </div>
                   )}
 

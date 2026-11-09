@@ -115,6 +115,34 @@ func TestThemeInstallAndPreview(t *testing.T) {
 	if status != 200 || body["success"] != true {
 		t.Fatalf("preview: %d %v", status, body)
 	}
+	if body["preview_theme"] != "demo-theme" || body["server_url"] == "" {
+		t.Fatalf("preview 响应缺字段: %v", body)
+	}
+
+	// 预览状态：运行中 → 停止 → 未运行
+	previewOf := func(body map[string]any) map[string]any {
+		p, _ := body["preview"].(map[string]any)
+		return p
+	}
+	if status, body = doJSON(t, client, "GET", ts.URL+"/api/themes/preview", nil); status != 200 {
+		t.Fatalf("preview status: %d %v", status, body)
+	}
+	p := previewOf(body)
+	if p == nil || p["running"] != true || p["theme"] != "demo-theme" {
+		t.Fatalf("预览状态应运行中: %v", body)
+	}
+	if status, body = doJSON(t, client, "DELETE", ts.URL+"/api/themes/preview", nil); status != 200 || body["success"] != true {
+		t.Fatalf("stop preview: %d %v", status, body)
+	}
+	if status, body = doJSON(t, client, "GET", ts.URL+"/api/themes/preview", nil); status != 200 {
+		t.Fatalf("preview status: %d %v", status, body)
+	}
+	if p := previewOf(body); p == nil || p["running"] != false {
+		t.Fatalf("停止后预览应未运行: %v", body)
+	}
+	if status, _ = doJSON(t, client, "DELETE", ts.URL+"/api/themes/preview", nil); status != 400 {
+		t.Fatal("重复停止应 400")
+	}
 }
 
 func TestConfigPutFlow(t *testing.T) {

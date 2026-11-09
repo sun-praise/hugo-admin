@@ -367,6 +367,21 @@ export interface ThemePreviewResponse {
   success: boolean;
   preview_theme?: string;
   server_url?: string;
+  preview?: ThemePreviewStatus;
+  message?: string;
+}
+
+export interface ThemePreviewStatus {
+  running: boolean;
+  theme?: string | null;
+  url?: string | null;
+  port?: number | null;
+  pid?: number | null;
+}
+
+export interface ThemePreviewStatusResponse {
+  success: boolean;
+  preview: ThemePreviewStatus;
   message?: string;
 }
 
@@ -390,9 +405,19 @@ export async function activateTheme(name: string): Promise<ThemeActivateResponse
   return post<ThemeActivateResponse>('/api/themes/activate', { name });
 }
 
-/** 预览主题（不持久化）。 */
+/** 预览主题：在独立端口启动临时 Hugo 实例，不影响运行中的主服务器。 */
 export async function previewTheme(name: string): Promise<ThemePreviewResponse> {
   return post<ThemePreviewResponse>('/api/themes/preview', { name });
+}
+
+/** 查询主题预览服务器状态（用于页面刷新后恢复预览面板）。 */
+export async function getThemePreviewStatus(): Promise<ThemePreviewStatusResponse> {
+  return get<ThemePreviewStatusResponse>('/api/themes/preview');
+}
+
+/** 停止主题预览服务器。 */
+export async function stopThemePreview(): Promise<{ success: boolean; message?: string }> {
+  return del<{ success: boolean; message?: string }>('/api/themes/preview');
 }
 
 // ──────────────── Hugo 站点配置 ────────────────
