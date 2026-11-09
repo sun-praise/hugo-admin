@@ -407,4 +407,117 @@ func TestApplyToSite(t *testing.T) {
 			t.Fatalf("note = %q, err = %v", note, err)
 		}
 	})
+
+	// 回归：真实 hugo.toml 以表结尾，追加到末尾会落进最后一张表变成
+	// params.theme，Hugo 静默忽略 → 必须插到首个表头之前
+	t.Run("无 theme 键且文件以表结尾时插到顶层", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		cfg := filepath.Join(root, "hugo.toml")
+		orig := "baseURL = 'http://x/'\ntitle = 'x'\n\n[params]\n  author = 'me'\n"
+		if err := os.WriteFile(cfg, []byte(orig), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewService(root, nil, nil).ApplyToSite("new"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		data, _ := os.ReadFile(cfg)
+		got := string(data)
+		themeAt := strings.Index(got, `theme = "new"`)
+		tableAt := strings.Index(got, "[params]")
+		if themeAt < 0 || tableAt < 0 || themeAt > tableAt {
+			t.Fatalf("theme 键必须在 [params] 之前（否则变成表内键）:\n%s", got)
+		}
+		if !strings.Contains(got, "author = 'me'") {
+			t.Fatalf("原有内容被破坏:\n%s", got)
+		}
+	})
+
+	t.Run("表内 theme 键不被改写", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		cfg := filepath.Join(root, "hugo.toml")
+		orig := "title = 'x'\n\n[params]\n  theme = \"dark\"\n\n[markup]\n  theme = \"monokai\"\n"
+		if err := os.WriteFile(cfg, []byte(orig), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewService(root, nil, nil).ApplyToSite("new"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		data, _ := os.ReadFile(cfg)
+		got := string(data)
+		if !strings.Contains(got, `theme = "dark"`) || !strings.Contains(got, `theme = "monokai"`) {
+			t.Fatalf("表内 theme 键被误改:\n%s", got)
+		}
+		if strings.Count(got, `theme = "new"`) != 1 {
+			t.Fatalf("应在顶层写入一次 theme:\n%s", got)
+		}
+		if strings.Index(got, `theme = "new"`) > strings.Index(got, "[params]") {
+			t.Fatalf("顶层 theme 应插在首个表头之前:\n%s", got)
+		}
+	})
+
+	t.Run("YAML 顶层写入且不落进 params", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		cfg := filepath.Join(root, "hugo.yaml")
+		orig := "baseURL: https://x/\n\nparams:\n  author: me\n"
+		if err := os.WriteFile(cfg, []byte(orig), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewService(root, nil, nil).ApplyToSite("new"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		data, _ := os.ReadFile(cfg)
+		got := string(data)
+		if !strings.Contains(got, "theme: \"new\"") || !strings.Contains(got, "params:") {
+			t.Fatalf("YAML theme 键未写入:\n%s", got)
+		}
+		// theme 必须是顶格行（0 缩进），否则会被当成 params 的子键
+		for _, ln := range strings.Split(got, "\n") {
+			if strings.Contains(ln, "theme:") && strings.TrimLeft(ln, " \t") != ln {
+				t.Fatalf("theme 键被缩进（变成表内键）:\n%s", got)
+			}
+		}
+	})
+}
+
+// ActivateTheme 先写站点配置、后落 settings：settings 失败必须把配置还原，
+// 否则界面（读 settings）与 Hugo 实际渲染（读配置）会分叉。
+func TestActivateThemeRollsBackConfigWhenSettingsFails(t *testing.T) {
+	root := t.TempDir()
+	mkThemeShortcode(t, root, "new", "gallery")
+	cfg := filepath.Join(root, "hugo.toml")
+	orig := "title = 'x'\ntheme = \"old\"\n"
+	if err := os.WriteFile(cfg, []byte(orig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "themes", "old"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fail := func(string) error { return os.ErrPermission }
+	if _, err := NewService(root, fail, nil).ActivateTheme("new"); err == nil {
+		t.Fatal("settings 写入失败应报错")
+	}
+	data, _ := os.ReadFile(cfg)
+	if string(data) != orig {
+		t.Fatalf("settings 失败后配置应还原，实际:\n%s", data)
+	}
+	if _, err := os.Stat(cfg + ".hugo-admin.bak"); !os.IsNotExist(err) {
+		t.Fatal("回滚后不应残留备份文件")
+	}
+
+	// 成功路径：配置写了，settings 也写了
+	var saved string
+	ok := func(n string) error { saved = n; return nil }
+	if _, err := NewService(root, ok, nil).ActivateTheme("new"); err != nil {
+		t.Fatalf("activate: %v", err)
+	}
+	if saved != "new" {
+		t.Fatalf("settings 未写入: %q", saved)
+	}
+	data, _ = os.ReadFile(cfg)
+	if !strings.Contains(string(data), `theme = "new"`) {
+		t.Fatalf("配置未写入:\n%s", data)
+	}
 }

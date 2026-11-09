@@ -202,7 +202,10 @@ func (s *Service) InstallTheme(repoURL, name, mode string) (map[string]any, erro
 	return map[string]any{"name": name, "repo_url": repoURL}, nil
 }
 
-// ActivateTheme 对齐 activate_theme：写 settings 的 theme.name。
+// ActivateTheme 对齐 activate_theme：写站点配置 + settings 的 theme.name。
+// 顺序是先站点配置、后 settings：反过来的话配置写失败时 settings 已指向
+// 新主题，而 handleThemeList 以 settings 为准，界面会显示「已启用新主题」
+// 而 Hugo 仍渲染旧主题。settings 写失败则用备份把配置还原。
 func (s *Service) ActivateTheme(name string) (map[string]any, error) {
 	if !s.ThemeExists(name) {
 		return nil, fmt.Errorf("主题不存在: %s", name)
@@ -210,14 +213,15 @@ func (s *Service) ActivateTheme(name string) (map[string]any, error) {
 	if s.setActive == nil {
 		return nil, fmt.Errorf("设置服务不可用")
 	}
-	if err := s.setActive(name); err != nil {
-		return nil, fmt.Errorf("保存活跃主题失败: %v", err)
-	}
 	// 把主题写进站点配置，让（重启或热加载后的）Hugo 真正渲染它；
 	// 找不到配置文件时只保留管理设置（项目未初始化等场景）。
-	note, err := s.ApplyToSite(name)
+	note, changes, err := s.applyToSite(name)
 	if err != nil {
 		return nil, fmt.Errorf("写入站点配置失败: %v", err)
+	}
+	if err := s.setActive(name); err != nil {
+		rollbackChanges(changes)
+		return nil, fmt.Errorf("保存活跃主题失败: %v", err)
 	}
 	return map[string]any{"name": name, "config_note": note}, nil
 }
@@ -228,14 +232,21 @@ var (
 	reImportHeader = regexp.MustCompile(`^\s*\[\[imports\]\]`)
 	reAnyTableHead = regexp.MustCompile(`^\s*\[`)
 	reImportPath   = regexp.MustCompile(`^\s*path\s*=\s*["'](.+?)["']`)
-	reTOMLThemeKey = regexp.MustCompile(`(?m)^(\s*)theme\s*=.*$`)
-	reYAMLThemeKey = regexp.MustCompile(`(?m)^(\s*)theme\s*:.*$`)
-	reShortcodeUse = regexp.MustCompile(`\{\{[<%]\s*([A-Za-z0-9_-]+)`)
+	// 只匹配顶层 theme 键（行首可缩进但必须独占一个键行）；YAML 顶层键
+	// 顶格，故不加 ^\s*
+	reTopLevelThemeTOML = regexp.MustCompile(`^\s*theme\s*=`)
+	reTopLevelThemeYAML = regexp.MustCompile(`^theme\s*:`)
+	reShortcodeUse      = regexp.MustCompile(`\{\{[<%]\s*([A-Za-z0-9_-]+)`)
 )
 
-// stubMarker 空桩文件里的标记注释：清理时只删带标记的文件，避免误删
-// 用户手写的同名 shortcode 覆盖。
+// stubMarker 空桩文件里的标记注释：清理时只删内容与本函数产出一致的文件，
+// 避免误删用户手写或改写过的同名 shortcode 覆盖。
 const stubMarker = "hugo-admin 主题切换空桩"
+
+// stubContent 空桩布局的唯一内容：Hugo 的注释模板，渲染为空。
+func stubContent() string {
+	return "{{/* " + stubMarker + "：主题未提供该 shortcode，渲染为空；可删除 */}}"
+}
 
 // hugoBuiltinShortcodes Hugo 内置 shortcode：无需主题提供，缺失也不打桩
 // （打了反而把内链/媒体渲染清空）。
@@ -256,30 +267,61 @@ var hugoBuiltinShortcodes = map[string]bool{
 //
 // 被修改的文件先写 <file>.hugo-admin.bak 滚动备份。返回变更说明。
 func (s *Service) ApplyToSite(name string) (string, error) {
+	note, _, err := s.applyToSite(name)
+	return note, err
+}
+
+// siteChange 记录一次配置文件写入，用于失败回滚（backup 为写入前内容的
+// 备份路径）。
+type siteChange struct {
+	path   string
+	backup string
+}
+
+// applyToSite 是 ApplyToSite 的本体，额外返回本次改动的文件清单，
+// 供调用方在后续步骤失败时回滚。
+func (s *Service) applyToSite(name string) (string, []siteChange, error) {
 	if !s.ThemeExists(name) {
-		return "", fmt.Errorf("主题不存在: %s", name)
+		return "", nil, fmt.Errorf("主题不存在: %s", name)
 	}
 	var notes []string
+	var changes []siteChange
 
 	cfgPath := s.findConfigFile()
 	if cfgPath != "" {
-		note, err := s.applyThemeInConfig(cfgPath, name)
+		note, change, err := s.applyThemeInConfig(cfgPath, name)
 		if err != nil {
-			return "", err
+			return "", changes, err
 		}
 		if note != "" {
 			notes = append(notes, note)
 		}
+		if change != nil {
+			changes = append(changes, *change)
+		}
 	}
 
 	if err := s.syncShortcodeStubs(name); err != nil {
-		return "", fmt.Errorf("同步 shortcode 空桩失败: %v", err)
+		return "", changes, fmt.Errorf("同步 shortcode 空桩失败: %v", err)
 	}
 
 	if len(notes) == 0 {
-		return "未找到站点配置文件，仅更新管理设置", nil
+		return "未找到站点配置文件，仅更新管理设置", changes, nil
 	}
-	return strings.Join(notes, "；"), nil
+	return strings.Join(notes, "；"), changes, nil
+}
+
+// rollbackChanges 用备份还原被改写的配置文件（回滚后备份即冗余，一并删除）。
+func rollbackChanges(changes []siteChange) {
+	for _, c := range changes {
+		data, err := os.ReadFile(c.backup)
+		if err != nil {
+			continue
+		}
+		if err := os.WriteFile(c.path, data, 0o644); err == nil {
+			_ = os.Remove(c.backup)
+		}
+	}
 }
 
 // findConfigFile 按优先级定位站点主配置：配置目录模式下，含 [[imports]]
@@ -308,11 +350,12 @@ func (s *Service) findConfigFile() string {
 	return ""
 }
 
-// applyThemeInConfig 把 name 写进单个配置文件，返回变更说明（无变化返回 ""）。
-func (s *Service) applyThemeInConfig(path, name string) (string, error) {
+// applyThemeInConfig 把 name 写进单个配置文件，返回变更说明（无变化返回 ""）
+// 与实际写入的文件（未写入时为 nil）。
+func (s *Service) applyThemeInConfig(path, name string) (string, *siteChange, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	content := string(raw)
 
@@ -325,16 +368,17 @@ func (s *Service) applyThemeInConfig(path, name string) (string, error) {
 		updated = setYAMLThemeKey(content, name)
 	}
 	if updated == content {
-		return fmt.Sprintf("站点配置已指向主题 %s", name), nil
+		return fmt.Sprintf("站点配置已指向主题 %s", name), nil, nil
 	}
 	if err := backupFile(path); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	rel, _ := filepath.Rel(s.hugoRoot, path)
-	return fmt.Sprintf("已写入 %s（备份 .hugo-admin.bak）", rel), nil
+	change := &siteChange{path: path, backup: path + ".hugo-admin.bak"}
+	return fmt.Sprintf("已写入 %s（备份 .hugo-admin.bak）", rel), change, nil
 }
 
 // upsertFirstImport 把主题的 [[imports]] 块提到 imports 首位：先移除已有的
@@ -386,18 +430,69 @@ func upsertFirstImport(content, name string) string {
 	return strings.Join(out, "\n")
 }
 
+// setTOMLThemeKey 把 theme 键写在**顶层**：已有顶层 theme 行则替换，否则插到
+// 首个表头之前。直接追加到文件末尾是错的——真实 hugo.toml 几乎都以表结尾
+// （`[params]` 等），追加行会落进最后一张表变成 `<表名>.theme`，Hugo 静默
+// 忽略而界面显示「已启用」，站点纹丝不动。
 func setTOMLThemeKey(content, name string) string {
-	if reTOMLThemeKey.MatchString(content) {
-		return reTOMLThemeKey.ReplaceAllString(content, `${1}theme = "`+name+`"`)
+	lines := strings.Split(content, "\n")
+	value := `theme = "` + name + `"`
+	// 顶层区域 = 首个表头之前的所有行；之后的 theme = 属于表内键，不能碰
+	head := len(lines)
+	for i, ln := range lines {
+		if reAnyTableHead.MatchString(ln) {
+			head = i
+			break
+		}
 	}
-	return strings.TrimRight(content, "\n") + "\n\ntheme = \"" + name + "\"\n"
+	for i := 0; i < head; i++ {
+		if reTopLevelThemeTOML.MatchString(lines[i]) {
+			lines[i] = value
+			return strings.Join(lines, "\n")
+		}
+	}
+	return insertTopLevel(lines, head, value)
 }
 
+// setYAMLThemeKey 同 setTOMLThemeKey 的 YAML 版：顶层键行首无缩进，
+// 表内键必然缩进，因此只认行首顶格的 theme:。
 func setYAMLThemeKey(content, name string) string {
-	if reYAMLThemeKey.MatchString(content) {
-		return reYAMLThemeKey.ReplaceAllString(content, `${1}theme: `+name)
+	lines := strings.Split(content, "\n")
+	value := `theme: "` + name + `"`
+	for i, ln := range lines {
+		if reTopLevelThemeYAML.MatchString(ln) {
+			lines[i] = value
+			return strings.Join(lines, "\n")
+		}
 	}
-	return strings.TrimRight(content, "\n") + "\n\ntheme: " + name + "\n"
+	// 没有 theme 键：插到第一个顶层键之前（跳过注释/空行/文档分隔符）
+	insertAt := len(lines)
+	for i, ln := range lines {
+		trimmed := strings.TrimSpace(ln)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") || trimmed == "---" || trimmed == "..." {
+			continue
+		}
+		if ln == trimmed { // 无缩进即顶层键
+			insertAt = i
+			break
+		}
+	}
+	return insertTopLevel(lines, insertAt, value)
+}
+
+// insertTopLevel 在 lines[idx] 之前插入一行顶层键，并补齐前后空行。
+func insertTopLevel(lines []string, idx int, value string) string {
+	out := make([]string, 0, len(lines)+2)
+	out = append(out, lines[:idx]...)
+	if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
+		out = append(out, "")
+	}
+	out = append(out, value)
+	if idx < len(lines) {
+		out = append(out, "")
+	}
+	out = append(out, lines[idx:]...)
+	return strings.Join(out, "\n")
 }
 
 // backupFile 写 <path>.hugo-admin.bak 滚动备份（每次覆盖）。
@@ -431,10 +526,11 @@ func (s *Service) syncShortcodeStubs(themeName string) error {
 		if !provided[sc] {
 			continue
 		}
-		// 只删自己生成的空桩（带标记注释），用户手写的同名覆盖不动
+		// 只删「原样未动」的空桩：内容与被删前逐字相同才动手。用户若把
+		// 空桩改成自己的实现（哪怕只留了那行标记），文件已归用户，不动。
 		p := filepath.Join(stubDir, e.Name())
 		data, err := os.ReadFile(p)
-		if err == nil && strings.Contains(string(data), stubMarker) {
+		if err == nil && strings.TrimSpace(string(data)) == stubContent() {
 			_ = os.Remove(p)
 		}
 	}
@@ -455,8 +551,7 @@ func (s *Service) syncShortcodeStubs(themeName string) error {
 		if _, err := os.Stat(p); err == nil {
 			continue
 		}
-		stub := "{{/* " + stubMarker + "：主题未提供该 shortcode，渲染为空；可删除 */}}"
-		if err := os.WriteFile(p, []byte(stub), 0o644); err != nil {
+		if err := os.WriteFile(p, []byte(stubContent()), 0o644); err != nil {
 			return err
 		}
 	}
