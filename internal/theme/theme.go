@@ -412,17 +412,22 @@ type importBlock struct {
 	marked     bool
 }
 
-// markedAbove 判断第 i 行上方最近的**非空**行是否为工具标记。
-// 放宽到「跳过空行」是有意的：用户手一抖在标记与 [[imports]] 之间敲了
-// 个空行，块不该因此退化成「用户的块」而永久残留。
-func markedAbove(lines []string, i int) bool {
+// markerAbove 返回第 i 行上方最近**非空**行的标记行号（无标记返回 -1）。
+// 放宽到「跳过空行」是有意的：用户手一抖在标记与 [[imports]] 之间敲了个
+// 空行，块不该因此退化成「用户的块」而永久残留。
+// 必须返回行号而不是布尔：块的范围要从标记行起算，否则清理时只从空行开始
+// 删，标记会残留下来，下一轮正好贴到用户自己的块上方，把用户块当工具块删掉。
+func markerAbove(lines []string, i int) int {
 	for j := i - 1; j >= 0; j-- {
 		if strings.TrimSpace(lines[j]) == "" {
 			continue
 		}
-		return strings.TrimSpace(lines[j]) == importMarker
+		if strings.TrimSpace(lines[j]) == importMarker {
+			return j
+		}
+		return -1
 	}
-	return false
+	return -1
 }
 
 // parseImportBlocks 切出文件里所有 [[imports]] 块及其 path。
@@ -433,8 +438,8 @@ func parseImportBlocks(lines []string) []importBlock {
 			continue
 		}
 		b := importBlock{start: i, end: len(lines)}
-		if markedAbove(lines, i) {
-			b.start = i - 1
+		if m := markerAbove(lines, i); m >= 0 {
+			b.start = m // 从标记行起算，中间的空白行也归本块
 			b.marked = true
 		}
 		for j := i + 1; j < len(lines); j++ {
@@ -497,7 +502,7 @@ func upsertFirstImport(content, name string) string {
 
 	newBlock := []string{importMarker, "[[imports]]", fmt.Sprintf("path = %q", name), ""}
 	out := make([]string, 0, len(rest)+len(newBlock))
-	insertAt := len(rest)
+	insertAt := 0 // 剩余内容里没有 imports 块时插到文件开头（"首位"才有意义）
 	if len(restBlocks) > 0 {
 		insertAt = restBlocks[0].start
 	}
@@ -508,23 +513,17 @@ func upsertFirstImport(content, name string) string {
 }
 
 // moveBlockToFront 把用户已有的 imports 块整体搬到文件里首个 imports 之前。
+// 只搬块本身的整段行，其余行原样保留——用户文件不该因为切主题被重排。
 func moveBlockToFront(lines []string, b importBlock) string {
-	moved := make([]string, 0, b.end-b.start+1)
-	for _, ln := range lines[b.start:b.end] {
-		if strings.TrimSpace(ln) != "" { // 块内空行不搬
-			moved = append(moved, ln)
-		}
-	}
+	moved := lines[b.start:b.end]
 	others := append(append([]string{}, lines[:b.start]...), lines[b.end:]...)
-	for len(others) > 0 && strings.TrimSpace(others[0]) == "" {
-		others = others[1:]
+	out := make([]string, 0, len(lines)+1)
+	out = append(out, moved...)
+	if len(others) > 0 && strings.TrimSpace(others[0]) != "" {
+		out = append(out, "") // 块与后方内容之间留一个空行
 	}
-	for len(others) > 0 && strings.TrimSpace(others[len(others)-1]) == "" {
-		others = others[:len(others)-1]
-	}
-	out := append(moved, "")
 	out = append(out, others...)
-	return strings.Join(out, "\n") + "\n"
+	return strings.Join(out, "\n")
 }
 
 // setTOMLThemeKey 把 theme 键写在**顶层**：已有顶层 theme 行则替换，否则插到

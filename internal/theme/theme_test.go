@@ -389,6 +389,82 @@ func TestApplyToSite(t *testing.T) {
 		}
 	})
 
+	t.Run("标记与块之间隔空行也要整块清掉", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		mkThemeShortcode(t, root, "old", "gallery")
+		dir := filepath.Join(root, "config", "_default")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mod := filepath.Join(dir, "module.toml")
+		// 用户在标记与 [[imports]] 之间敲了个空行：块范围必须从标记行起算，
+		// 否则标记残留、下一轮贴到用户块上方，把用户块当工具块删掉
+		hand := importMarker + "\n\n[[imports]]\npath = \"new\"\n\n[[imports]]\npath = \"old\"\n"
+		if err := os.WriteFile(mod, []byte(hand), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		svc := NewService(root, nil, nil)
+		if _, err := svc.ApplyToSite("old"); err != nil {
+			t.Fatalf("apply old: %v", err)
+		}
+		got, _ := os.ReadFile(mod)
+		s := string(got)
+		if strings.Contains(s, importMarker) {
+			t.Fatalf("标记行应随块一起清掉:\n%s", s)
+		}
+		if strings.Contains(s, `"new"`) {
+			t.Fatalf("工具块应被清理:\n%s", s)
+		}
+		if !strings.Contains(s, `path = "old"`) {
+			t.Fatalf("用户块不能被误删:\n%s", s)
+		}
+		// 再切一次，确认用户块仍然在（上面那条 bug 就是这一步会丢）
+		if _, err := svc.ApplyToSite("new"); err != nil {
+			t.Fatalf("apply new: %v", err)
+		}
+		got, _ = os.ReadFile(mod)
+		s = string(got)
+		if !strings.Contains(s, `path = "old"`) {
+			t.Fatalf("反复切换后用户块仍在:\n%s", s)
+		}
+		if blocks := parseImportBlocks(strings.Split(s, "\n")); len(blocks) == 0 || blocks[0].path != "new" {
+			t.Fatalf("new 应在首位:\n%s", s)
+		}
+	})
+
+	t.Run("搬用户块到首位时不改动其余内容", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "x", "gallery")
+		mkThemeShortcode(t, root, "y", "gallery")
+		dir := filepath.Join(root, "config", "_default")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mod := filepath.Join(dir, "module.toml")
+		orig := "title = 'x'\n\n[[imports]]\npath = \"x\"\n\n[[imports]]\npath = \"y\"\n\n[params]\n  a = 1\n"
+		if err := os.WriteFile(mod, []byte(orig), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewService(root, nil, nil).ApplyToSite("y"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		got, _ := os.ReadFile(mod)
+		s := string(got)
+		if strings.Index(s, `"y"`) > strings.Index(s, `"x"`) {
+			t.Fatalf("y 应在 x 之前:\n%s", s)
+		}
+		// 其余内容逐字保留（不重排、不删空行）
+		for _, want := range []string{"title = 'x'", "[params]", "  a = 1", "path = \"x\""} {
+			if !strings.Contains(s, want) {
+				t.Fatalf("原有内容 %q 丢失:\n%s", want, s)
+			}
+		}
+		if strings.Count(s, `"y"`) != 1 || strings.Count(s, `"x"`) != 1 {
+			t.Fatalf("不应出现重复导入:\n%s", s)
+		}
+	})
+
 	t.Run("用户已有同 path 导入时移到首位，不插重复块", func(t *testing.T) {
 		root := t.TempDir()
 		mkThemeShortcode(t, root, "x", "gallery")
