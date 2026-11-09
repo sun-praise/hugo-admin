@@ -452,9 +452,10 @@ func (m *Manager) preparePreviewSite(theme, baseURL string) (string, error) {
 	if err := os.MkdirAll(filepath.Join(siteDir, "layouts", "_shortcodes"), 0o755); err != nil {
 		return "", err
 	}
-	// 放进 post/ 分区：主题（如 PaperMod）按 mainSections/Type 过滤列表页，
-	// 根级页面的 Type 是 page 不会出现在首页列表
-	if err := os.MkdirAll(filepath.Join(siteDir, "content", "post"), 0o755); err != nil {
+	// 放进 posts/ 分区并显式声明 mainSections：主流主题（LoveIt/PaperMod/
+	// ananke…）在首页按 section 名过滤文章列表，分区名对不上（如写成单数
+	// post）首页就是空的——预览看着"主题没渲染出文章"其实是采样放错了区。
+	if err := os.MkdirAll(filepath.Join(siteDir, "content", "posts"), 0o755); err != nil {
 		return "", err
 	}
 	// 注意：Hugo 没有能忽略 missing shortcode 的配置项（0.163.3 实测
@@ -464,6 +465,9 @@ func (m *Manager) preparePreviewSite(theme, baseURL string) (string, error) {
 title = '主题预览'
 theme = '%s'
 defaultContentLanguage = 'zh-cn'
+
+[params]
+  mainSections = ['posts']
 
 [security]
   allowContent = ['.*']
@@ -521,7 +525,7 @@ func (m *Manager) writePreviewSample(siteDir string) error {
 		}
 		doc := fmt.Sprintf("+++\ntitle = %q\ndate = %q\ndraft = false\n+++\n\n%s",
 			title, s.modTime.Format("2006-01-02T15:04:05"), body)
-		name := filepath.Join(siteDir, "content", "post", fmt.Sprintf("post-%02d.md", i+1))
+		name := filepath.Join(siteDir, "content", "posts", fmt.Sprintf("post-%02d.md", i+1))
 		if err := os.WriteFile(name, []byte(doc), 0o644); err != nil {
 			return err
 		}

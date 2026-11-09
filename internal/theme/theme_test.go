@@ -330,10 +330,11 @@ func TestApplyToSite(t *testing.T) {
 		}
 	})
 
-	t.Run("module imports 插首位且可来回切换", func(t *testing.T) {
+	t.Run("module imports 插首位且反复切换不堆积", func(t *testing.T) {
 		root := t.TempDir()
 		mkThemeShortcode(t, root, "new", "gallery")
 		mkThemeShortcode(t, root, "old", "gallery")
+		mkThemeShortcode(t, root, "third", "gallery")
 		dir := filepath.Join(root, "config", "_default")
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
@@ -343,28 +344,193 @@ func TestApplyToSite(t *testing.T) {
 			t.Fatal(err)
 		}
 		svc := NewService(root, nil, nil)
-		if _, err := svc.ApplyToSite("new"); err != nil {
-			t.Fatalf("apply new: %v", err)
+		apply := func(name string) string {
+			t.Helper()
+			if _, err := svc.ApplyToSite(name); err != nil {
+				t.Fatalf("apply %s: %v", name, err)
+			}
+			data, _ := os.ReadFile(mod)
+			return string(data)
 		}
-		data, _ := os.ReadFile(mod)
-		got := string(data)
-		if strings.Index(got, `"new"`) > strings.Index(got, `"old"`) {
+		firstPath := func(s string) string {
+			blocks := parseImportBlocks(strings.Split(s, "\n"))
+			if len(blocks) == 0 {
+				return ""
+			}
+			return blocks[0].path
+		}
+
+		got := apply("new")
+		if firstPath(got) != "new" {
 			t.Fatalf("new 应在 imports 首位:\n%s", got)
 		}
-		if strings.Count(got, "[[imports]]") != 2 {
-			t.Fatalf("imports 块数量异常:\n%s", got)
+		if strings.Count(got, "[[imports]]") != 2 || !strings.Contains(got, "path = \"old\"") {
+			t.Fatalf("用户原有导入应保留:\n%s", got)
 		}
-		// 切回 old：old 块唯一且居首
+
+		// 切回 old：本工具插入的块被替换掉，用户原块仍是唯一的 old
+		got = apply("old")
+		if firstPath(got) != "old" {
+			t.Fatalf("old 应在 imports 首位:\n%s", got)
+		}
+		if strings.Count(got, `"old"`) != 1 || strings.Contains(got, `"new"`) {
+			t.Fatalf("旧主题的块应被清理:\n%s", got)
+		}
+
+		// 反复切换后块数不增长（只多出「当前启用主题」这一条）
+		for _, name := range []string{"new", "third", "new", "third"} {
+			got = apply(name)
+			if firstPath(got) != name {
+				t.Fatalf("%s 应在 imports 首位:\n%s", name, got)
+			}
+			if n := strings.Count(got, "[[imports]]"); n > 2 {
+				t.Fatalf("imports 块堆积到 %d 个:\n%s", n, got)
+			}
+		}
+	})
+
+	t.Run("标记与块之间隔空行也要整块清掉", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "new", "gallery")
+		mkThemeShortcode(t, root, "old", "gallery")
+		dir := filepath.Join(root, "config", "_default")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mod := filepath.Join(dir, "module.toml")
+		// 用户在标记与 [[imports]] 之间敲了个空行：块范围必须从标记行起算，
+		// 否则标记残留、下一轮贴到用户块上方，把用户块当工具块删掉
+		hand := importMarker + "\n\n[[imports]]\npath = \"new\"\n\n[[imports]]\npath = \"old\"\n"
+		if err := os.WriteFile(mod, []byte(hand), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		svc := NewService(root, nil, nil)
 		if _, err := svc.ApplyToSite("old"); err != nil {
 			t.Fatalf("apply old: %v", err)
 		}
-		data, _ = os.ReadFile(mod)
-		got = string(data)
-		if strings.Index(got, `"old"`) > strings.Index(got, `"new"`) {
-			t.Fatalf("old 应在 imports 首位:\n%s", got)
+		got, _ := os.ReadFile(mod)
+		s := string(got)
+		if strings.Contains(s, importMarker) {
+			t.Fatalf("标记行应随块一起清掉:\n%s", s)
 		}
-		if strings.Count(got, `"old"`) != 1 || strings.Count(got, `"new"`) != 1 {
-			t.Fatalf("块未去重:\n%s", got)
+		if strings.Contains(s, `"new"`) {
+			t.Fatalf("工具块应被清理:\n%s", s)
+		}
+		if !strings.Contains(s, `path = "old"`) {
+			t.Fatalf("用户块不能被误删:\n%s", s)
+		}
+		// 再切一次，确认用户块仍然在（上面那条 bug 就是这一步会丢）
+		if _, err := svc.ApplyToSite("new"); err != nil {
+			t.Fatalf("apply new: %v", err)
+		}
+		got, _ = os.ReadFile(mod)
+		s = string(got)
+		if !strings.Contains(s, `path = "old"`) {
+			t.Fatalf("反复切换后用户块仍在:\n%s", s)
+		}
+		if blocks := parseImportBlocks(strings.Split(s, "\n")); len(blocks) == 0 || blocks[0].path != "new" {
+			t.Fatalf("new 应在首位:\n%s", s)
+		}
+	})
+
+	t.Run("搬用户块到首位时不改动其余内容", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "x", "gallery")
+		mkThemeShortcode(t, root, "y", "gallery")
+		dir := filepath.Join(root, "config", "_default")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mod := filepath.Join(dir, "module.toml")
+		orig := "title = 'x'\n\n[[imports]]\npath = \"x\"\n\n[[imports]]\npath = \"y\"\n\n[params]\n  a = 1\n"
+		if err := os.WriteFile(mod, []byte(orig), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewService(root, nil, nil).ApplyToSite("y"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		got, _ := os.ReadFile(mod)
+		s := string(got)
+		if strings.Index(s, `"y"`) > strings.Index(s, `"x"`) {
+			t.Fatalf("y 应在 x 之前:\n%s", s)
+		}
+		// 顶层键必须仍在首个表头之前：TOML 里表头之后的键归属该表，
+		// 把块顶到第 0 行会让 title 变成 imports[0].title
+		if strings.Index(s, "title = 'x'") > strings.Index(s, "[[imports]]") {
+			t.Fatalf("顶层键被挤到表头之后（会变成 imports 元素字段）:\n%s", s)
+		}
+		// 其余内容逐字保留（不重排、不删空行）
+		for _, want := range []string{"title = 'x'", "[params]", "  a = 1", "path = \"x\""} {
+			if !strings.Contains(s, want) {
+				t.Fatalf("原有内容 %q 丢失:\n%s", want, s)
+			}
+		}
+		if strings.Contains(s, "\n\n\n") {
+			t.Fatalf("不应留下连续空行:\n%s", s)
+		}
+		if strings.Count(s, `"y"`) != 1 || strings.Count(s, `"x"`) != 1 {
+			t.Fatalf("不应出现重复导入:\n%s", s)
+		}
+	})
+
+	t.Run("搬块后保持文件末尾换行", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "x", "gallery")
+		mkThemeShortcode(t, root, "y", "gallery")
+		dir := filepath.Join(root, "config", "_default")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mod := filepath.Join(dir, "module.toml")
+		// y 在末尾且块后没有空行
+		orig := "[[imports]]\npath = \"x\"\n[[imports]]\npath = \"y\"\n"
+		if err := os.WriteFile(mod, []byte(orig), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewService(root, nil, nil).ApplyToSite("y"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		got, _ := os.ReadFile(mod)
+		s := string(got)
+		if !strings.HasSuffix(s, "\n") {
+			t.Fatalf("文件末尾换行丢了:\n%q", s)
+		}
+		if strings.Index(s, `"y"`) > strings.Index(s, `"x"`) {
+			t.Fatalf("y 应在 x 之前:\n%s", s)
+		}
+	})
+
+	t.Run("用户已有同 path 导入时移到首位，不插重复块", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "x", "gallery")
+		mkThemeShortcode(t, root, "y", "gallery")
+		dir := filepath.Join(root, "config", "_default")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mod := filepath.Join(dir, "module.toml")
+		// y 是用户自己写的块，但排在 x 后面
+		orig := "[[imports]]\npath = \"x\"\n\n[[imports]]\npath = \"y\"\n"
+		if err := os.WriteFile(mod, []byte(orig), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewService(root, nil, nil).ApplyToSite("y"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		got, _ := os.ReadFile(mod)
+		s := string(got)
+		blocks := parseImportBlocks(strings.Split(s, "\n"))
+		if len(blocks) == 0 || blocks[0].path != "y" {
+			t.Fatalf("y 应被移到首位:\n%s", s)
+		}
+		if strings.Count(s, `"y"`) != 1 {
+			t.Fatalf("不应插入重复的 y 导入:\n%s", s)
+		}
+		if strings.Count(s, `"x"`) != 1 {
+			t.Fatalf("x 导入应保留:\n%s", s)
+		}
+		if strings.Contains(s, importMarker) {
+			t.Fatalf("复用用户块时不该留工具标记:\n%s", s)
 		}
 	})
 

@@ -229,9 +229,12 @@ func (s *Service) ActivateTheme(name string) (map[string]any, error) {
 // ============ 启用时写站点配置 ============
 
 var (
-	reImportHeader = regexp.MustCompile(`^\s*\[\[imports\]\]`)
-	reAnyTableHead = regexp.MustCompile(`^\s*\[`)
-	reImportPath   = regexp.MustCompile(`^\s*path\s*=\s*["'](.+?)["']`)
+	// 前两个带 (?m)：除了按行匹配，还要能对整份文件做存在性判断
+	//（文件首行可能是注释/其他键，^ 必须能匹配任意行首）
+	reImportHeader = regexp.MustCompile(`(?m)^\s*\[\[imports\]\]`)
+	reAnyTableHead = regexp.MustCompile(`(?m)^\s*\[`)
+	// reImportPath 只按行调用，不需要 (?m)
+	reImportPath = regexp.MustCompile(`^\s*path\s*=\s*["'](.+?)["']`)
 	// 只匹配顶层 theme 键（行首可缩进但必须独占一个键行）；YAML 顶层键
 	// 顶格，故不加 ^\s*
 	reTopLevelThemeTOML = regexp.MustCompile(`^\s*theme\s*=`)
@@ -397,53 +400,162 @@ func (s *Service) applyThemeInConfig(path, name string) (string, *siteChange, er
 	return fmt.Sprintf("已写入 %s（备份 .hugo-admin.bak）", rel), &change, nil
 }
 
-// upsertFirstImport 把主题的 [[imports]] 块提到 imports 首位：先移除已有的
-// 同 path 块（避免重复），再在首个块前插入。Hugo 组件按导入顺序首个匹配
-// 生效，首位即最高优先级。
-func upsertFirstImport(content, name string) string {
-	lines := strings.Split(content, "\n")
-	owner := map[int]int{} // 行号 -> 所属块起始行（仅块内行）
-	blockPath := map[int]string{}
-	var starts []int
-	cur := -1
-	for i, ln := range lines {
-		if reImportHeader.MatchString(ln) {
-			cur = i
-			starts = append(starts, i)
-			owner[i] = cur
+// importMarker 标记「本工具插入的 [[imports]] 块」：切换主题时据此只删
+// 自己写的块，用户原有的导入一个不动。没有标记的话只能按 path 猜，
+// 每切一次就多留一条旧主题的导入，旧主题的组件会从后面继续生效。
+const importMarker = "# hugo-admin 主题切换（本条由工具维护，启用别的主题时自动替换）"
+
+// importBlock 是一个 [[imports]] 块的行范围（start 含标记行，end 不含）。
+type importBlock struct {
+	start, end int
+	path       string
+	marked     bool
+}
+
+// markerAbove 返回第 i 行上方最近**非空**行的标记行号（无标记返回 -1）。
+// 放宽到「跳过空行」是有意的：用户手一抖在标记与 [[imports]] 之间敲了个
+// 空行，块不该因此退化成「用户的块」而永久残留。
+// 必须返回行号而不是布尔：块的范围要从标记行起算，否则清理时只从空行开始
+// 删，标记会残留下来，下一轮正好贴到用户自己的块上方，把用户块当工具块删掉。
+func markerAbove(lines []string, i int) int {
+	for j := i - 1; j >= 0; j-- {
+		if strings.TrimSpace(lines[j]) == "" {
 			continue
 		}
-		if cur >= 0 {
-			if reAnyTableHead.MatchString(ln) {
-				cur = -1
-				continue
+		if strings.TrimSpace(lines[j]) == importMarker {
+			return j
+		}
+		return -1
+	}
+	return -1
+}
+
+// parseImportBlocks 切出文件里所有 [[imports]] 块及其 path。
+func parseImportBlocks(lines []string) []importBlock {
+	var blocks []importBlock
+	for i := 0; i < len(lines); i++ {
+		if !reImportHeader.MatchString(lines[i]) {
+			continue
+		}
+		b := importBlock{start: i, end: len(lines)}
+		if m := markerAbove(lines, i); m >= 0 {
+			b.start = m // 从标记行起算，中间的空白行也归本块
+			b.marked = true
+		}
+		for j := i + 1; j < len(lines); j++ {
+			if reAnyTableHead.MatchString(lines[j]) {
+				b.end = j
+				break
 			}
-			owner[i] = cur
-			if m := reImportPath.FindStringSubmatch(ln); m != nil {
-				blockPath[cur] = m[1]
+			if m := reImportPath.FindStringSubmatch(lines[j]); m != nil && b.path == "" {
+				b.path = m[1]
 			}
 		}
+		blocks = append(blocks, b)
+		i = b.end - 1
 	}
-	if len(starts) == 0 {
-		return content
+	return blocks
+}
+
+// upsertFirstImport 把主题的 [[imports]] 块放到 imports 首位，并清掉上次
+// 插入的那条（带 importMarker 标记）。Hugo 组件按导入顺序首个匹配生效，
+// 首位即最高优先级。
+//
+// 只维护自己插入的块是关键：按 path 去重会让用户原有的主题导入随切换次数
+// 不断堆积，旧主题的组件留在 imports 里继续生效，切换结果被污染。
+// 反过来，若用户自己就有同 path 的导入，则把那条整体移到首位，不再插一条
+// 重复的 module import。
+func upsertFirstImport(content, name string) string {
+	lines := strings.Split(content, "\n")
+	blocks := parseImportBlocks(lines)
+
+	skip := map[int]bool{}
+	for _, b := range blocks {
+		if !b.marked {
+			continue
+		}
+		end := b.end
+		for end < len(lines) && strings.TrimSpace(lines[end]) == "" {
+			end++ // 连同块后的空行一起清掉，避免反复切换留下空行
+		}
+		for i := b.start; i < end; i++ {
+			skip[i] = true
+		}
 	}
-	newBlock := []string{"[[imports]]", fmt.Sprintf("path = %q", name), ""}
-	out := make([]string, 0, len(lines)+len(newBlock))
-	inserted := false
+	rest := make([]string, 0, len(lines))
 	for i, ln := range lines {
-		if i == starts[0] && !inserted {
-			out = append(out, newBlock...)
-			inserted = true
+		if !skip[i] {
+			rest = append(rest, ln)
 		}
-		if start, in := owner[i]; in && blockPath[start] == name {
-			continue // 目标主题的旧块已由插入的新块替代
+	}
+
+	restBlocks := parseImportBlocks(rest)
+	if len(restBlocks) > 0 && restBlocks[0].path == name {
+		return strings.Join(rest, "\n") // 已是生效主题，无需改动
+	}
+	// 用户自己的同 path 导入：移到首位即可，重复插一条会变成两条相同 import
+	for _, b := range restBlocks {
+		if b.path == name {
+			return moveBlockToFront(rest, b)
 		}
-		out = append(out, ln)
 	}
-	if !inserted {
-		out = append(out, newBlock...)
+
+	newBlock := []string{importMarker, "[[imports]]", fmt.Sprintf("path = %q", name), ""}
+	out := make([]string, 0, len(rest)+len(newBlock))
+	// 剩余内容里没有 imports 块时，插到首个表头之前而不是第 0 行：
+	// TOML 里表头之后的行归属该表，把块顶到最前面会把顶层键（noVendor 等）
+	// 吞进 imports 元素里
+	insertAt := firstTableIndex(rest)
+	if len(restBlocks) > 0 {
+		insertAt = restBlocks[0].start
 	}
+	out = append(out, rest[:insertAt]...)
+	out = append(out, newBlock...)
+	out = append(out, rest[insertAt:]...)
 	return strings.Join(out, "\n")
+}
+
+// firstTableIndex 返回首个表头所在行号；无表头返回 len(lines)。
+func firstTableIndex(lines []string) int {
+	for i, ln := range lines {
+		if reAnyTableHead.MatchString(ln) {
+			return i
+		}
+	}
+	return len(lines)
+}
+
+// moveBlockToFront 把用户已有的 imports 块搬到「首个表头之前」——即让它成为
+// 第一个表，同时把顶层键（noVendor/proxy 等）留在它上方。搬到文件第 0 行是
+// 错的：TOML 里表头之后的行归属该表，顶层键会变成 imports 元素的字段。
+// 其余行原样保留，只合并多余空行。
+func moveBlockToFront(lines []string, b importBlock) string {
+	moved := append([]string{}, lines[b.start:b.end]...)
+	for len(moved) > 0 && strings.TrimSpace(moved[len(moved)-1]) == "" {
+		moved = moved[:len(moved)-1]
+	}
+	others := append(append([]string{}, lines[:b.start]...), lines[b.end:]...)
+	at := firstTableIndex(others)
+	head, tail := others[:at], others[at:]
+	for len(head) > 0 && strings.TrimSpace(head[len(head)-1]) == "" {
+		head = head[:len(head)-1]
+	}
+	out := make([]string, 0, len(lines)+1)
+	out = append(out, head...)
+	if len(out) > 0 {
+		out = append(out, "")
+	}
+	out = append(out, moved...)
+	if len(tail) > 0 {
+		out = append(out, "")
+		out = append(out, tail...)
+	}
+	s := strings.Join(out, "\n")
+	// 原文件以换行结尾就保持以换行结尾，别留下「末尾缺换行」的 diff
+	if len(lines) > 0 && lines[len(lines)-1] == "" && !strings.HasSuffix(s, "\n") {
+		s += "\n"
+	}
+	return s
 }
 
 // setTOMLThemeKey 把 theme 键写在**顶层**：已有顶层 theme 行则替换，否则插到
@@ -454,13 +566,7 @@ func setTOMLThemeKey(content, name string) string {
 	lines := strings.Split(content, "\n")
 	value := `theme = "` + name + `"`
 	// 顶层区域 = 首个表头之前的所有行；之后的 theme = 属于表内键，不能碰
-	head := len(lines)
-	for i, ln := range lines {
-		if reAnyTableHead.MatchString(ln) {
-			head = i
-			break
-		}
-	}
+	head := firstTableIndex(lines)
 	for i := 0; i < head; i++ {
 		if reTopLevelThemeTOML.MatchString(lines[i]) {
 			lines[i] = value

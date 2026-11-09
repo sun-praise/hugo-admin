@@ -107,8 +107,10 @@ Hugo 站点，用随机空闲端口独立启动，与主服务器互不影响。
 - `hugo.toml` 仅声明预览主题、`defaultContentLanguage = 'zh-cn'`、
   `[security] allowContent = ['.*']`（见类别 5）、`unsafe = true`
 - `themes` 软链接指向站点的 `themes/`（复用已安装主题）
-- `content/post/` 放**最新 8 篇**的采样副本：剥掉原有 frontmatter 只留
-  标题/日期，正文用到的 shortcode 生成空桩
+- `content/posts/` 放**最新 8 篇**的采样副本：剥掉原有 frontmatter 只留
+  标题/日期，正文用到的 shortcode 生成空桩；同时显式声明
+  `[params] mainSections = ['posts']`（主流主题在首页按 section 名过滤
+  文章列表，分区名对不上首页就是空的）
 
 因此预览**不代表真实内容的渲染结果**——它验证的是主题本身的版式、配色与
 列表页效果。要做到「真实内容 + 新主题」的端到端确认，仍需启用主题后看真实
