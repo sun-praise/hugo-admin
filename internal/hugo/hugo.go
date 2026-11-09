@@ -301,18 +301,56 @@ func (m *Manager) ServerURL() string { return m.serverURL }
 // 打崩其他主题的模板）；覆盖站点只采样最新若干篇、剥成最小 frontmatter，
 // 任何主题都能干净渲染。已有预览实例会先停止（切换预览主题）。
 func (m *Manager) StartPreview(theme string) (string, bool, string) {
+	url, p, ok, msg := m.startPreview(theme)
+	if !ok {
+		return "", false, msg
+	}
+	// 就绪等待放在 previewMu 之外：最长 30 秒，期间并发的停止/切换请求
+	// 不该被启动过程堵住
+	select {
+	case <-p.ready:
+		return url, true, "预览服务器已启动"
+	case <-p.exited:
+		// 打印就绪行后立即退出时两个通道都就绪，select 可能抽到 exited：
+		// 先补看一次 ready，避免把「已就绪又退出」误报成「就绪前退出」
+		select {
+		case <-p.ready:
+			return url, true, "预览服务器已启动"
+		default:
+		}
+		m.detachPreview(p)
+		return "", false, m.previewFailMessage(p, "预览进程在就绪前退出")
+	case <-time.After(previewReadyTimeout):
+		m.terminatePreview(p)
+		m.detachPreview(p)
+		return "", false, m.previewFailMessage(p, "预览服务器未在预期时间内就绪")
+	}
+}
+
+// detachPreview 仅当 p 仍是当前实例时摘下（并发启动/停止可能已替换它）。
+func (m *Manager) detachPreview(p *previewServer) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.preview == p {
+		m.preview = nil
+	}
+}
+
+// startPreview 完成同步部分：停旧实例、准备覆盖站点、拉起进程并登记。
+// 就绪等待由 StartPreview 在锁外进行。
+func (m *Manager) startPreview(theme string) (string, *previewServer, bool, string) {
 	m.previewMu.Lock()
 	defer m.previewMu.Unlock()
 
 	if theme == "" {
-		return "", false, "主题名称不能为空"
+		return "", nil, false, "主题名称不能为空"
 	}
 	if !previewThemeNameRE.MatchString(theme) {
-		return "", false, fmt.Sprintf("主题名称不合法: %s", theme)
+		return "", nil, false, fmt.Sprintf("主题名称不合法: %s", theme)
 	}
 	bin := m.command
 	if _, err := exec.LookPath(bin); err != nil {
-		return "", false, "未找到 hugo 命令，请确保 Hugo 已安装"
+		return "", nil, false, "未找到 hugo 命令，请确保 Hugo 已安装"
 	}
 
 	// 先摘下旧实例再等待退出：等待不能持有 m.mu（monitorPreviewLogs 要拿锁写日志）
@@ -326,13 +364,13 @@ func (m *Manager) StartPreview(theme string) (string, bool, string) {
 
 	port, err := pickFreePort()
 	if err != nil {
-		return "", false, fmt.Sprintf("分配预览端口失败: %v", err)
+		return "", nil, false, fmt.Sprintf("分配预览端口失败: %v", err)
 	}
 	baseURL := previewBaseURL(m.serverURL, port)
 
 	siteDir, err := m.preparePreviewSite(theme, baseURL)
 	if err != nil {
-		return "", false, fmt.Sprintf("准备预览站点失败: %v", err)
+		return "", nil, false, fmt.Sprintf("准备预览站点失败: %v", err)
 	}
 
 	args := []string{
@@ -343,11 +381,11 @@ func (m *Manager) StartPreview(theme string) (string, bool, string) {
 	cmd.Dir = siteDir
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return "", false, fmt.Sprintf("启动失败: %v", err)
+		return "", nil, false, fmt.Sprintf("启动失败: %v", err)
 	}
 	cmd.Stderr = cmd.Stdout
 	if err := cmd.Start(); err != nil {
-		return "", false, fmt.Sprintf("启动失败: %v", err)
+		return "", nil, false, fmt.Sprintf("启动失败: %v", err)
 	}
 
 	p := &previewServer{
@@ -362,18 +400,7 @@ func (m *Manager) StartPreview(theme string) (string, bool, string) {
 	m.preview = p
 	m.mu.Unlock()
 	go m.monitorPreviewLogs(stdout, p)
-
-	// 等 Hugo 真正就绪再返回：仅 Start() 成功不足以说明站点可访问。
-	// 提前退出/超时都把实例回收掉，并把日志尾部交给调用方做诊断。
-	select {
-	case <-p.ready:
-		return baseURL, true, "预览服务器已启动"
-	case <-p.exited:
-		return "", false, m.previewFailMessage(p, "预览进程在就绪前退出")
-	case <-time.After(previewReadyTimeout):
-		m.terminatePreview(p)
-		return "", false, m.previewFailMessage(p, "预览服务器未在预期时间内就绪")
-	}
+	return baseURL, p, true, ""
 }
 
 // previewReadyTimeout 等待预览实例就绪的上限：首次渲染要编译主题 SCSS
@@ -624,8 +651,10 @@ func (m *Manager) monitorPreviewLogs(stdout io.Reader, p *previewServer) {
 			continue
 		}
 		// 就绪行形如 "Web Server is available at http://localhost:1313/
-		// (bind address 0.0.0.0)"，是 Hugo 唯一可靠的「可访问」信号
-		if strings.Contains(line, "Web Server is available") {
+		// (bind address 0.0.0.0)"，紧跟着一行 "Press Ctrl+C to stop"；
+		// 两行都视为就绪，Hugo 改文案时不至于两个都失配
+		if strings.Contains(line, "Web Server is available") ||
+			strings.Contains(line, "Press Ctrl+C to stop") {
 			readyOnce.Do(func() { close(p.ready) })
 		}
 		m.mu.Lock()
