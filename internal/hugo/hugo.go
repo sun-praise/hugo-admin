@@ -287,8 +287,6 @@ func procMemoryMB(pid int) (float64, bool) {
 // ServerURL 返回当前 Hugo 预览服务器基础 URL。
 func (m *Manager) ServerURL() string { return m.serverURL }
 
-// SetServerURL 更新预览服务器基础 URL（设置页保存后生效）。
-
 // ============ 主题预览实例（独立端口，不影响主服务器） ============
 
 // StartPreview 启动主题预览服务器：自动挑选空闲端口，在独立覆盖站点
