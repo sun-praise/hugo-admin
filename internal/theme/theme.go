@@ -502,7 +502,10 @@ func upsertFirstImport(content, name string) string {
 
 	newBlock := []string{importMarker, "[[imports]]", fmt.Sprintf("path = %q", name), ""}
 	out := make([]string, 0, len(rest)+len(newBlock))
-	insertAt := 0 // 剩余内容里没有 imports 块时插到文件开头（"首位"才有意义）
+	// 剩余内容里没有 imports 块时，插到首个表头之前而不是第 0 行：
+	// TOML 里表头之后的行归属该表，把块顶到最前面会把顶层键（noVendor 等）
+	// 吞进 imports 元素里
+	insertAt := firstTableIndex(rest)
 	if len(restBlocks) > 0 {
 		insertAt = restBlocks[0].start
 	}
@@ -512,17 +515,41 @@ func upsertFirstImport(content, name string) string {
 	return strings.Join(out, "\n")
 }
 
-// moveBlockToFront 把用户已有的 imports 块整体搬到文件里首个 imports 之前。
-// 只搬块本身的整段行，其余行原样保留——用户文件不该因为切主题被重排。
-func moveBlockToFront(lines []string, b importBlock) string {
-	moved := lines[b.start:b.end]
-	others := append(append([]string{}, lines[:b.start]...), lines[b.end:]...)
-	out := make([]string, 0, len(lines)+1)
-	out = append(out, moved...)
-	if len(others) > 0 && strings.TrimSpace(others[0]) != "" {
-		out = append(out, "") // 块与后方内容之间留一个空行
+// firstTableIndex 返回首个表头所在行号；无表头返回 len(lines)。
+func firstTableIndex(lines []string) int {
+	for i, ln := range lines {
+		if reAnyTableHead.MatchString(ln) {
+			return i
+		}
 	}
-	out = append(out, others...)
+	return len(lines)
+}
+
+// moveBlockToFront 把用户已有的 imports 块搬到「首个表头之前」——即让它成为
+// 第一个表，同时把顶层键（noVendor/proxy 等）留在它上方。搬到文件第 0 行是
+// 错的：TOML 里表头之后的行归属该表，顶层键会变成 imports 元素的字段。
+// 其余行原样保留，只合并多余空行。
+func moveBlockToFront(lines []string, b importBlock) string {
+	moved := append([]string{}, lines[b.start:b.end]...)
+	for len(moved) > 0 && strings.TrimSpace(moved[len(moved)-1]) == "" {
+		moved = moved[:len(moved)-1]
+	}
+	others := append(append([]string{}, lines[:b.start]...), lines[b.end:]...)
+	at := firstTableIndex(others)
+	head, tail := others[:at], others[at:]
+	for len(head) > 0 && strings.TrimSpace(head[len(head)-1]) == "" {
+		head = head[:len(head)-1]
+	}
+	out := make([]string, 0, len(lines)+1)
+	out = append(out, head...)
+	if len(out) > 0 {
+		out = append(out, "")
+	}
+	out = append(out, moved...)
+	if len(tail) > 0 {
+		out = append(out, "")
+		out = append(out, tail...)
+	}
 	return strings.Join(out, "\n")
 }
 

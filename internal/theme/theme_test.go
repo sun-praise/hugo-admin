@@ -454,11 +454,19 @@ func TestApplyToSite(t *testing.T) {
 		if strings.Index(s, `"y"`) > strings.Index(s, `"x"`) {
 			t.Fatalf("y 应在 x 之前:\n%s", s)
 		}
+		// 顶层键必须仍在首个表头之前：TOML 里表头之后的键归属该表，
+		// 把块顶到第 0 行会让 title 变成 imports[0].title
+		if strings.Index(s, "title = 'x'") > strings.Index(s, "[[imports]]") {
+			t.Fatalf("顶层键被挤到表头之后（会变成 imports 元素字段）:\n%s", s)
+		}
 		// 其余内容逐字保留（不重排、不删空行）
 		for _, want := range []string{"title = 'x'", "[params]", "  a = 1", "path = \"x\""} {
 			if !strings.Contains(s, want) {
 				t.Fatalf("原有内容 %q 丢失:\n%s", want, s)
 			}
+		}
+		if strings.Contains(s, "\n\n\n") {
+			t.Fatalf("不应留下连续空行:\n%s", s)
 		}
 		if strings.Count(s, `"y"`) != 1 || strings.Count(s, `"x"`) != 1 {
 			t.Fatalf("不应出现重复导入:\n%s", s)
