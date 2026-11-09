@@ -229,8 +229,10 @@ func (s *Service) ActivateTheme(name string) (map[string]any, error) {
 // ============ 启用时写站点配置 ============
 
 var (
-	reImportHeader = regexp.MustCompile(`^\s*\[\[imports\]\]`)
-	reAnyTableHead = regexp.MustCompile(`^\s*\[`)
+	// 带 (?m)：这三个既要按行匹配，也要能对整份文件做存在性判断
+	//（文件首行可能是注释/其他键，^ 必须能匹配任意行首）
+	reImportHeader = regexp.MustCompile(`(?m)^\s*\[\[imports\]\]`)
+	reAnyTableHead = regexp.MustCompile(`(?m)^\s*\[`)
 	reImportPath   = regexp.MustCompile(`^\s*path\s*=\s*["'](.+?)["']`)
 	// 只匹配顶层 theme 键（行首可缩进但必须独占一个键行）；YAML 顶层键
 	// 顶格，故不加 ^\s*
@@ -397,52 +399,88 @@ func (s *Service) applyThemeInConfig(path, name string) (string, *siteChange, er
 	return fmt.Sprintf("已写入 %s（备份 .hugo-admin.bak）", rel), &change, nil
 }
 
-// upsertFirstImport 把主题的 [[imports]] 块提到 imports 首位：先移除已有的
-// 同 path 块（避免重复），再在首个块前插入。Hugo 组件按导入顺序首个匹配
-// 生效，首位即最高优先级。
-func upsertFirstImport(content, name string) string {
-	lines := strings.Split(content, "\n")
-	owner := map[int]int{} // 行号 -> 所属块起始行（仅块内行）
-	blockPath := map[int]string{}
-	var starts []int
-	cur := -1
-	for i, ln := range lines {
-		if reImportHeader.MatchString(ln) {
-			cur = i
-			starts = append(starts, i)
-			owner[i] = cur
+// importMarker 标记「本工具插入的 [[imports]] 块」：切换主题时据此只删
+// 自己写的块，用户原有的导入一个不动。没有标记的话只能按 path 猜，
+// 每切一次就多留一条旧主题的导入，旧主题的组件会从后面继续生效。
+const importMarker = "# hugo-admin 主题切换（本条由工具维护，启用别的主题时自动替换）"
+
+// importBlock 是一个 [[imports]] 块的行范围（start 含标记行，end 不含）。
+type importBlock struct {
+	start, head, end int
+	path             string
+	marked           bool
+}
+
+// parseImportBlocks 切出文件里所有 [[imports]] 块及其 path。
+func parseImportBlocks(lines []string) []importBlock {
+	var blocks []importBlock
+	for i := 0; i < len(lines); i++ {
+		if !reImportHeader.MatchString(lines[i]) {
 			continue
 		}
-		if cur >= 0 {
-			if reAnyTableHead.MatchString(ln) {
-				cur = -1
-				continue
+		b := importBlock{start: i, head: i, end: len(lines)}
+		if i > 0 && strings.TrimSpace(lines[i-1]) == importMarker {
+			b.start = i - 1
+			b.marked = true
+		}
+		for j := i + 1; j < len(lines); j++ {
+			if reAnyTableHead.MatchString(lines[j]) {
+				b.end = j
+				break
 			}
-			owner[i] = cur
-			if m := reImportPath.FindStringSubmatch(ln); m != nil {
-				blockPath[cur] = m[1]
+			if m := reImportPath.FindStringSubmatch(lines[j]); m != nil && b.path == "" {
+				b.path = m[1]
 			}
 		}
+		blocks = append(blocks, b)
+		i = b.end - 1
 	}
-	if len(starts) == 0 {
-		return content
+	return blocks
+}
+
+// upsertFirstImport 把主题的 [[imports]] 块放到 imports 首位，并清掉上次
+// 插入的那条（带 importMarker 标记）。Hugo 组件按导入顺序首个匹配生效，
+// 首位即最高优先级。
+//
+// 只维护自己插入的块是关键：按 path 去重会让用户原有的主题导入随切换次数
+// 不断堆积，旧主题的组件留在 imports 里继续生效，切换结果被污染。
+func upsertFirstImport(content, name string) string {
+	lines := strings.Split(content, "\n")
+	blocks := parseImportBlocks(lines)
+
+	skip := map[int]bool{}
+	for _, b := range blocks {
+		if !b.marked {
+			continue
+		}
+		end := b.end
+		for end < len(lines) && strings.TrimSpace(lines[end]) == "" {
+			end++ // 连同块后的空行一起清掉，避免反复切换留下空行
+		}
+		for i := b.start; i < end; i++ {
+			skip[i] = true
+		}
 	}
-	newBlock := []string{"[[imports]]", fmt.Sprintf("path = %q", name), ""}
-	out := make([]string, 0, len(lines)+len(newBlock))
-	inserted := false
+	rest := make([]string, 0, len(lines))
 	for i, ln := range lines {
-		if i == starts[0] && !inserted {
-			out = append(out, newBlock...)
-			inserted = true
+		if !skip[i] {
+			rest = append(rest, ln)
 		}
-		if start, in := owner[i]; in && blockPath[start] == name {
-			continue // 目标主题的旧块已由插入的新块替代
-		}
-		out = append(out, ln)
 	}
-	if !inserted {
-		out = append(out, newBlock...)
+
+	restBlocks := parseImportBlocks(rest)
+	if len(restBlocks) > 0 && restBlocks[0].path == name {
+		return strings.Join(rest, "\n") // 已是生效主题，无需改动
 	}
+	newBlock := []string{importMarker, "[[imports]]", fmt.Sprintf("path = %q", name), ""}
+	out := make([]string, 0, len(rest)+len(newBlock))
+	insertAt := len(rest)
+	if len(restBlocks) > 0 {
+		insertAt = restBlocks[0].start
+	}
+	out = append(out, rest[:insertAt]...)
+	out = append(out, newBlock...)
+	out = append(out, rest[insertAt:]...)
 	return strings.Join(out, "\n")
 }
 

@@ -330,10 +330,11 @@ func TestApplyToSite(t *testing.T) {
 		}
 	})
 
-	t.Run("module imports 插首位且可来回切换", func(t *testing.T) {
+	t.Run("module imports 插首位且反复切换不堆积", func(t *testing.T) {
 		root := t.TempDir()
 		mkThemeShortcode(t, root, "new", "gallery")
 		mkThemeShortcode(t, root, "old", "gallery")
+		mkThemeShortcode(t, root, "third", "gallery")
 		dir := filepath.Join(root, "config", "_default")
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
@@ -343,28 +344,48 @@ func TestApplyToSite(t *testing.T) {
 			t.Fatal(err)
 		}
 		svc := NewService(root, nil, nil)
-		if _, err := svc.ApplyToSite("new"); err != nil {
-			t.Fatalf("apply new: %v", err)
+		apply := func(name string) string {
+			t.Helper()
+			if _, err := svc.ApplyToSite(name); err != nil {
+				t.Fatalf("apply %s: %v", name, err)
+			}
+			data, _ := os.ReadFile(mod)
+			return string(data)
 		}
-		data, _ := os.ReadFile(mod)
-		got := string(data)
-		if strings.Index(got, `"new"`) > strings.Index(got, `"old"`) {
+		firstPath := func(s string) string {
+			blocks := parseImportBlocks(strings.Split(s, "\n"))
+			if len(blocks) == 0 {
+				return ""
+			}
+			return blocks[0].path
+		}
+
+		got := apply("new")
+		if firstPath(got) != "new" {
 			t.Fatalf("new 应在 imports 首位:\n%s", got)
 		}
-		if strings.Count(got, "[[imports]]") != 2 {
-			t.Fatalf("imports 块数量异常:\n%s", got)
+		if strings.Count(got, "[[imports]]") != 2 || !strings.Contains(got, "path = \"old\"") {
+			t.Fatalf("用户原有导入应保留:\n%s", got)
 		}
-		// 切回 old：old 块唯一且居首
-		if _, err := svc.ApplyToSite("old"); err != nil {
-			t.Fatalf("apply old: %v", err)
-		}
-		data, _ = os.ReadFile(mod)
-		got = string(data)
-		if strings.Index(got, `"old"`) > strings.Index(got, `"new"`) {
+
+		// 切回 old：本工具插入的块被替换掉，用户原块仍是唯一的 old
+		got = apply("old")
+		if firstPath(got) != "old" {
 			t.Fatalf("old 应在 imports 首位:\n%s", got)
 		}
-		if strings.Count(got, `"old"`) != 1 || strings.Count(got, `"new"`) != 1 {
-			t.Fatalf("块未去重:\n%s", got)
+		if strings.Count(got, `"old"`) != 1 || strings.Contains(got, `"new"`) {
+			t.Fatalf("旧主题的块应被清理:\n%s", got)
+		}
+
+		// 反复切换后块数不增长（只多出「当前启用主题」这一条）
+		for _, name := range []string{"new", "third", "new", "third"} {
+			got = apply(name)
+			if firstPath(got) != name {
+				t.Fatalf("%s 应在 imports 首位:\n%s", name, got)
+			}
+			if n := strings.Count(got, "[[imports]]"); n > 2 {
+				t.Fatalf("imports 块堆积到 %d 个:\n%s", n, got)
+			}
 		}
 	})
 
