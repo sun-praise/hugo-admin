@@ -401,7 +401,9 @@ func (s *Server) handleThemeActivate(w http.ResponseWriter, r *http.Request) {
 	note, _ := result["config_note"].(string)
 	msg := "主题已激活"
 	if note != "" {
-		msg = "主题已激活：" + note + "；重启 Hugo 服务器后生效"
+		// Hugo dev server 会热加载配置，通常无需重启；只有进程已退出时
+		// 才要手动起，措辞两种情况都兜住
+		msg = "主题已激活：" + note + "；通常立即生效，未生效请重启 Hugo 服务器"
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true, "message": msg, "theme": result,

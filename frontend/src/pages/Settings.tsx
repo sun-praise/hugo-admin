@@ -25,11 +25,15 @@ import type { AvailableTheme, ConfigFileInfo } from '../utils/api';
 import type { Settings as SettingsType, Theme } from '../types';
 type TabKey = 'general' | 'project' | 'themes' | 'config';
 
-// 预览实例默认绑在 0.0.0.0，浏览器无法直接访问，换算成当前页面的主机名。
+// 预览实例绑在 0.0.0.0（或配置里的 127.0.0.1），浏览器直接访问会指向本机；
+// 回环地址一律换算成当前页面的主机名，远程访问才连得到服务器那台机器。
 function previewSrcOf(url: string): string {
   try {
     const u = new URL(url);
-    if (u.hostname === '0.0.0.0') u.hostname = window.location.hostname;
+    const loopback = ['0.0.0.0', '127.0.0.1', 'localhost', '::1', '[::1]'];
+    if (loopback.includes(u.hostname) && window.location.hostname) {
+      u.hostname = window.location.hostname;
+    }
     return u.toString();
   } catch {
     return url;
