@@ -271,27 +271,49 @@ func (s *Service) ApplyToSite(name string) (string, error) {
 	return note, err
 }
 
-// siteChange 记录一次配置文件写入，用于失败回滚（backup 为写入前内容的
-// 备份路径）。
+// siteChange 是一次可回滚的站点改动（配置文件改写 / 空桩新建 / 空桩删除）。
+// rollback 把该项恢复到改动前；多项按逆序回滚。
 type siteChange struct {
-	path   string
-	backup string
+	desc     string
+	rollback func()
 }
 
-// applyToSite 是 ApplyToSite 的本体，额外返回本次改动的文件清单，
-// 供调用方在后续步骤失败时回滚。
+// configChange 配置文件改写的回滚：用 .hugo-admin.bak 覆盖回去，再删备份。
+func configChange(path string) siteChange {
+	backup := path + ".hugo-admin.bak"
+	return siteChange{
+		desc: "config:" + path,
+		rollback: func() {
+			data, err := os.ReadFile(backup)
+			if err != nil {
+				return
+			}
+			if err := os.WriteFile(path, data, 0o644); err == nil {
+				_ = os.Remove(backup)
+			}
+		},
+	}
+}
+
+// applyToSite 是 ApplyToSite 的本体，额外返回本次改动的回滚清单。
+// 中途任一步失败都会先自行回滚已做的改动再返回错误——否则调用方拿到的
+// changes 是「半成品」，settings 没变而配置已改，正是要消除的双源分叉。
 func (s *Service) applyToSite(name string) (string, []siteChange, error) {
 	if !s.ThemeExists(name) {
 		return "", nil, fmt.Errorf("主题不存在: %s", name)
 	}
 	var notes []string
 	var changes []siteChange
+	abort := func(err error) (string, []siteChange, error) {
+		rollbackChanges(changes)
+		return "", nil, err
+	}
 
 	cfgPath := s.findConfigFile()
 	if cfgPath != "" {
 		note, change, err := s.applyThemeInConfig(cfgPath, name)
 		if err != nil {
-			return "", changes, err
+			return abort(err)
 		}
 		if note != "" {
 			notes = append(notes, note)
@@ -301,8 +323,8 @@ func (s *Service) applyToSite(name string) (string, []siteChange, error) {
 		}
 	}
 
-	if err := s.syncShortcodeStubs(name); err != nil {
-		return "", changes, fmt.Errorf("同步 shortcode 空桩失败: %v", err)
+	if err := s.syncShortcodeStubs(name, &changes); err != nil {
+		return abort(fmt.Errorf("同步 shortcode 空桩失败: %v", err))
 	}
 
 	if len(notes) == 0 {
@@ -311,16 +333,10 @@ func (s *Service) applyToSite(name string) (string, []siteChange, error) {
 	return strings.Join(notes, "；"), changes, nil
 }
 
-// rollbackChanges 用备份还原被改写的配置文件（回滚后备份即冗余，一并删除）。
+// rollbackChanges 逆序回滚（后做的先撤），单项失败只跳过不影响其余项。
 func rollbackChanges(changes []siteChange) {
-	for _, c := range changes {
-		data, err := os.ReadFile(c.backup)
-		if err != nil {
-			continue
-		}
-		if err := os.WriteFile(c.path, data, 0o644); err == nil {
-			_ = os.Remove(c.backup)
-		}
+	for i := len(changes) - 1; i >= 0; i-- {
+		changes[i].rollback()
 	}
 }
 
@@ -377,8 +393,8 @@ func (s *Service) applyThemeInConfig(path, name string) (string, *siteChange, er
 		return "", nil, err
 	}
 	rel, _ := filepath.Rel(s.hugoRoot, path)
-	change := &siteChange{path: path, backup: path + ".hugo-admin.bak"}
-	return fmt.Sprintf("已写入 %s（备份 .hugo-admin.bak）", rel), change, nil
+	change := configChange(path)
+	return fmt.Sprintf("已写入 %s（备份 .hugo-admin.bak）", rel), &change, nil
 }
 
 // upsertFirstImport 把主题的 [[imports]] 块提到 imports 首位：先移除已有的
@@ -507,7 +523,8 @@ func backupFile(path string) error {
 // syncShortcodeStubs 让站点根 layouts/_shortcodes/ 恰好补齐「内容用到而
 // 主题未提供」的 shortcode：缺失的生成空桩；根桩中主题已提供的删除
 // （项目布局优先级高于主题，残留空桩会覆盖新主题的真实实现）。
-func (s *Service) syncShortcodeStubs(themeName string) error {
+// 每项改动都记进 changes，供调用方在中途失败时回滚。
+func (s *Service) syncShortcodeStubs(themeName string, changes *[]siteChange) error {
 	used, err := s.scanContentShortcodes()
 	if err != nil {
 		return err
@@ -530,9 +547,13 @@ func (s *Service) syncShortcodeStubs(themeName string) error {
 		// 空桩改成自己的实现（哪怕只留了那行标记），文件已归用户，不动。
 		p := filepath.Join(stubDir, e.Name())
 		data, err := os.ReadFile(p)
-		if err == nil && strings.TrimSpace(string(data)) == stubContent() {
-			_ = os.Remove(p)
+		if err != nil || strings.TrimSpace(string(data)) != stubContent() {
+			continue
 		}
+		if err := os.Remove(p); err != nil {
+			continue
+		}
+		*changes = append(*changes, removedStubChange(p, data))
 	}
 	missing := map[string]bool{}
 	for sc := range used {
@@ -554,8 +575,25 @@ func (s *Service) syncShortcodeStubs(themeName string) error {
 		if err := os.WriteFile(p, []byte(stubContent()), 0o644); err != nil {
 			return err
 		}
+		*changes = append(*changes, createdStubChange(p))
 	}
 	return nil
+}
+
+// createdStubChange 新建空桩的回滚：删掉这个文件。
+func createdStubChange(path string) siteChange {
+	return siteChange{
+		desc:     "stub+:" + path,
+		rollback: func() { _ = os.Remove(path) },
+	}
+}
+
+// removedStubChange 删除空桩的回滚：把删除前的原内容写回。
+func removedStubChange(path string, content []byte) siteChange {
+	return siteChange{
+		desc:     "stub-:" + path,
+		rollback: func() { _ = os.WriteFile(path, content, 0o644) },
+	}
 }
 
 // scanContentShortcodes 扫描 content/ 下 .md 里用到的 shortcode 名

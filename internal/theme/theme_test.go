@@ -521,3 +521,36 @@ func TestActivateThemeRollsBackConfigWhenSettingsFails(t *testing.T) {
 		t.Fatalf("配置未写入:\n%s", data)
 	}
 }
+
+// 配置已改写、随后空桩同步失败：applyToSite 必须自行回滚，不能把半成品
+// 交给调用方（否则 settings 旧 / 配置新，仍是双源分叉）。
+func TestApplyToSiteRollsBackWhenStubSyncFails(t *testing.T) {
+	root := t.TempDir()
+	mkThemeShortcode(t, root, "new", "other") // new 不提供 gallery
+	cfg := filepath.Join(root, "hugo.toml")
+	orig := "title = 'x'\ntheme = \"old\"\n"
+	if err := os.WriteFile(cfg, []byte(orig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "content"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "content", "a.md"), []byte("{{< gallery >}}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// layouts 占位成普通文件 → MkdirAll(layouts/_shortcodes) 必失败
+	if err := os.WriteFile(filepath.Join(root, "layouts"), []byte("not a dir"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := NewService(root, nil, nil).ApplyToSite("new"); err == nil {
+		t.Fatal("空桩同步失败应报错")
+	}
+	data, _ := os.ReadFile(cfg)
+	if string(data) != orig {
+		t.Fatalf("空桩同步失败后配置应还原，实际:\n%s", data)
+	}
+	if _, err := os.Stat(cfg + ".hugo-admin.bak"); !os.IsNotExist(err) {
+		t.Fatal("回滚后不应残留备份文件")
+	}
+}
