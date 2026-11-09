@@ -212,7 +212,19 @@ func TestMonitorLogsStaleCmdNotClearState(t *testing.T) {
 }
 
 func TestPreviewLifecycle(t *testing.T) {
-	m := NewManager(t.TempDir(), "http://0.0.0.0:1313", nil)
+	root := t.TempDir()
+	// 准备两篇内容：预览要采样它们，落点必须是 content/posts/（分区名
+	// 决定主题首页列表能否列出文章）
+	if err := os.MkdirAll(filepath.Join(root, "content"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"a.md", "b.md"} {
+		doc := "---\ntitle: 测试" + n + "\n---\n正文 {{< gallery >}}\n"
+		if err := os.WriteFile(filepath.Join(root, "content", n), []byte(doc), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := NewManager(root, "http://0.0.0.0:1313", nil)
 	t.Cleanup(func() { m.StopPreview(); m.Stop() })
 
 	// 未运行
@@ -253,6 +265,17 @@ func TestPreviewLifecycle(t *testing.T) {
 	// 首页列表靠 section 名匹配，必须声明 mainSections 且采样落在 posts/
 	if !strings.Contains(string(siteCfg), "mainSections = ['posts']") {
 		t.Fatalf("覆盖站点缺 mainSections 声明（首页会渲染成空列表）: %q", siteCfg)
+	}
+	// 配置写 posts、文件却落 post 是这次踩的坑：目录与声明必须一致
+	if _, err := os.Stat(filepath.Join(siteDir, "content", "posts", "post-01.md")); err != nil {
+		t.Fatalf("采样文件应落在 content/posts/post-01.md: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(siteDir, "content", "post")); !os.IsNotExist(err) {
+		t.Fatal("不应再生成 content/post/（单数）目录")
+	}
+	// 正文用到的 shortcode 要有空桩，否则构建直接失败
+	if _, err := os.Stat(filepath.Join(siteDir, "layouts", "_shortcodes", "gallery.html")); err != nil {
+		t.Fatalf("采样正文的 shortcode 应生成空桩: %v", err)
 	}
 	if _, err := os.Lstat(filepath.Join(siteDir, "themes")); err != nil {
 		t.Fatalf("themes 软链缺失: %v", err)

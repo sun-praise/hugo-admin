@@ -229,11 +229,12 @@ func (s *Service) ActivateTheme(name string) (map[string]any, error) {
 // ============ 启用时写站点配置 ============
 
 var (
-	// 带 (?m)：这三个既要按行匹配，也要能对整份文件做存在性判断
+	// 前两个带 (?m)：除了按行匹配，还要能对整份文件做存在性判断
 	//（文件首行可能是注释/其他键，^ 必须能匹配任意行首）
 	reImportHeader = regexp.MustCompile(`(?m)^\s*\[\[imports\]\]`)
 	reAnyTableHead = regexp.MustCompile(`(?m)^\s*\[`)
-	reImportPath   = regexp.MustCompile(`^\s*path\s*=\s*["'](.+?)["']`)
+	// reImportPath 只按行调用，不需要 (?m)
+	reImportPath = regexp.MustCompile(`^\s*path\s*=\s*["'](.+?)["']`)
 	// 只匹配顶层 theme 键（行首可缩进但必须独占一个键行）；YAML 顶层键
 	// 顶格，故不加 ^\s*
 	reTopLevelThemeTOML = regexp.MustCompile(`^\s*theme\s*=`)
@@ -406,9 +407,22 @@ const importMarker = "# hugo-admin 主题切换（本条由工具维护，启用
 
 // importBlock 是一个 [[imports]] 块的行范围（start 含标记行，end 不含）。
 type importBlock struct {
-	start, head, end int
-	path             string
-	marked           bool
+	start, end int
+	path       string
+	marked     bool
+}
+
+// markedAbove 判断第 i 行上方最近的**非空**行是否为工具标记。
+// 放宽到「跳过空行」是有意的：用户手一抖在标记与 [[imports]] 之间敲了
+// 个空行，块不该因此退化成「用户的块」而永久残留。
+func markedAbove(lines []string, i int) bool {
+	for j := i - 1; j >= 0; j-- {
+		if strings.TrimSpace(lines[j]) == "" {
+			continue
+		}
+		return strings.TrimSpace(lines[j]) == importMarker
+	}
+	return false
 }
 
 // parseImportBlocks 切出文件里所有 [[imports]] 块及其 path。
@@ -418,8 +432,8 @@ func parseImportBlocks(lines []string) []importBlock {
 		if !reImportHeader.MatchString(lines[i]) {
 			continue
 		}
-		b := importBlock{start: i, head: i, end: len(lines)}
-		if i > 0 && strings.TrimSpace(lines[i-1]) == importMarker {
+		b := importBlock{start: i, end: len(lines)}
+		if markedAbove(lines, i) {
 			b.start = i - 1
 			b.marked = true
 		}
@@ -444,6 +458,8 @@ func parseImportBlocks(lines []string) []importBlock {
 //
 // 只维护自己插入的块是关键：按 path 去重会让用户原有的主题导入随切换次数
 // 不断堆积，旧主题的组件留在 imports 里继续生效，切换结果被污染。
+// 反过来，若用户自己就有同 path 的导入，则把那条整体移到首位，不再插一条
+// 重复的 module import。
 func upsertFirstImport(content, name string) string {
 	lines := strings.Split(content, "\n")
 	blocks := parseImportBlocks(lines)
@@ -472,6 +488,13 @@ func upsertFirstImport(content, name string) string {
 	if len(restBlocks) > 0 && restBlocks[0].path == name {
 		return strings.Join(rest, "\n") // 已是生效主题，无需改动
 	}
+	// 用户自己的同 path 导入：移到首位即可，重复插一条会变成两条相同 import
+	for _, b := range restBlocks {
+		if b.path == name {
+			return moveBlockToFront(rest, b)
+		}
+	}
+
 	newBlock := []string{importMarker, "[[imports]]", fmt.Sprintf("path = %q", name), ""}
 	out := make([]string, 0, len(rest)+len(newBlock))
 	insertAt := len(rest)
@@ -482,6 +505,26 @@ func upsertFirstImport(content, name string) string {
 	out = append(out, newBlock...)
 	out = append(out, rest[insertAt:]...)
 	return strings.Join(out, "\n")
+}
+
+// moveBlockToFront 把用户已有的 imports 块整体搬到文件里首个 imports 之前。
+func moveBlockToFront(lines []string, b importBlock) string {
+	moved := make([]string, 0, b.end-b.start+1)
+	for _, ln := range lines[b.start:b.end] {
+		if strings.TrimSpace(ln) != "" { // 块内空行不搬
+			moved = append(moved, ln)
+		}
+	}
+	others := append(append([]string{}, lines[:b.start]...), lines[b.end:]...)
+	for len(others) > 0 && strings.TrimSpace(others[0]) == "" {
+		others = others[1:]
+	}
+	for len(others) > 0 && strings.TrimSpace(others[len(others)-1]) == "" {
+		others = others[:len(others)-1]
+	}
+	out := append(moved, "")
+	out = append(out, others...)
+	return strings.Join(out, "\n") + "\n"
 }
 
 // setTOMLThemeKey 把 theme 键写在**顶层**：已有顶层 theme 行则替换，否则插到

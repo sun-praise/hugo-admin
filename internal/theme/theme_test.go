@@ -389,6 +389,40 @@ func TestApplyToSite(t *testing.T) {
 		}
 	})
 
+	t.Run("用户已有同 path 导入时移到首位，不插重复块", func(t *testing.T) {
+		root := t.TempDir()
+		mkThemeShortcode(t, root, "x", "gallery")
+		mkThemeShortcode(t, root, "y", "gallery")
+		dir := filepath.Join(root, "config", "_default")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mod := filepath.Join(dir, "module.toml")
+		// y 是用户自己写的块，但排在 x 后面
+		orig := "[[imports]]\npath = \"x\"\n\n[[imports]]\npath = \"y\"\n"
+		if err := os.WriteFile(mod, []byte(orig), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewService(root, nil, nil).ApplyToSite("y"); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		got, _ := os.ReadFile(mod)
+		s := string(got)
+		blocks := parseImportBlocks(strings.Split(s, "\n"))
+		if len(blocks) == 0 || blocks[0].path != "y" {
+			t.Fatalf("y 应被移到首位:\n%s", s)
+		}
+		if strings.Count(s, `"y"`) != 1 {
+			t.Fatalf("不应插入重复的 y 导入:\n%s", s)
+		}
+		if strings.Count(s, `"x"`) != 1 {
+			t.Fatalf("x 导入应保留:\n%s", s)
+		}
+		if strings.Contains(s, importMarker) {
+			t.Fatalf("复用用户块时不该留工具标记:\n%s", s)
+		}
+	})
+
 	t.Run("shortcode 空桩按主题能力自动同步", func(t *testing.T) {
 		root := t.TempDir()
 		mkThemeShortcode(t, root, "old", "gallery") // old 提供 gallery
