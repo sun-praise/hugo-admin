@@ -80,6 +80,9 @@ test-report.md
 
 app.log.*
 
+# Local config（.dockerignore 已忽略，git 侧保持一致）
+.env
+
 # Go build output
 bin/
 

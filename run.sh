@@ -2,12 +2,15 @@
 # hugo-admin (Go) 启动脚本
 #
 # 用法: ./run.sh [--build]
-#   --build   强制重建前端（默认前端产物缺失时才构建）
+#   --build    强制重建前端（默认前端产物缺失时才构建）
+#   -h/--help  显示帮助
 #
 # 配置通过环境变量或仓库根 .env 提供（PORT/HUGO_ROOT/CONTENT_DIR/
-# SECRET_KEY/ADMIN_UI_DIR/API_TOKEN/AI_* 等），字段语义见
-# internal/config/config.go。本脚本按同一语义预读 .env：
-# KEY=VALUE 行、# 注释、成对引号去除、已存在的环境变量优先。
+# SECRET_KEY/API_TOKEN/AI_* 等），字段语义见 internal/config/config.go。
+# 本脚本按同一语义预读 .env：KEY=VALUE 行、# 注释、成对引号去除、
+# 已存在的环境变量优先。
+# 注意：前端产物探测固定为 admin-ui/（vite 构建输出位置写死，
+# 见 frontend/vite.config.ts 的 outDir）；服务端托管目录由 ADMIN_UI_DIR 决定。
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,6 +19,18 @@ cd "$SCRIPT_DIR"
 usage() {
     echo "用法: ./run.sh [--build]" >&2
     exit 1
+}
+
+help() {
+    cat <<'EOF'
+用法: ./run.sh [--build]
+
+  --build    强制重建前端（默认前端产物 admin-ui/ 缺失时才构建）
+  -h/--help  显示本帮助
+
+配置经环境变量或仓库根 .env 提供（PORT/HUGO_ROOT/CONTENT_DIR/SECRET_KEY/
+API_TOKEN/AI_* 等），字段语义见 internal/config/config.go。
+EOF
 }
 
 die() {
@@ -47,9 +62,8 @@ load_dotenv() {
             esac
         fi
         [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
-        if [ -z "${!key+x}" ]; then
-            export "$key=$value"
-        fi
+        # declare -p 检测变量是否已设置，兼容 bash 3.2（macOS 自带版本）
+        declare -p "$key" >/dev/null 2>&1 || export "$key=$value"
     done < "$env_file"
 }
 
@@ -57,6 +71,7 @@ FORCE_BUILD=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --build) FORCE_BUILD=1; shift ;;
+        -h | --help) help; exit 0 ;;
         *) usage ;;
     esac
 done
@@ -66,10 +81,18 @@ load_dotenv "$APP_ROOT/.env"
 
 # --- Go 工具链 ---
 command -v go >/dev/null 2>&1 || die "未找到 go 命令（需要 Go 1.24+）"
+GO_VER="$(go version 2>/dev/null | awk '{print $3}')"
+GO_VER="${GO_VER#go}"
+if [[ "$GO_VER" =~ ^([0-9]+)\.([0-9]+) ]]; then
+    if [ "${BASH_REMATCH[1]}" -lt 1 ] || { [ "${BASH_REMATCH[1]}" -eq 1 ] && [ "${BASH_REMATCH[2]}" -lt 24 ]; }; then
+        # 仅警告不阻断：GOTOOLCHAIN=auto（默认）时 go build 会按 go.mod
+        # 自动下载 1.24+ 工具链，硬拒会误伤本可构建的环境
+        echo "==> 警告: Go $GO_VER 低于 go.mod 要求的 1.24，若 GOTOOLCHAIN 未开启 auto 则构建会失败"
+    fi
+fi
 
-# --- 前端构建产物（Go 二进制直接托管，目录由 ADMIN_UI_DIR 决定，默认 admin-ui/）---
-ADMIN_UI="${ADMIN_UI_DIR:-$APP_ROOT/admin-ui}"
-if [ "$FORCE_BUILD" -eq 1 ] || [ ! -f "$ADMIN_UI/index.html" ]; then
+# --- 前端构建产物（vite 输出固定为 admin-ui/）---
+if [ "$FORCE_BUILD" -eq 1 ] || [ ! -f "$SCRIPT_DIR/admin-ui/index.html" ]; then
     command -v pnpm >/dev/null 2>&1 || die "未找到 pnpm，无法构建前端（需要 Node >= 22 + pnpm 9+）"
     echo "==> 构建前端..."
     if [ -d frontend/node_modules ]; then
@@ -77,7 +100,6 @@ if [ "$FORCE_BUILD" -eq 1 ] || [ ! -f "$ADMIN_UI/index.html" ]; then
     else
         (cd frontend && pnpm install --frozen-lockfile && pnpm run build)
     fi
-    # vite 输出固定为 frontend/../admin-ui
     [ -f "$SCRIPT_DIR/admin-ui/index.html" ] || die "前端构建完成但未找到产物: admin-ui/index.html"
 fi
 
@@ -107,5 +129,5 @@ if [ ! -w "$_content_parent" ]; then
   HUGO_ROOT=~/work/blog/<站点> CONTENT_DIR=~/work/blog/<站点>/content ./run.sh"
 fi
 
-echo "==> 启动 hugo-admin (Go): http://127.0.0.1:${PORT:-5050}"
+echo "==> 启动 hugo-admin (Go): http://localhost:${PORT:-5050}（监听所有网卡，生产请置于反向代理之后）"
 exec ./bin/hugo-admin
