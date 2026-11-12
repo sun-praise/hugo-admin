@@ -1,21 +1,20 @@
 # Hugo Admin
 
+[![License](https://img.shields.io/github/license/sun-praise/hugo-admin)](LICENSE)
+[![Go](https://img.shields.io/badge/go-1.24%2B-00ADD8)](https://go.dev/)
+[![Coverage](https://codecov.io/gh/sun-praise/hugo-admin/graph/badge.svg)](https://codecov.io/gh/sun-praise/hugo-admin)
+[![Hugo](https://img.shields.io/badge/hugo-compatible-ff4088)](https://gohugo.io/)
+[![文档](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://sun-praise.github.io/hugo-admin/)
+
+[中文](README.zh-CN.md) | [English](README.md)
+
 > **版本说明**
 >
 > - **`main`（v3）**——活跃开发分支。后端已完全用 **Go** 重写
->   （单二进制、gRPC 插件、SSE 实时推送）。
+>   （单二进制、gRPC 插件、SSE 实时推送）。日常开发请用本分支。
 > - **`v2`**——此前的 Python/Flask 实现，**维护模式**保留
->   （仅安全修复，不再新增功能）。完整 Python 历史在该分支。
-
-
-[![Tests](https://github.com/sun-praise/hugo-admin/workflows/Tests/badge.svg)](https://github.com/sun-praise/hugo-admin/actions)
-[![License](https://img.shields.io/github/license/sun-praise/hugo-admin)](https://github.com/sun-praise/hugo-admin/blob/main/LICENSE)
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
-[![文档](https://img.shields.io/badge/文档-mkdocs--material-blue)](https://sun-praise.github.io/hugo-admin/)
-[![Hugo](https://img.shields.io/badge/hugo-compatible-ff4088)](https://gohugo.io/)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-
-中文 | [English](README.md)
+>   （仅安全修复，不再新增功能）。完整 Python 历史在该分支；
+>   迁移要点见[「v2 → v3 迁移」](#v2--v3-迁移)。
 
 ## 截图
 
@@ -23,189 +22,99 @@
 
 ## 功能特性
 
-- **📊 仪表板**: 博客统计信息和快速操作概览
-- **📝 文章管理**: 按分类和标签浏览、搜索和筛选文章
-- **✏️ Markdown 编辑器**: 在线编辑，支持自动保存和快捷键
-- **🚀 Hugo 服务器控制**: 启动/停止 Hugo 开发服务器，实时日志
-- **🔍 高级搜索**: 全文搜索，支持分类和标签过滤
-- **⚡ 实时更新**: 基于 WebSocket 的实时日志流
-- **💾 缓存系统**: 基于 SQLite 的缓存，快速检索文章
-- **🔐 密码登录**: 单管理员认证，保护所有 API 与实时通道
-- **🔌 插件系统**: 通过基于 gRPC 的插件扩展 hugo-admin——详见[插件系统设计文档](openspec/changes/add-plugin-system/design.md)与[`proto/plugin.proto`](proto/plugin.proto)
+- **📊 仪表板**：博客统计信息与常用操作概览
+- **📝 文章管理**：按分类和标签浏览、搜索、筛选文章
+- **✏️ Markdown 编辑器**：在线编辑，支持乐观锁、剪贴板粘贴图片、AI frontmatter 建议、TTS 生成
+- **🚀 Hugo 服务器控制**：启动/停止 Hugo 开发服务器，SSE 实时日志
+- **🔍 高级搜索**：全文搜索，支持分类与标签过滤
+- **⚡ 实时更新**：基于 SSE 的实时事件推送
+- **🔐 密码登录**：单管理员认证，保护所有 API 与实时通道
+- **🔌 插件系统**：基于 gRPC 的插件扩展——详见 [`proto/plugin.proto`](proto/plugin.proto)
+- **🤖 AI 助手**：博客感知的对话、内联改写、文章导入（AI 补全 frontmatter 与封面生成）
+- **📧 邮件推送**：通过 listmonk 将最新文章推送给订阅者
+- **🎨 主题管理**：Hugo 主题的发现、安装、预览与启用
 
-## 技术栈
+## 技术栈（v3）
 
-- **后端**: Flask + Flask-SocketIO
-- **前端**: Tailwind CSS + Alpine.js
-- **实时通信**: WebSocket (Socket.IO)
-- **进程管理**: psutil
-- **数据库**: SQLite (用于缓存)
+- **后端**：Go 1.24+ —— 标准库 `net/http`、`modernc.org/sqlite`（免 CGO）、`grpc-go`、`trpc-agent-go`
+- **前端**：React + TypeScript + Vite + Tailwind CSS
+- **实时通信**：Server-Sent Events（`/api/events`），连接 v2 后端时自动回退 Socket.IO
+- **存储**：SQLite（与 v2 共享表结构）+ YAML frontmatter 文件
+- **插件**：gRPC 子进程，配置用 Fernet 加密（密钥与 v2 共享）
 
-## 安装
-### Docker（推荐）
-从 GHCR 拉取镜像并使用 Docker Compose 启动：
+## 快速开始
+
 ```bash
-# 克隆仓库
-git clone https://github.com/sun-praise/hugo-admin.git
-cd hugo-admin
-# 启动服务
-docker compose up -d
+# 构建前端
+cd frontend && pnpm install && pnpm build && cd ..
+
+# 编译并运行（默认：端口 5050，凭据文件 data/auth.json）
+go build -o hugo-admin ./cmd/hugo-admin
+./hugo-admin
+
+# 也可通过环境变量指定：
+AUTH_STORE=/path/to/auth.json \
+HUGO_ROOT=/path/to/blog \
+CONTENT_DIR=/path/to/blog/content \
+PORT=8961 ./hugo-admin
 ```
-在浏览器中打开 `http://127.0.0.1:5050`。
-卷挂载和环境变量请参考 [docker-compose.yml](docker-compose.yml)，根据实际 Hugo 站点目录结构调整挂载路径。
-### 手动安装
-#### 环境要求
-- Python 3.9+
-- Hugo (已安装并在 PATH 中)
-#### 安装步骤
-1. 克隆仓库:
+
+本地开发推荐用根目录的 `./run.sh`：自动构建前端（产物缺失时）、编译后端并启动，详见 [docs/QUICKSTART.md](docs/QUICKSTART.md)。
+
+### Docker
+
 ```bash
-git clone https://github.com/sun-praise/hugo-admin.git
-cd hugo-admin
-```
-2. 安装依赖:
-```bash
-pip install .
-```
-3. 配置应用:
-```bash
-cp config.py config_local.py
-# 编辑 config_local.py 设置你的 Hugo 根目录
-```
-4. 运行应用:
-```bash
-python app.py
-```
-5. 在浏览器中打开 `http://127.0.0.1:5050`
-
-## 配置
-
-编辑 `config.py` 或创建 `config_local.py` 进行自定义:
-
-```python
-# Hugo 根目录 (content/ 的父目录)
-HUGO_ROOT = '/path/to/your/hugo/site'
-
-# 内容目录
-CONTENT_DIR = HUGO_ROOT + '/content'
-
-# Hugo 服务器设置
-HUGO_SERVER_PORT = 1313
-HUGO_SERVER_HOST = '127.0.0.1'
+docker build -f Dockerfile-go -t hugo-admin-go .
+docker run -p 5050:5050 -v ~/.hugo-admin:/root/.hugo-admin -v /path/to/blog:/blog \
+  -e HUGO_ROOT=/blog hugo-admin-go
 ```
 
-## 使用说明
+### 配置
 
-### 仪表板
-- 查看博客统计信息（文章数、标签数、分类数）
-- 检查 Hugo 服务器状态
-- 快速访问常用操作
-- 最近文章概览
+| 环境变量 | 默认值 | 说明 |
+|---|---|---|
+| `PORT` | `5050` | HTTP 监听端口 |
+| `SECRET_KEY` | 开发默认值 | 会话签名密钥（语义同 v2） |
+| `AUTH_STORE` | `data/auth.json` | 凭据文件（兼容 werkzeug 哈希） |
+| `HUGO_ROOT` | 当前目录 | Hugo 站点根目录 |
+| `CONTENT_DIR` | `<HUGO_ROOT>/content` | 内容目录 |
+| `AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` | — | AI 服务配置 |
+| `OPENROUTER_API_KEY` | — | 封面图生成 |
 
-### 文章管理
-- 分页浏览所有文章
-- 按标题、内容、标签或分类搜索文章
-- 按特定分类或标签筛选
-- 点击任意文章进入编辑
+环境变量也可写入仓库根 `.env`（`.env.example` 为模板，已 gitignore，不会误提交）。
 
-### 编辑器
-- 编辑 Markdown 文件，支持语法高亮
-- 自动保存更改
-- 键盘快捷键：`Ctrl+S` / `Cmd+S` 保存
-- 实时保存状态指示器
+## v2 → v3 迁移
 
-### 服务器控制
-- 启动 Hugo 服务器（支持草稿模式）
-- 停止运行中的服务器
-- 查看服务器状态（PID、运行时间、CPU、内存）
-- 实时日志流
+v3 后端是对 v2 的逐行为移植，由 **105 条 API 契约样本**
+（`contracts/api_samples.jsonl`）在 CI 中对 Go 实现回放验证。关键兼容性保证：
+
+- **会话 Cookie 互通**——浏览器登录 v2 后即登录 v3，反之亦然
+  （同一 itsdangerous HMAC 方案）。
+- **`auth.json` 凭据共享**——werkzeug scrypt/pbkdf2 哈希两套实现互认。
+- **SQLite 共享**——一侧写入的推送历史与聊天会话另一侧可读
+  （插件配置的 `~/.hugo-admin/` Fernet 密钥同样共享）。
+- **前端同时兼容两套后端**——实时层优先 SSE（v3），连 v2 时自动回退 Socket.IO。
+
+已知行为差异（详见提交记录）：
+
+- v3 中在设置里修改 Hugo 根目录需要重启服务（v2 会热替换服务实例）。
+- `save_file` 的 YAML 输出使用 yaml.v3（字符串双引号、块列表缩进），
+  与 PyYAML 不完全一致——语义等价，Hugo 均可解析。
+- 文章缓存改为直接文件系统扫描（无 SQLite 缓存层）；
+  `/api/cache/stats` 报告实时计数。
 
 ## 开发
 
-### 运行测试
-
 ```bash
-# 安装开发依赖
-pip install -r requirements-dev.txt
+go build ./... && go vet ./...
+go test ./... -count=1              # 10 个包，含契约回放
 
-# 运行所有测试
-pytest
+# 重新录制 API 契约样本（需要 v2 检出跑 pytest 录制器）：
+# RECORD_CONTRACT=1 CONTRACT_OUT=contracts/api_samples.jsonl pytest tests/
 
-# 运行测试并生成覆盖率报告
-pytest --cov=. --cov-report=html
+cd frontend && pnpm build           # 重建 admin-ui
 ```
-
-### 项目结构
-
-```
-hugo-admin/
-├── app.py                 # Flask 应用
-├── config.py              # 配置文件
-├── pyproject.toml         # 依赖和项目元数据
-├── Dockerfile-go          # Docker 镜像构建（Go 单二进制）
-├── docker-compose.yml     # Docker Compose 配置
-├── pytest.ini             # Pytest 配置
-├── services/              # 业务逻辑层
-├── routes/                # Flask 蓝图（API 路由）
-├── frontend/              # React + Vite SPA
-├── tests/                 # 测试套件
-```
-
-## 贡献
-
-欢迎贡献！请随时提交 Pull Request。对于重大更改，请先开 issue 讨论您想要更改的内容。
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
-## 安全性
-
-- **需要登录**：所有 `/api/*` 接口与 SocketIO 实时通道都受密码会话保护，未登录请求返回 `401`。
-- 首次启动会创建默认 `admin`/`admin` 账户——对外暴露前请用 `ADMIN_USERNAME`/`ADMIN_PASSWORD` 覆盖，或登录后在应用内改密。
-- 密码仅以加盐哈希存储（`werkzeug.security`），凭据存放在 `data/auth.json` 且不会提交到仓库；凭据文件损坏/不可读时启动会中止（fail closed），绝不静默重置管理员。
-- 文件操作限制在 `content` 目录内，含路径遍历保护。
-- 生产环境请设置强 `SECRET_KEY`，并将服务放在可信网络或反向代理之后。
-
-## 开发路线图
-
-- [x] 基础框架
-- [x] Hugo 服务器控制
-- [x] 文章浏览和搜索
-- [x] Markdown 编辑器
-- [x] Markdown 预览
-- [x] SQLite 缓存系统
-- [x] 测试套件与 CI/CD
-- [x] 图片上传和管理
-- [x] Docker 支持
-- [x] Git 操作界面
-- [x] 基于密码的管理员登录
-- [ ] 批量操作
-- [ ] 多用户支持
-
-## 文档
-
-完整文档（部署、使用、开发、变更日志）已部署到 GitHub Pages：
-
-**https://sun-praise.github.io/hugo-admin/**
-
-主要章节：
-
-- [Docker 部署](https://sun-praise.github.io/hugo-admin/docker/)
-- [快速开始](https://sun-praise.github.io/hugo-admin/QUICKSTART/)
-- [缓存使用](https://sun-praise.github.io/hugo-admin/CACHE_USAGE/)
-- [GitHub 设置](https://sun-praise.github.io/hugo-admin/GITHUB_SETUP/)
-- [Frontmatter 重构](https://sun-praise.github.io/hugo-admin/FRONTMATTER_REFACTOR/)
-- [插件系统](openspec/changes/add-plugin-system/design.md) —— 基于 gRPC 的插件架构、能力与如何编写自己的插件
-
-使用 [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) 构建，源文件在 [`docs/`](docs/)，由 [`.github/workflows/pages.yml`](.github/workflows/pages.yml) 自动部署。
 
 ## 许可证
 
-Apache License 2.0 - 详见 [LICENSE](LICENSE) 文件
-
-## 致谢
-
-为 Hugo 社区用 ❤️ 构建。
+Apache-2.0 —— 详见 [LICENSE](LICENSE)
