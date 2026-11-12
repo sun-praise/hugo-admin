@@ -80,6 +80,9 @@ test-report.md
 
 app.log.*
 
+# Go build output
+bin/
+
 # Frontend
 frontend/node_modules/
 frontend/dist/

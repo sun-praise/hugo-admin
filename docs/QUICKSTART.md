@@ -2,83 +2,68 @@
 
 ## 一、安装依赖
 
+- Go 1.24+（后端）
+- Node >= 22 + pnpm 9+（前端构建）
+- Hugo（可选，仅影响 Hugo 服务器控制功能）
+
+## 二、启动
+
 ### 方法 1: 使用启动脚本(推荐)
 
 ```bash
-cd web_admin
 chmod +x run.sh
 ./run.sh
 ```
 
-启动脚本会自动检查并安装依赖。
+脚本会自动构建前端（首次运行）、编译后端并启动服务。传 `--build` 可强制重建前端。
 
-### 方法 2: 手动安装
+### 方法 2: 手动启动
 
 ```bash
-cd web_admin
-pip install -r requirements.txt
-python app.py
+# 构建前端（产物输出到 admin-ui/）
+cd frontend && pnpm install --frozen-lockfile && pnpm run build && cd ..
+
+# 启动后端
+go run ./cmd/hugo-admin
 ```
 
-## 二、访问应用
+## 三、配置
 
-打开浏览器访问: **http://127.0.0.1:5000**
+后端配置通过环境变量或仓库根 `.env` 提供（环境变量优先）：
 
-## 三、功能使用
-
-### 1. 仪表板 (首页)
-
-- 查看博客统计信息
-- 快速新建文章
-- 查看最近文章
-
-### 2. 文章管理 (/posts)
-
-**搜索文章:**
-- 在搜索框输入关键词(标题、内容、标签)
-- 支持按分类筛选
-- 支持按标签筛选
-
-**新建文章:**
-1. 点击"新建文章"按钮
-2. 输入文章标题
-3. 自动跳转到编辑器
-
-### 3. 文章编辑器 (/editor)
-
-**编辑文章:**
-- 从文章列表点击"编辑"进入
-- 在编辑器中修改内容
-- 点击"保存"按钮或按 Ctrl+S / Cmd+S 保存
-
-**编辑器特性:**
-- Markdown 语法支持
-- 自动检测文件变更
-- 快捷键保存
-
-### 4. 服务器控制 (/server)
-
-**启动 Hugo 服务器:**
-- 点击"启动服务器"(普通模式)
-- 或点击"启动服务器(草稿模式)"(显示草稿)
-
-**查看日志:**
-- 实时显示 Hugo 服务器输出
-- 支持清空日志
-
-**停止服务器:**
-- 点击"停止服务器"按钮
-
-**访问网站:**
-- 服务器运行后，点击"访问网站"按钮
-
-## 四、常见问题
-
-### Q1: 启动时提示 "ModuleNotFoundError: No module named 'flask'"
-
-**解决:** 安装依赖
 ```bash
-pip install -r requirements.txt
+cp .env.example .env
+# 编辑 .env，把 HUGO_ROOT / CONTENT_DIR 指向你的 Hugo 站点目录
+```
+
+常用变量：
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `PORT` | 5050 | 监听端口 |
+| `HUGO_ROOT` | 仓库根 | Hugo 站点根（git 仓库） |
+| `CONTENT_DIR` | `<HUGO_ROOT>/content` | 内容目录，**必须可写** |
+| `SECRET_KEY` | 开发默认值 | 会话密钥，生产必须修改 |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | admin/admin | 首次启动引导账户 |
+| `API_TOKEN` | 空 | 机器客户端 Bearer 鉴权 |
+| `AI_API_KEY` 等 | 空 | AI 助手，不设置则禁用 |
+
+完整字段语义见 `internal/config/config.go`。
+
+## 四、访问应用
+
+打开浏览器访问: **http://127.0.0.1:5050**
+
+首次启动以 `admin/admin` 引导默认账户（可用 `ADMIN_USERNAME`/`ADMIN_PASSWORD` 覆盖），登录后请立即修改密码。
+
+## 五、常见问题
+
+### Q1: 提示 CONTENT_DIR 不可写
+
+服务启动即写 `<CONTENT_DIR>/.admin/cache.db`。用 `.env` 或环境变量指向你的 Hugo 站点：
+
+```bash
+HUGO_ROOT=~/work/blog/<站点> CONTENT_DIR=~/work/blog/<站点>/content ./run.sh
 ```
 
 ### Q2: 启动 Hugo 服务器失败
@@ -99,68 +84,43 @@ hugo version
 
 **解决:** 确保文件有写权限
 ```bash
-chmod -R u+w content/
+chmod -R u+w <你的站点>/content/
 ```
 
 ### Q4: 日志不显示
 
 **解决:**
-1. 检查浏览器是否支持 WebSocket
+1. 检查浏览器是否支持 SSE / WebSocket
 2. 查看浏览器控制台是否有错误
 3. 尝试刷新页面
 
-### Q5: 端口 5000 被占用
+### Q5: 端口 5050 被占用
 
-**解决:** 修改 `app.py` 最后一行的端口号
-```python
-socketio.run(app, host='127.0.0.1', port=5001, debug=True)
+在 `.env` 中修改 `PORT`，或启动时指定：
+```bash
+PORT=5051 ./run.sh
 ```
 
-## 五、开发调试
+## 六、开发调试
 
-### 查看日志
+前端热更开发（vite 会把 `/api` 代理到本地 5050，无需重建 admin-ui）：
 
 ```bash
-# 在终端查看应用日志
-python app.py
+go run ./cmd/hugo-admin &   # 后端 API 在 :5050
+cd frontend && pnpm dev
 ```
 
 ### 测试 API
 
 ```bash
-# 测试服务器状态
-curl http://127.0.0.1:5000/api/server/status
-
-# 测试文章列表
-curl http://127.0.0.1:5000/api/posts
+curl http://127.0.0.1:5050/api/version
 ```
 
-## 六、安全建议
+## 七、安全建议
 
-1. **仅本地使用**: 应用默认只监听 127.0.0.1，请勿修改为 0.0.0.0
+1. **仅本地使用**: 应用默认只监听 127.0.0.1，对外暴露请置于反向代理之后并设置强 `SECRET_KEY`
 2. **文件权限**: 确保 content 目录权限正确
 3. **定期备份**: 编辑文章前建议先备份
-
-## 七、与 CLI 工具对比
-
-| 功能 | CLI (tasks.py) | Web 应用 |
-|------|---------------|----------|
-| 启动服务器 | `invoke server` | 点击按钮 |
-| 新建文章 | `invoke post` | 表单输入 |
-| 搜索文章 | `invoke search` | 搜索框 |
-| 编辑文章 | `invoke edit` | 在线编辑 |
-| 查看日志 | 终端输出 | Web 实时显示 |
-
-**建议:**
-- 日常操作使用 Web 应用(更便捷)
-- 自动化脚本使用 CLI 工具
-
-## 八、下一步
-
-- [ ] 尝试搜索和编辑文章
-- [ ] 启动 Hugo 服务器查看预览
-- [ ] 自定义配置(修改 config.py)
-- [ ] 探索更多功能
 
 ## 技术支持
 
