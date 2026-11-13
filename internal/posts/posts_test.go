@@ -1,9 +1,11 @@
 package posts
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -348,5 +350,62 @@ func TestGetPostsTOMLFrontmatter(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("Native 文章缺失: %+v", data.Posts)
+	}
+}
+
+// /api/posts 列表项的 tags / categories 必须序列化成 []，不能是 null。
+// 前端 Posts 读 post.tags.length、Dashboard 读 post.tags.slice()，一旦
+// frontmatter 没写标签的文章被编成 null，整个文章列表页会白屏。
+func TestGetPostsMissingTaxonomiesEncodeAsEmptyArrays(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "post", "no-taxonomies.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "---\ntitle: 无标签\ndate: 2025-01-01\n---\n正文\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := GetPosts(dir, "", "", "", 1, 20)
+	if len(got.Posts) != 1 {
+		t.Fatalf("应解析出 1 篇文章: %+v", got)
+	}
+	if got.Posts[0].Tags == nil || got.Posts[0].Categories == nil {
+		t.Fatalf("列表项的 tags/categories 不应为 nil: %#v", got.Posts[0])
+	}
+
+	buf, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(buf), `"tags":null`) || strings.Contains(string(buf), `"categories":null`) {
+		t.Fatalf("JSON 不应把空标签/分类编成 null: %s", buf)
+	}
+	if !strings.Contains(string(buf), `"tags":[]`) || !strings.Contains(string(buf), `"categories":[]`) {
+		t.Fatalf("JSON 应输出空数组: %s", buf)
+	}
+}
+
+func TestAggregatesAreEmptyArraysWithoutTaxonomies(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "post", "no-taxonomies.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("---\ntitle: 无标签\n---\n正文\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, got := range map[string][]NameCount{
+		"tags":       GetAllTags(dir),
+		"categories": GetAllCategories(dir),
+	} {
+		if got == nil {
+			t.Fatalf("%s 应为非 nil 空数组", name)
+		}
+		if len(got) != 0 {
+			t.Fatalf("%s 应为空，得到 %+v", name, got)
+		}
 	}
 }
