@@ -33,7 +33,7 @@ export default function Posts() {
       // 旧后端 / 缓存可能把空 tags 编成 null，先归一化再进 state，
       // 否则渲染时 post.tags.length 会让整个列表页崩掉。
       const raw = await get<RawPostsResponse>(`/api/posts?${params.toString()}`);
-      const data = normalizePostsResponse(raw);
+      const data = normalizePostsResponse(raw, currentPage);
       setPosts(data.posts);
       setPagination({
         total: data.total,

@@ -37,18 +37,21 @@
   另加 `TestAggregatesAreEmptyArraysWithoutTaxonomies` 钉住聚合接口。
 - 前端抽 `frontend/src/utils/posts.ts`：`RawPost` / `RawPostsResponse`
   如实描述服务端可能返回 null 的形状，`normalizePostsResponse()` 在
-  API 边界转成 `Post[]`（`posts` 非数组、数组内 null / 非对象元素、
-  tags / categories 非数组、数组内非字符串项一并降级；分页字段缺失或
-  非数值时回落到空响应的默认值，避免页面显示「共 undefined 篇文章」），
-  `Posts.tsx` 与 `Dashboard.tsx` 两个消费点统一走归一化；
+  API 边界转成 `Post[]`：响应体本身可为 null、`posts` 可为非数组，
+  数组内 null / 数组 / 非对象元素被跳过，`tags` / `categories` 非数组或
+  含非字符串项一并降级；分页字段缺失或非法时从 `posts.length` 推导
+  （`total` / `per_page` / `total_pages`），`page` 回落到调用方传入的
+  请求页码以免翻页被弹回第 1 页，`has_next` / `has_prev` 由页码推导。
+  `Posts.tsx` 传 `currentPage`、`Dashboard.tsx` 用默认值，两者统一走归一化；
   `Posts.loadFilters` 的标签 / 分类下拉也补了 `|| []`。
-- 新增 `posts.test.ts`（8 例）覆盖 null、字段缺失、`posts` 非数组、
-  数组内混入 null / 对象、分页字段缺失 / 非数值、数组内非字符串项、
-  正常数据保持、单篇归一化。
+- 新增 `posts.test.ts`（11 例）覆盖 null、字段缺失、`posts` 非数组、
+  数组内混入 null / 数组 / 非对象、分页字段缺失 / 非数值 / 从 posts 推导、
+  `page` 回落请求页码、响应体为 null、数组内非字符串项、正常数据保持、
+  单篇归一化。
 
 ## 验证
 
-- `pnpm lint`、`pnpm test`（7 files / 40 tests）、`pnpm build` 全绿。
+- `pnpm lint`、`pnpm test`（7 files / 43 tests）、`pnpm build` 全绿。
 - `go test ./internal/posts`：新增两例通过，其余既有用例通过，
   唯一失败项 `TestModTimeAndDateFormats` 是 Windows 路径分隔符
   （`post\t.md`），在**未改动的 main 工作树**上同样失败，与本次改动无关。
