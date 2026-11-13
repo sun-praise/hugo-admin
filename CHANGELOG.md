@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 预览收起（或窄屏切到编辑页签）时 mermaid 在 `display:none` 容器里 `getBBox` 失效，且渲染 effect 只依赖 `[preview]`，再次展开不会重跑：改为隐藏时跳过、重新可见时重跑，用 WeakMap 保存原始图表源码，避免把已渲染的 SVG 文本当成图表定义。
 
 ### Added
-- 新增 `posts.test.ts`（`/api/posts` 响应归一化，11 例）、Go 侧空标签序列化契约用例，以及根因复盘 `docs/development/posts-null-taxonomies-fix.md`。
+- 新增 `posts.test.ts`（`/api/posts` 响应归一化，15 例）、Go 侧空标签序列化契约用例，以及根因复盘 `docs/development/posts-null-taxonomies-fix.md`。
 - 编辑器预览栏可「收起 / 展开」：收起后桌面端编辑器占满整行、窄屏回到单栏编辑态，选择记入 localStorage（隐私模式下仅本次会话生效）。收起用 CSS 隐藏而非卸载 DOM；持久化与两栏 display 类抽成 `previewCollapse` 纯函数并配单测。
 - 新增 `markdown.test.ts` / `previewCollapse.test.ts` / `mermaidSource.test.ts`（图表源码缓存逻辑）与根因复盘 `docs/development/editor-preview-embed-fix.md`。
 

@@ -117,6 +117,54 @@ describe('normalizePostsResponse', () => {
     expect(normalizePostsResponse({ ...base, page: 2, posts: [] }, 3).page).toBe(2);
   });
 
+  it('缺 total_pages / has_next 时按 total 与 per_page 推导出多页', () => {
+    const data = normalizePostsResponse({
+      posts: [{ ...rawPost }],
+      total: 45,
+      per_page: 20,
+      page: 1,
+    });
+    expect(data.total_pages).toBe(3);
+    expect(data.has_next).toBe(true);
+    expect(data.has_prev).toBe(false);
+  });
+
+  it('第 2 页缺分页字段时派生总页数不小于当前页码', () => {
+    const data = normalizePostsResponse(
+      { posts: [{ ...rawPost }, { ...rawPost, path: 'post/b.md' }] },
+      2,
+    );
+    expect(data).toMatchObject({
+      page: 2,
+      total: 2,
+      total_pages: 2,
+      has_prev: true,
+      has_next: false,
+    });
+  });
+
+  it('page 回落时重算 has_prev / has_next，不被陈旧的 false 锁死', () => {
+    const data = normalizePostsResponse({
+      posts: [{ ...rawPost }],
+      total: 45,
+      per_page: 20,
+      total_pages: 3,
+      has_prev: false,
+      has_next: false,
+    }, 2);
+    expect(data.page).toBe(2);
+    expect(data.has_prev).toBe(true);
+    expect(data.has_next).toBe(true);
+  });
+
+  it('顶层数组响应体按空响应处理，不把数字键铺进返回值', () => {
+    const data = normalizePostsResponse([{ ...rawPost }] as unknown as RawPostsResponse);
+    expect(data.posts).toEqual([]);
+    expect(data.total).toBe(0);
+    expect(data.total_pages).toBe(0);
+    expect(data).not.toHaveProperty('0');
+  });
+
   it('正常响应保持字段不变', () => {
     const data = normalizePostsResponse({
       ...base,
