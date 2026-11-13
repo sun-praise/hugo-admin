@@ -64,8 +64,10 @@ PORT=8961 ./hugo-admin
 
 ```bash
 docker build -f Dockerfile-go -t hugo-admin-go .
-docker run -p 5050:5050 -v ~/.hugo-admin:/root/.hugo-admin -v /path/to/blog:/blog \
-  -e HUGO_ROOT=/blog hugo-admin-go
+# Mount /app/data so credentials survive container rebuilds (otherwise
+# the container falls back to the default admin/admin on every recreate)
+docker run -p 5050:5050 -v ~/.hugo-admin:/root/.hugo-admin -v ~/.hugo-admin/data:/app/data \
+  -v /path/to/blog:/blog -e HUGO_ROOT=/blog hugo-admin-go
 ```
 
 ### Configuration
@@ -77,14 +79,18 @@ docker run -p 5050:5050 -v ~/.hugo-admin:/root/.hugo-admin -v /path/to/blog:/blo
 | `AUTH_STORE` | `data/auth.json` | Credential file (werkzeug-compatible hashes) |
 | `HUGO_ROOT` | cwd | Hugo site root |
 | `CONTENT_DIR` | `<HUGO_ROOT>/content` | Content directory |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `admin` / `admin` | Bootstrap admin account |
+| `API_TOKEN` | empty | Bearer auth for machine clients; empty disables |
+| `HUGO_SERVER_BASE_URL` | `http://0.0.0.0:1313` | Public URL of the Hugo preview server |
+| `ADMIN_UI_DIR` | `admin-ui` | Built frontend assets directory |
 | `AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` | — | AI provider config |
 | `OPENROUTER_API_KEY` | — | Cover image generation |
 
 ## v2 → v3 Migration
 
-The v3 backend is a line-by-line behavioral port of v2, verified by a
-**105-sample API contract suite** (`contracts/api_samples.jsonl`) that gets
-replayed against the Go implementation in CI. Key compatibility guarantees:
+The v3 backend is a line-by-line behavioral port of v2, verified by an
+API contract suite (`contracts/api_samples.jsonl`) replayed against the
+Go implementation in CI. Key compatibility guarantees:
 
 - **Session cookies are interchangeable** — a browser logged into v2 is
   logged into v3, and vice versa (same itsdangerous HMAC scheme).
@@ -109,13 +115,24 @@ Known behavioral differences (documented in commit messages):
 
 ```bash
 go build ./... && go vet ./...
-go test ./... -count=1              # 10 packages, includes contract replay
+go test ./... -count=1              # all packages, includes contract replay
 
 # Record new API contract samples (requires a v2 checkout for the pytest recorder):
 # RECORD_CONTRACT=1 CONTRACT_OUT=contracts/api_samples.jsonl pytest tests/
 
 cd frontend && pnpm build           # rebuild admin-ui
 ```
+
+## Security
+
+- First start bootstraps a default `admin/admin` account (override with
+  `ADMIN_USERNAME`/`ADMIN_PASSWORD`) — change the password immediately after login.
+- Passwords are stored salted-hashed in the credential file (default
+  `data/auth.json`); a corrupt/unreadable file aborts startup (fail closed),
+  the admin account is never silently reset.
+- File operations are confined to `CONTENT_DIR` with path-traversal protection.
+- The server listens on all interfaces (`Addr: ":PORT"`); set a strong
+  `SECRET_KEY` and put the service behind a reverse proxy in production.
 
 ## License
 

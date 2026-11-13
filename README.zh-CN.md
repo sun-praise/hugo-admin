@@ -65,8 +65,9 @@ PORT=8961 ./hugo-admin
 
 ```bash
 docker build -f Dockerfile-go -t hugo-admin-go .
-docker run -p 5050:5050 -v ~/.hugo-admin:/root/.hugo-admin -v /path/to/blog:/blog \
-  -e HUGO_ROOT=/blog hugo-admin-go
+# 挂载 /app/data 持久化凭据，否则容器重建后回到默认 admin/admin
+docker run -p 5050:5050 -v ~/.hugo-admin:/root/.hugo-admin -v ~/.hugo-admin/data:/app/data \
+  -v /path/to/blog:/blog -e HUGO_ROOT=/blog hugo-admin-go
 ```
 
 ### 配置
@@ -78,6 +79,10 @@ docker run -p 5050:5050 -v ~/.hugo-admin:/root/.hugo-admin -v /path/to/blog:/blo
 | `AUTH_STORE` | `data/auth.json` | 凭据文件（兼容 werkzeug 哈希） |
 | `HUGO_ROOT` | 当前目录 | Hugo 站点根目录 |
 | `CONTENT_DIR` | `<HUGO_ROOT>/content` | 内容目录 |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `admin` / `admin` | 首次启动引导账户 |
+| `API_TOKEN` | 空 | 机器客户端 Bearer 鉴权，留空关闭 |
+| `HUGO_SERVER_BASE_URL` | `http://0.0.0.0:1313` | Hugo 预览服务对外地址 |
+| `ADMIN_UI_DIR` | `admin-ui` | 前端构建产物目录 |
 | `AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` | — | AI 服务配置 |
 | `OPENROUTER_API_KEY` | — | 封面图生成 |
 
@@ -85,7 +90,7 @@ docker run -p 5050:5050 -v ~/.hugo-admin:/root/.hugo-admin -v /path/to/blog:/blo
 
 ## v2 → v3 迁移
 
-v3 后端是对 v2 的逐行为移植，由 **105 条 API 契约样本**
+v3 后端是对 v2 的逐行为移植，由 API 契约样本
 （`contracts/api_samples.jsonl`）在 CI 中对 Go 实现回放验证。关键兼容性保证：
 
 - **会话 Cookie 互通**——浏览器登录 v2 后即登录 v3，反之亦然
@@ -107,13 +112,20 @@ v3 后端是对 v2 的逐行为移植，由 **105 条 API 契约样本**
 
 ```bash
 go build ./... && go vet ./...
-go test ./... -count=1              # 10 个包，含契约回放
+go test ./... -count=1              # 全部包，含契约回放
 
 # 重新录制 API 契约样本（需要 v2 检出跑 pytest 录制器）：
 # RECORD_CONTRACT=1 CONTRACT_OUT=contracts/api_samples.jsonl pytest tests/
 
 cd frontend && pnpm build           # 重建 admin-ui
 ```
+
+## 安全性
+
+- 首次启动以默认 `admin/admin` 引导管理员（可用 `ADMIN_USERNAME`/`ADMIN_PASSWORD` 覆盖），登录后请立即改密
+- 密码仅以加盐哈希存于凭据文件（默认 `data/auth.json`）；文件损坏/不可读时启动中止（fail closed），绝不静默重置管理员
+- 文件操作限制在 `CONTENT_DIR` 内，含路径遍历保护
+- 应用监听所有网卡（`Addr: ":PORT"`），生产环境请设置强 `SECRET_KEY` 并置于反向代理之后
 
 ## 许可证
 
