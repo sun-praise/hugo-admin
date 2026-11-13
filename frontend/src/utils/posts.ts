@@ -32,13 +32,12 @@ function isRawPost(value: unknown): value is RawPost {
 }
 
 function intOr(value: unknown, fallback: number, min: number): number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= min
-    ? value
-    : fallback;
-}
-
-function boolOr(value: unknown, fallback: boolean): boolean {
-  return typeof value === 'boolean' ? value : fallback;
+  if (typeof value === 'number' && Number.isInteger(value) && value >= min) return value;
+  // fallback 也可能来自不可信的调用方（如页码参数），用同一套判据规范化，
+  // 避免 normalizePostsResponse(raw, 0) 直接产出 page: 0。
+  return typeof fallback === 'number' && Number.isInteger(fallback) && fallback >= min
+    ? fallback
+    : min;
 }
 
 export function normalizePost(raw: RawPost): Post {
@@ -66,19 +65,23 @@ export function normalizePostsResponse(
     : [];
 
   const total = intOr(source.total, posts.length, 0);
-  const page = intOr(source.page, requestedPage, 1);
   const perPage = intOr(source.per_page, posts.length || 20, 1);
-  // 缺分页字段时只能用本页条数估总数，派生出的总页数不能小于当前页码，
-  // 否则 Posts.tsx 会渲染「第 2 / 1 页」且分页按钮只剩第 1 页。
-  const derivedTotalPages = total > 0 ? Math.max(Math.ceil(total / perPage), page) : 0;
+  // 服务端没给总页数时只能按本页条数估：总量为 0 派生 0，否则向上取整。
+  const derivedTotalPages = total > 0 ? Math.ceil(total / perPage) : 0;
   const totalPages = intOr(source.total_pages, derivedTotalPages, 0);
 
-  // page 是回落/纠正得来的，说明服务端页码不可信；此时 has_prev / has_next
-  // 也按页码推导，避免旧后端给一个陈旧的 false 把「上一页」按钮锁死。
-  const pageWasCorrected = page !== source.page;
-  const hasNext = page < totalPages;
-  const hasPrev = page > 1;
+  let page = intOr(source.page, requestedPage, 1);
+  // 只要页码超过总页数就收敛到最后一页，与「服务端有没有回显 page」无关：
+  // 服务端可能回显合法 page 却缺分页字段（派生出 total_pages = 1），也可能
+  // 自相矛盾（Go 后端不 clamp page，page=5 / totalPages=3 时回空列表）。
+  // 收敛后避免「第 2 / 1 页」「第 5 / 3 页」以及分页按钮被 clamp 锁死。
+  if (totalPages > 0 && page > totalPages) {
+    page = totalPages;
+  }
 
+  // has_next / has_prev 一律由页码推导：Go 后端用的也是
+  // page < totalPages / page > 1，前后端同构；旧后端给陈旧的 false
+  // 不会把「上一页 / 下一页」锁死。
   return {
     ...source,
     posts,
@@ -86,7 +89,7 @@ export function normalizePostsResponse(
     page,
     per_page: perPage,
     total_pages: totalPages,
-    has_next: pageWasCorrected ? hasNext : boolOr(source.has_next, hasNext),
-    has_prev: pageWasCorrected ? hasPrev : boolOr(source.has_prev, hasPrev),
+    has_next: page < totalPages,
+    has_prev: page > 1,
   };
 }
