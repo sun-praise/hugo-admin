@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// DOMPurify needs a real DOM, which the node test environment does not have.
-// These tests pin the contract between renderMarkdown and the sanitiser:
-// which HTML is handed over, and which allowlist is applied. URI/attribute
-// filtering itself is DOMPurify's own responsibility (and is not relaxed
-// here: srcdoc, event handlers and script/data URLs stay blocked).
+// DOMPurify needs a real DOM, which the node test environment does not have
+// (jsdom / happy-dom are not devDependencies). These tests pin the *contract*
+// between renderMarkdown and the sanitiser: which HTML is handed over, and
+// which allow/forbid lists are applied. They deliberately do NOT claim to
+// verify the actual stripping of javascript:/data: URLs or on* handlers —
+// that is DOMPurify's own behaviour, verified out-of-band with a real DOM
+// (jsdom) during this change; see the PR description. If a DOM environment
+// is ever added to devDependencies, promote those checks into this file.
 vi.mock('dompurify', () => ({
   default: { sanitize: vi.fn((html: string) => html) },
 }));
@@ -17,6 +20,8 @@ const sanitize = vi.mocked(DOMPurify.sanitize);
 interface SanitizeConfig {
   ADD_TAGS: string[];
   ADD_ATTR: string[];
+  FORBID_TAGS: string[];
+  FORBID_ATTR: string[];
 }
 
 function lastConfig(): SanitizeConfig {
@@ -35,8 +40,11 @@ describe('renderMarkdown / embeds', () => {
 
   it('默认不放行 iframe，AIChat 等调用方行为不变', () => {
     renderMarkdown(iframe);
-    expect(lastConfig().ADD_TAGS).not.toContain('iframe');
-    expect(lastConfig().ADD_ATTR).not.toContain('allowfullscreen');
+    const config = lastConfig();
+    expect(config.ADD_TAGS).not.toContain('iframe');
+    expect(config.ADD_ATTR).not.toContain('allowfullscreen');
+    expect(config.FORBID_ATTR).toContain('srcdoc');
+    expect(config.FORBID_TAGS).toEqual(expect.arrayContaining(['script', 'style']));
   });
 
   it('embeds: true 保留原生 iframe 并放行嵌入所需属性', () => {
@@ -57,6 +65,7 @@ describe('renderMarkdown / embeds', () => {
       expect(config.ADD_ATTR).toContain(attr);
     }
     expect(config.ADD_ATTR).not.toContain('srcdoc');
+    expect(config.FORBID_ATTR).toContain('srcdoc');
     expect(config.ADD_TAGS).not.toContain('script');
 
     expect(html).toContain('<iframe src="//player.bilibili.com/player.html?bvid=BV1xx&page=1"');

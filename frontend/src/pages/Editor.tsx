@@ -31,6 +31,13 @@ import {
   getTTSStatus,
 } from '../utils/api';
 import { renderMarkdown, escapeHtml } from '../utils/markdown';
+import {
+  getLocalStorage,
+  getPaneDisplayClasses,
+  readPreviewCollapsed,
+  writePreviewCollapsed,
+  type MobilePane,
+} from '../utils/previewCollapse';
 import type { Mermaid } from 'mermaid';
 import type { FileData, ImageItem, Backlink, Frontmatter } from '../types';
 import { useEvents } from '../hooks/useEvents';
@@ -119,6 +126,9 @@ export default function Editor() {
   const [images, setImages] = useState<ImageItem[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+  // mermaid 会把 .mermaid 节点的 textContent 换成渲染后的 SVG；重新可见时要从
+  // 这里取回原始源码再跑，否则二次渲染会把 SVG 文本当成图表定义。
+  const mermaidSourcesRef = useRef<WeakMap<Element, string>>(new WeakMap());
   const saveFileRef = useRef<(force?: boolean) => Promise<void>>(async () => {});
   const insertMarkdownRef = useRef<(type: string) => void>(() => {});
   const insertPostRef = useRef<(post: PalettePost) => void>(() => {});
@@ -126,22 +136,14 @@ export default function Editor() {
   const [generatingFm, setGeneratingFm] = useState(false);
   // 窄屏下低频 AI 操作收进菜单,常驻按钮只留高频操作
   const [aiMenuOpen, setAiMenuOpen] = useState(false);
-  const [mobilePane, setMobilePane] = useState<'edit' | 'preview'>('edit');
+  const [mobilePane, setMobilePane] = useState<MobilePane>('edit');
   // 预览栏可收起：收起后桌面端编辑器占满整行，窄屏回到单栏编辑态。
   // 记住上次选择，避免每打开一篇文章都要重按一次。
-  const [previewCollapsed, setPreviewCollapsed] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('editor-preview-collapsed') === '1';
-    } catch {
-      return false;
-    }
-  });
+  const [previewCollapsed, setPreviewCollapsed] = useState<boolean>(
+    () => readPreviewCollapsed(getLocalStorage()),
+  );
   useEffect(() => {
-    try {
-      localStorage.setItem('editor-preview-collapsed', previewCollapsed ? '1' : '0');
-    } catch {
-      // localStorage 不可用（隐私模式等）时仅本次会话生效
-    }
+    writePreviewCollapsed(getLocalStorage(), previewCollapsed);
   }, [previewCollapsed]);
   const togglePreview = useCallback(() => {
     const next = !previewCollapsed;
@@ -995,18 +997,32 @@ export default function Editor() {
   //      changes (images, backlinks, loading) don't make React reconcile
   //      dangerouslySetInnerHTML and detach the node mermaid just mutated —
   //      which would silently discard the rendered diagram or error block.
+  //   3. mermaid measures via getBBox, which returns 0 (Chrome) or throws
+  //      (Firefox) inside a display:none container. Skip hidden panes and
+  //      re-run when they become visible again (previewCollapsed / mobilePane
+  //      are in the deps). Original source is kept in a WeakMap so re-running
+  //      on an already-rendered node restores the code instead of parsing the
+  //      SVG text. This also fixes the pre-existing narrow-screen tab case.
   useEffect(() => {
     const root = previewRef.current;
-    if (!root) return;
+    // offsetParent === null ⇔ 自身或祖先 display:none（预览收起 / 窄屏在编辑页签）
+    if (!root || root.offsetParent === null) return;
     const nodes = Array.from(root.querySelectorAll<HTMLDivElement>('.mermaid'));
     if (nodes.length === 0) return;
+    for (const node of nodes) {
+      if (!mermaidSourcesRef.current.has(node)) {
+        mermaidSourcesRef.current.set(node, node.textContent ?? '');
+      }
+    }
     let cancelled = false;
     const timer = window.setTimeout(() => {
       loadMermaid()
         .then(async (api) => {
           if (cancelled) return;
           await Promise.all(nodes.map(async (node) => {
-            const code = node.textContent ?? '';
+            const code = mermaidSourcesRef.current.get(node) ?? node.textContent ?? '';
+            // 节点可能留着上一次渲染的 SVG / 错误块，先还原成源码
+            node.textContent = code;
             node.removeAttribute('data-processed');
             try {
               await api.parse(code);
@@ -1032,7 +1048,7 @@ export default function Editor() {
       cancelled = true;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [preview]);
+  }, [preview, previewCollapsed, mobilePane]);
   // Memoise the preview element so unrelated Editor state changes (images,
   // backlinks, loading, frontmatter drawer, …) do NOT recreate the React
   // element. When the element reference is stable, React bails out of
@@ -1047,12 +1063,8 @@ export default function Editor() {
 
   // 收起时用 CSS 隐藏而不是卸载：mermaid 直接改写 preview 里的 DOM，卸载会
   // 丢掉已渲染的图表，且 preview 不变时渲染 effect 不会重新触发。
-  const editorPaneDisplay = previewCollapsed || mobilePane === 'edit' ? 'flex' : 'hidden lg:flex';
-  const previewPaneDisplay = previewCollapsed
-    ? 'hidden'
-    : mobilePane === 'preview'
-      ? 'flex'
-      : 'hidden lg:flex';
+  const { editor: editorPaneDisplay, preview: previewPaneDisplay } =
+    getPaneDisplayClasses(previewCollapsed, mobilePane);
 
   if (!currentFile) {
     return (

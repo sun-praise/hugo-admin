@@ -40,10 +40,13 @@ const BASE_ADD_ATTR = ['target', 'rel', 'fill', 'stroke', 'stroke-width', 'strok
 // player silently disappears from the preview.
 //
 // Only the presentation attributes below are added. `srcdoc` is deliberately
-// NOT allowed (it would let a post inject arbitrary HTML into a frame), and
-// event handlers / javascript: / data: URLs stay blocked by DOMPurify's
-// default attribute and URI policy. `src`, `width`, `height`, `loading`,
-// `title`, `name`, `style` are already in DOMPurify's default allowlist.
+// NOT allowed (it would let a post inject arbitrary HTML into a frame) and is
+// additionally pinned via FORBID_ATTR so the guarantee does not depend on
+// DOMPurify's default allowlist; event handlers and javascript: / data: URLs
+// stay blocked by its default attribute and URI policy. `src`, `width`,
+// `height`, `loading`, `title`, `name`, `style` are in the default allowlist.
+// The preview will load third-party pages from an author's own post — that is
+// the point of an embed; forcing `sandbox` would break most video players.
 const EMBED_ADD_TAGS = ['iframe'];
 const EMBED_ADD_ATTR = [
   'allow',
@@ -111,6 +114,10 @@ export function renderMarkdown(content: string, options: RenderMarkdownOptions =
   return DOMPurify.sanitize(restored, {
     ADD_TAGS: enableEmbeds ? [...BASE_ADD_TAGS, ...EMBED_ADD_TAGS] : BASE_ADD_TAGS,
     ADD_ATTR: enableEmbeds ? [...BASE_ADD_ATTR, ...EMBED_ADD_ATTR] : BASE_ADD_ATTR,
+    // 纵深防御：显式钉住「iframe 不得携带 srcdoc / 正文不得带脚本与样式」，
+    // 不依赖上游默认值，也不被以后往 ADD_TAGS 里加标签时绕过。
+    FORBID_TAGS: ['script', 'style'],
+    FORBID_ATTR: ['srcdoc'],
   });
 }
 
