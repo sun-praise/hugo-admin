@@ -20,15 +20,15 @@ describe('MermaidSourceCache', () => {
     const node = new FakeNode('graph TD\nA-->B');
     const cache = new MermaidSourceCache();
 
-    expect(cache.source(node)).toBe('graph TD\nA-->B');
+    expect(cache.remember(node)).toBe('graph TD\nA-->B');
     node.textContent = '<svg><text>graph TD</text></svg>';
-    expect(cache.source(node)).toBe('graph TD\nA-->B');
+    expect(cache.remember(node)).toBe('graph TD\nA-->B');
   });
 
   it('restore 把节点还原成源码并清掉 data-processed', () => {
     const node = new FakeNode('sequenceDiagram\nA->>B: hi');
     const cache = new MermaidSourceCache();
-    cache.source(node); // 首次渲染前登记
+    cache.remember(node); // 首次渲染前登记
     node.textContent = '<svg>rendered</svg>'; // mermaid 改写了节点
 
     const code = cache.restore(node);
@@ -49,8 +49,20 @@ describe('MermaidSourceCache', () => {
     const empty = new FakeNode(null);
     const other = new FakeNode('graph LR\nA-->B');
 
-    expect(cache.source(empty)).toBe('');
-    expect(cache.source(other)).toBe('graph LR\nA-->B');
-    expect(cache.source(empty)).toBe('');
+    expect(cache.remember(empty)).toBe('');
+    expect(cache.remember(other)).toBe('graph LR\nA-->B');
+    expect(cache.remember(empty)).toBe('');
+  });
+
+  it('textContent 是空串（而非 null）时也缓存空串，节点被改写后不重读', () => {
+    const cache = new MermaidSourceCache();
+    const node = new FakeNode('');
+
+    expect(cache.remember(node)).toBe('');
+    node.textContent = '<svg>rendered</svg>';
+    // 若把 === undefined 改成 truthy 判断，这里会错误地重读到 SVG 文本
+    expect(cache.remember(node)).toBe('');
+    expect(cache.restore(node)).toBe('');
+    expect(node.textContent).toBe('');
   });
 });

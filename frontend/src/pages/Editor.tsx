@@ -63,6 +63,10 @@ import { PaletteBridgeContext, type PalettePost } from '../components/PaletteBri
 // actually contains a ```mermaid block. Initialised once per session.
 let mermaidPromise: Promise<Mermaid> | null = null;
 
+// 图表源码缓存以 DOM 节点为键，跨 Editor 实例共享也安全。放模块级而不是
+// useRef(new ...)，避免每次渲染都新建一个马上被丢弃的实例。
+const mermaidSourceCache = new MermaidSourceCache();
+
 // 选区辅助触发阈值与上下文半径（与后端 /api/ai/assist 的上限对齐）
 const ASSIST_DEBOUNCE_MS = 500;
 const ASSIST_MIN_SELECTION = 2;
@@ -127,9 +131,6 @@ export default function Editor() {
   const [images, setImages] = useState<ImageItem[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
-  // mermaid 会把 .mermaid 节点的 textContent 换成渲染后的 SVG；重新可见时由
-  // MermaidSourceCache 取回原始源码再跑（可单测的实现见 utils/mermaidSource.ts）。
-  const mermaidSourcesRef = useRef(new MermaidSourceCache());
   const saveFileRef = useRef<(force?: boolean) => Promise<void>>(async () => {});
   const insertMarkdownRef = useRef<(type: string) => void>(() => {});
   const insertPostRef = useRef<(post: PalettePost) => void>(() => {});
@@ -1011,7 +1012,7 @@ export default function Editor() {
     const nodes = Array.from(root.querySelectorAll<HTMLDivElement>('.mermaid'));
     if (nodes.length === 0) return;
     // 先登记源码：200ms 后 mermaid 随时可能改写节点内容
-    for (const node of nodes) mermaidSourcesRef.current.source(node);
+    for (const node of nodes) mermaidSourceCache.remember(node);
     // 若定时器已触发、api.run() 进行中才收起预览，仍可能有一次渲染落在隐藏
     // 节点上；异常被 catch，最多浪费一次布局测量，属可接受的边缘情况。
     let cancelled = false;
@@ -1020,8 +1021,10 @@ export default function Editor() {
         .then(async (api) => {
           if (cancelled) return;
           await Promise.all(nodes.map(async (node) => {
+            // 定时器已触发、但期间又收起/展开时，旧的一轮不该再改写同一节点
+            if (cancelled) return;
             // 节点可能留着上一次渲染的 SVG / 错误块，先还原成源码
-            const code = mermaidSourcesRef.current.restore(node);
+            const code = mermaidSourceCache.restore(node);
             try {
               await api.parse(code);
             } catch (err) {
