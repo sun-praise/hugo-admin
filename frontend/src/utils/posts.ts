@@ -32,9 +32,12 @@ function isRawPost(value: unknown): value is RawPost {
 }
 
 function intOr(value: unknown, fallback: number, min: number): number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= min
-    ? value
-    : fallback;
+  if (typeof value === 'number' && Number.isInteger(value) && value >= min) return value;
+  // fallback 也可能来自不可信的调用方（如页码参数），用同一套判据规范化，
+  // 避免 normalizePostsResponse(raw, 0) 直接产出 page: 0。
+  return typeof fallback === 'number' && Number.isInteger(fallback) && fallback >= min
+    ? fallback
+    : min;
 }
 
 export function normalizePost(raw: RawPost): Post {
@@ -67,15 +70,13 @@ export function normalizePostsResponse(
   const derivedTotalPages = total > 0 ? Math.ceil(total / perPage) : 0;
   const totalPages = intOr(source.total_pages, derivedTotalPages, 0);
 
-  const hasServerPage = typeof source.page === 'number'
-    && Number.isInteger(source.page)
-    && source.page >= 1;
   let page = intOr(source.page, requestedPage, 1);
-  // 页码是回落/纠正得来时，请求页码可能越界（只剩 3 页却请求第 5 页）。
-  // 收敛页码而不是放大总页数：否则会渲染「第 5 / 5 页」+ 空列表，
-  // 且 goToPage 按 total_pages clamp 后翻页按钮被锁死，用户回不去。
-  if (!hasServerPage && totalPages > 0) {
-    page = Math.min(page, totalPages);
+  // 只要页码超过总页数就收敛到最后一页，与「服务端有没有回显 page」无关：
+  // 服务端可能回显合法 page 却缺分页字段（派生出 total_pages = 1），也可能
+  // 自相矛盾（Go 后端不 clamp page，page=5 / totalPages=3 时回空列表）。
+  // 收敛后避免「第 2 / 1 页」「第 5 / 3 页」以及分页按钮被 clamp 锁死。
+  if (totalPages > 0 && page > totalPages) {
+    page = totalPages;
   }
 
   // has_next / has_prev 一律由页码推导：Go 后端用的也是

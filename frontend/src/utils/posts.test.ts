@@ -114,8 +114,40 @@ describe('normalizePostsResponse', () => {
       );
       expect(data.page).toBe(3);
     }
-    // 服务端明确回传合法页码时仍以服务端为准（不参与越界收敛）
-    expect(normalizePostsResponse({ ...base, page: 2, posts: [] }, 3).page).toBe(2);
+    // 服务端回显的合法页码未越界时原样保留
+    expect(normalizePostsResponse({ ...multiPage, page: 2, posts: [] }, 3).page).toBe(2);
+    // 服务端回显的页码超过总页数时同样收敛，不能把「第 2 / 1 页」钉成预期
+    expect(normalizePostsResponse({ ...base, page: 2, posts: [] }, 3).page).toBe(1);
+  });
+
+  it('服务端回显合法 page 但缺分页字段时仍收敛页码', () => {
+    const posts = Array.from({ length: 20 }, (_, i) => ({ ...rawPost, path: `post/${i}.md` }));
+    const data = normalizePostsResponse({ posts, page: 2 }, 2);
+    expect(data).toMatchObject({
+      total: 20,
+      total_pages: 1,
+      page: 1,
+      has_next: false,
+      has_prev: false,
+    });
+  });
+
+  it('服务端 page 与 total_pages 自相矛盾时以总页数为准', () => {
+    const data = normalizePostsResponse({
+      ...base,
+      page: 5,
+      total: 45,
+      per_page: 20,
+      total_pages: 3,
+      posts: [],
+    }, 5);
+    expect(data).toMatchObject({ page: 3, has_next: false, has_prev: true });
+  });
+
+  it('请求页码参数非法时回落到第 1 页', () => {
+    const data = normalizePostsResponse({ posts: [{ ...rawPost }], total_pages: 3 }, 0);
+    expect(data.page).toBe(1);
+    expect(data.has_next).toBe(true);
   });
 
   it('缺 total_pages / has_next 时按 total 与 per_page 推导出多页', () => {
