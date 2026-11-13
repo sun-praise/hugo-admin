@@ -65,7 +65,7 @@ describe('normalizePostsResponse', () => {
     expect(data.posts[0].tags).toEqual([]);
   });
 
-  it('分页字段缺失 / 非数值时回落到空响应的默认值', () => {
+  it('分页字段缺失 / 非数值时从已返回的 posts 推导，不出现「共 0 篇」却列出文章', () => {
     const data = normalizePostsResponse({
       posts: [{ ...rawPost, tags: null }],
       total: undefined,
@@ -73,13 +73,48 @@ describe('normalizePostsResponse', () => {
       has_next: 'yes' as unknown as boolean,
     });
     expect(data).toMatchObject({
-      total: 0,
+      total: 1,
       page: 1,
-      per_page: 20,
-      total_pages: 0,
+      per_page: 1,
+      total_pages: 1,
       has_next: false,
       has_prev: false,
     });
+  });
+
+  it('posts 数组里的数组元素被跳过，不会 spread 成空白行', () => {
+    const data = normalizePostsResponse({
+      ...base,
+      posts: [[], [1, 2], { ...rawPost, tags: null }] as unknown as RawPostsResponse['posts'],
+    });
+    expect(data.posts).toHaveLength(1);
+    expect(data.posts[0].title).toBe('无标签');
+  });
+
+  it('响应体本身为 null / undefined 时返回可用的空响应', () => {
+    for (const raw of [null, undefined]) {
+      expect(normalizePostsResponse(raw)).toMatchObject({
+        posts: [],
+        total: 0,
+        page: 1,
+        per_page: 20,
+        total_pages: 0,
+        has_next: false,
+        has_prev: false,
+      });
+    }
+  });
+
+  it('page 缺失或非法时回落到请求页码，不把用户弹回第 1 页', () => {
+    for (const page of [undefined, 0, NaN, '2']) {
+      const data = normalizePostsResponse(
+        { ...base, page: page as number, posts: [{ ...rawPost }] },
+        3,
+      );
+      expect(data.page).toBe(3);
+    }
+    // 服务端明确回传合法页码时仍以服务端为准
+    expect(normalizePostsResponse({ ...base, page: 2, posts: [] }, 3).page).toBe(2);
   });
 
   it('正常响应保持字段不变', () => {

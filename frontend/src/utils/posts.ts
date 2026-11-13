@@ -27,11 +27,14 @@ function toStringArray(value: unknown): string[] {
 }
 
 function isRawPost(value: unknown): value is RawPost {
-  return value !== null && typeof value === 'object';
+  // 数组也是 object，放行会 spread 出一条所有字段都是 undefined 的空白文章。
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function numberOr(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+function intOr(value: unknown, fallback: number, min: number): number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= min
+    ? value
+    : fallback;
 }
 
 function boolOr(value: unknown, fallback: boolean): boolean {
@@ -46,18 +49,34 @@ export function normalizePost(raw: RawPost): Post {
   };
 }
 
-export function normalizePostsResponse(raw: RawPostsResponse): PostsResponse {
-  const posts = Array.isArray(raw.posts)
-    ? raw.posts.filter(isRawPost).map(normalizePost)
+/**
+ * requestedPage 是当前请求的页码：后端不回 `page` 时用它回落，避免
+ * Posts.tsx 的「服务端页码与请求不符就跟随纠正」把用户弹回第 1 页。
+ */
+export function normalizePostsResponse(
+  raw: RawPostsResponse | null | undefined,
+  requestedPage = 1,
+): PostsResponse {
+  // 整个响应体为 null / undefined 时（代理异常、旧后端返回 `null`），
+  // 仍给出一份可用的空响应，而不是在 Dashboard 的 async effect 里抛错。
+  const source: RawPostsResponse = raw && typeof raw === 'object' ? raw : {};
+  const posts = Array.isArray(source.posts)
+    ? source.posts.filter(isRawPost).map(normalizePost)
     : [];
+
+  const total = intOr(source.total, posts.length, 0);
+  const page = intOr(source.page, requestedPage, 1);
+  const perPage = intOr(source.per_page, posts.length || 20, 1);
+  const totalPages = intOr(source.total_pages, total > 0 ? Math.ceil(total / perPage) : 0, 0);
+
   return {
-    ...raw,
+    ...source,
     posts,
-    total: numberOr(raw.total, 0),
-    page: numberOr(raw.page, 1),
-    per_page: numberOr(raw.per_page, 20),
-    total_pages: numberOr(raw.total_pages, 0),
-    has_next: boolOr(raw.has_next, false),
-    has_prev: boolOr(raw.has_prev, false),
+    total,
+    page,
+    per_page: perPage,
+    total_pages: totalPages,
+    has_next: boolOr(source.has_next, page < totalPages),
+    has_prev: boolOr(source.has_prev, page > 1),
   };
 }
