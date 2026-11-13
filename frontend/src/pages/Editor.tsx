@@ -31,6 +31,7 @@ import {
   getTTSStatus,
 } from '../utils/api';
 import { renderMarkdown, escapeHtml } from '../utils/markdown';
+import { MermaidSourceCache } from '../utils/mermaidSource';
 import {
   getLocalStorage,
   getPaneDisplayClasses,
@@ -126,9 +127,9 @@ export default function Editor() {
   const [images, setImages] = useState<ImageItem[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
-  // mermaid 会把 .mermaid 节点的 textContent 换成渲染后的 SVG；重新可见时要从
-  // 这里取回原始源码再跑，否则二次渲染会把 SVG 文本当成图表定义。
-  const mermaidSourcesRef = useRef<WeakMap<Element, string>>(new WeakMap());
+  // mermaid 会把 .mermaid 节点的 textContent 换成渲染后的 SVG；重新可见时由
+  // MermaidSourceCache 取回原始源码再跑（可单测的实现见 utils/mermaidSource.ts）。
+  const mermaidSourcesRef = useRef(new MermaidSourceCache());
   const saveFileRef = useRef<(force?: boolean) => Promise<void>>(async () => {});
   const insertMarkdownRef = useRef<(type: string) => void>(() => {});
   const insertPostRef = useRef<(post: PalettePost) => void>(() => {});
@@ -1009,21 +1010,18 @@ export default function Editor() {
     if (!root || root.offsetParent === null) return;
     const nodes = Array.from(root.querySelectorAll<HTMLDivElement>('.mermaid'));
     if (nodes.length === 0) return;
-    for (const node of nodes) {
-      if (!mermaidSourcesRef.current.has(node)) {
-        mermaidSourcesRef.current.set(node, node.textContent ?? '');
-      }
-    }
+    // 先登记源码：200ms 后 mermaid 随时可能改写节点内容
+    for (const node of nodes) mermaidSourcesRef.current.source(node);
+    // 若定时器已触发、api.run() 进行中才收起预览，仍可能有一次渲染落在隐藏
+    // 节点上；异常被 catch，最多浪费一次布局测量，属可接受的边缘情况。
     let cancelled = false;
     const timer = window.setTimeout(() => {
       loadMermaid()
         .then(async (api) => {
           if (cancelled) return;
           await Promise.all(nodes.map(async (node) => {
-            const code = mermaidSourcesRef.current.get(node) ?? node.textContent ?? '';
             // 节点可能留着上一次渲染的 SVG / 错误块，先还原成源码
-            node.textContent = code;
-            node.removeAttribute('data-processed');
+            const code = mermaidSourcesRef.current.restore(node);
             try {
               await api.parse(code);
             } catch (err) {

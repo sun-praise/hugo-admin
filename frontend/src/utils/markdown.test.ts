@@ -5,9 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // between renderMarkdown and the sanitiser: which HTML is handed over, and
 // which allow/forbid lists are applied. They deliberately do NOT claim to
 // verify the actual stripping of javascript:/data: URLs or on* handlers —
-// that is DOMPurify's own behaviour, verified out-of-band with a real DOM
-// (jsdom) during this change; see the PR description. If a DOM environment
-// is ever added to devDependencies, promote those checks into this file.
+// that is DOMPurify's own upstream behaviour and is NOT verified in this
+// environment (no DOM implementation installed), i.e. CI cannot reproduce
+// any development-time manual check. If a DOM environment is ever added to
+// devDependencies, add those behaviour assertions here.
 vi.mock('dompurify', () => ({
   default: { sanitize: vi.fn((html: string) => html) },
 }));
