@@ -29,15 +29,51 @@ const marked = new Marked(
 
 marked.setOptions({ breaks: true, gfm: true });
 
+// Extra tags/attributes on top of DOMPurify's defaults. The base set is always
+// applied (Hugo shortcodes / inline SVG / mermaid); the embed set is opt-in.
+const BASE_ADD_TAGS = ['svg', 'path', 'g', 'circle', 'rect', 'line', 'polyline', 'polygon', 'details', 'summary'];
+const BASE_ADD_ATTR = ['target', 'rel', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'viewBox', 'd', 'cx', 'cy', 'r', 'x', 'y', 'width', 'height', 'class', 'open'];
+
+// Raw <iframe> embeds (Bilibili / YouTube / ... ) pasted into a post are valid
+// HTML blocks: marked already passes them through untouched, but DOMPurify
+// strips <iframe> and its presentation attributes by default, so the whole
+// player silently disappears from the preview.
+//
+// Only the presentation attributes below are added. `srcdoc` is deliberately
+// NOT allowed (it would let a post inject arbitrary HTML into a frame) and is
+// additionally pinned via FORBID_ATTR so the guarantee does not depend on
+// DOMPurify's default allowlist; event handlers and javascript: / data: URLs
+// stay blocked by its default attribute and URI policy. `src`, `width`,
+// `height`, `loading`, `title`, `name`, `style` are in the default allowlist.
+// The preview will load third-party pages from an author's own post — that is
+// the point of an embed; forcing `sandbox` would break most video players.
+const EMBED_ADD_TAGS = ['iframe'];
+const EMBED_ADD_ATTR = [
+  'allow',
+  'allowfullscreen',
+  'border',
+  'frameborder',
+  'framespacing',
+  'mozallowfullscreen',
+  'referrerpolicy',
+  'sandbox',
+  'scrolling',
+  'webkitallowfullscreen',
+];
+
 export interface RenderMarkdownOptions {
   // When true, ```mermaid fenced blocks are emitted as <div class="mermaid">
   // placeholders for the client-side mermaid runtime instead of highlighted
   // code. The caller is responsible for invoking mermaid.run() afterwards.
   mermaid?: boolean;
+  // When true, raw <iframe> embeds are kept in the rendered HTML. Opt-in:
+  // the article editor shows the author's own content, while AIChat renders
+  // model-generated text and must not be able to load third-party frames.
+  embeds?: boolean;
 }
 
 export function renderMarkdown(content: string, options: RenderMarkdownOptions = {}): string {
-  const { mermaid: enableMermaid = false } = options;
+  const { mermaid: enableMermaid = false, embeds: enableEmbeds = false } = options;
   const normalized = content.replace(/\\n/g, '\n');
 
   // Extract <details>...</details> blocks before markdown parsing to prevent
@@ -76,8 +112,12 @@ export function renderMarkdown(content: string, options: RenderMarkdownOptions =
   }
 
   return DOMPurify.sanitize(restored, {
-    ADD_TAGS: ['svg', 'path', 'g', 'circle', 'rect', 'line', 'polyline', 'polygon', 'details', 'summary'],
-    ADD_ATTR: ['target', 'rel', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'viewBox', 'd', 'cx', 'cy', 'r', 'x', 'y', 'width', 'height', 'class', 'open'],
+    ADD_TAGS: enableEmbeds ? [...BASE_ADD_TAGS, ...EMBED_ADD_TAGS] : BASE_ADD_TAGS,
+    ADD_ATTR: enableEmbeds ? [...BASE_ADD_ATTR, ...EMBED_ADD_ATTR] : BASE_ADD_ATTR,
+    // 纵深防御：显式钉住「iframe 不得携带 srcdoc / 正文不得带脚本与样式」，
+    // 不依赖上游默认值，也不被以后往 ADD_TAGS 里加标签时绕过。
+    FORBID_TAGS: ['script', 'style'],
+    FORBID_ATTR: ['srcdoc'],
   });
 }
 
