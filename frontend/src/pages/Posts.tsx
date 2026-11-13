@@ -4,7 +4,8 @@ import { Search, RefreshCw, Plus, Upload, FileUp, Tag, FolderOpen, Calendar, Clo
 import { toast } from '../utils/toast';
 import { get, post, uploadMarkdown } from '../utils/api';
 import { useEvents } from '../hooks/useEvents';
-import type { Post, PostsResponse, Tag as TagType, Category } from '../types';
+import { normalizePostsResponse, type RawPostsResponse } from '../utils/posts';
+import type { Post, Tag as TagType, Category } from '../types';
 
 export default function Posts() {
   const navigate = useNavigate();
@@ -29,7 +30,10 @@ export default function Posts() {
       if (filters.query) params.set('q', filters.query);
       if (filters.category) params.set('category', filters.category);
       if (filters.tag) params.set('tag', filters.tag);
-      const data = await get<PostsResponse>(`/api/posts?${params.toString()}`);
+      // 旧后端 / 缓存可能把空 tags 编成 null，先归一化再进 state，
+      // 否则渲染时 post.tags.length 会让整个列表页崩掉。
+      const raw = await get<RawPostsResponse>(`/api/posts?${params.toString()}`);
+      const data = normalizePostsResponse(raw);
       setPosts(data.posts);
       setPagination({
         total: data.total,
@@ -57,8 +61,8 @@ export default function Posts() {
         get<{ tags: TagType[] }>('/api/posts/tags'),
         get<{ categories: Category[] }>('/api/posts/categories'),
       ]);
-      setTags(tagsData.tags);
-      setCategories(catsData.categories);
+      setTags(tagsData.tags || []);
+      setCategories(catsData.categories || []);
     } catch (error) {
       console.error('Failed to load filters:', error);
     }

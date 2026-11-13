@@ -17,8 +17,9 @@ import {
 import { get } from '../utils/api';
 import { createNewPost, publishSystem, pushLatestEmail, pushSpecificEmail } from '../utils/actions';
 import { useMe } from '../hooks/useMe';
+import { normalizePostsResponse, type RawPostsResponse } from '../utils/posts';
 import type { GitStatus } from '../utils/api';
-import type { Category, Post, PostsResponse, ServerStatus, Tag as TagType } from '../types';
+import type { Category, Post, ServerStatus, Tag as TagType } from '../types';
 
 const WEEK_MS = 7 * 24 * 3600 * 1000;
 
@@ -55,7 +56,7 @@ export default function Dashboard() {
         }
       };
       const [all, tagData, catData, st, gs, ver] = await Promise.all([
-        safe(get<PostsResponse>('/api/posts?per_page=1000'), {
+        safe(get<RawPostsResponse>('/api/posts?per_page=1000'), {
           posts: [], total: 0, page: 1, per_page: 0, total_pages: 0, has_next: false, has_prev: false,
         }),
         safe(get<{ tags: TagType[] }>('/api/posts/tags'), { tags: [] }),
@@ -65,7 +66,8 @@ export default function Dashboard() {
         safe(get<{ version: string }>('/api/version'), { version: '' }),
       ]);
       if (!alive) return;
-      setPosts(all.posts || []);
+      // 与文章列表页共用归一化：post.tags.slice(0, 2) 同样经不起 null。
+      setPosts(normalizePostsResponse(all).posts);
       setTags(tagData.tags || []);
       setCategories(catData.categories || []);
       setServerStatus(st);

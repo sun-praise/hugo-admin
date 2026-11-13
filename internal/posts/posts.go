@@ -145,6 +145,8 @@ func strOr(v any, fallback string) string {
 }
 
 // strList 对齐 Python：缺失为空列表，单个字符串包一层。
+// 缺失时返回非 nil 的空切片很关键：nil []string 会被 encoding/json 编成
+// null，而 /api/posts 的前端直接读 post.tags.length / post.tags.slice()。
 func strList(v any) []string {
 	switch t := v.(type) {
 	case []any:
@@ -156,8 +158,17 @@ func strList(v any) []string {
 	case string:
 		return []string{t}
 	default:
-		return nil
+		return []string{}
 	}
+}
+
+// nonNilStrings 是 /api/posts 序列化边界的兜底：strList 已在解析时返回空
+// 切片，这里再挡一次，避免将来从其它路径构造 BlogPost 时把 null 漏给前端。
+func nonNilStrings(in []string) []string {
+	if in == nil {
+		return []string{}
+	}
+	return in
 }
 
 func boolOr(v any, fallback bool) bool {
@@ -310,8 +321,8 @@ func GetPosts(contentDir, query, category, tag string, page, perPage int) PostsR
 			Date:        dateStr,
 			Description: p.Description,
 			Excerpt:     p.Excerpt,
-			Tags:        p.Tags,
-			Categories:  p.Categories,
+			Tags:        nonNilStrings(p.Tags),
+			Categories:  nonNilStrings(p.Categories),
 			Cover:       p.Cover,
 			CoverURL:    ResolveCoverURL(p.RelativePath, p.Cover),
 			ModTime:     time.Unix(p.ModTime, 0).Format("2006-01-02 15:04"),
