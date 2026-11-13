@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- 编辑器预览吞掉文章里的原生 `<iframe>` 嵌入（B 站 / YouTube 等）：marked 本就原样透传，是 DOMPurify 默认白名单把 `iframe` 及其展示属性整段剥掉。`renderMarkdown` 新增 opt-in `embeds` 选项，仅文章编辑器开启，放行 `iframe` 与 `allowfullscreen` / `frameborder` 等展示属性；`srcdoc`、事件属性、`javascript:` / `data:` URL 仍由 DOMPurify 拦截，AIChat 等未开启的调用方行为不变。没有宽高的嵌入在预览里按 16:9 自适应，代码块中的 iframe 仍按代码显示。
+
+### Added
+- 编辑器预览栏可「收起 / 展开」：收起后桌面端编辑器占满整行、窄屏回到单栏编辑态，选择记入 localStorage（隐私模式下仅本次会话生效）。收起用 CSS 隐藏而非卸载 DOM，避免丢掉 mermaid 已渲染的图表。
+
 ## [3.1.0] - 2026-10-23
 
 ### Added

@@ -20,6 +20,8 @@ import {
   Wand2,
   Headphones,
   PanelRight,
+  PanelRightOpen,
+  PanelRightClose,
 } from 'lucide-react';
 import { toast } from '../utils/toast';
 import { get, post } from '../utils/api';
@@ -125,6 +127,28 @@ export default function Editor() {
   // 窄屏下低频 AI 操作收进菜单,常驻按钮只留高频操作
   const [aiMenuOpen, setAiMenuOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<'edit' | 'preview'>('edit');
+  // 预览栏可收起：收起后桌面端编辑器占满整行，窄屏回到单栏编辑态。
+  // 记住上次选择，避免每打开一篇文章都要重按一次。
+  const [previewCollapsed, setPreviewCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('editor-preview-collapsed') === '1';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('editor-preview-collapsed', previewCollapsed ? '1' : '0');
+    } catch {
+      // localStorage 不可用（隐私模式等）时仅本次会话生效
+    }
+  }, [previewCollapsed]);
+  const togglePreview = useCallback(() => {
+    const next = !previewCollapsed;
+    setPreviewCollapsed(next);
+    // 窄屏没有双栏，展开后直接切到预览页签，否则按钮看起来没反应
+    if (!next) setMobilePane('preview');
+  }, [previewCollapsed]);
   const [fileMtime, setFileMtime] = useState<number | null>(null);
   const [conflictRemoteContent, setConflictRemoteContent] = useState<string | null>(null);
 
@@ -213,7 +237,9 @@ export default function Editor() {
         return `<a href="/editor/${p}" target="_blank" class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm" title="点击编辑: ${p}">🔗 ${text}</a>`;
       },
     );
-    let html = renderMarkdown(src, { mermaid: true });
+    // The preview mirrors the author's own post, so keep raw <iframe> embeds
+    // (Bilibili/YouTube/...). AIChat deliberately leaves `embeds` off.
+    let html = renderMarkdown(src, { mermaid: true, embeds: true });
     if (currentFile) {
       const articleDir = currentFile.replace(/[^/]+$/, '');
       html = html.replace(/<img\s+src="([^"]+)"/g, (_, src) => {
@@ -1019,6 +1045,15 @@ export default function Editor() {
     [preview],
   );
 
+  // 收起时用 CSS 隐藏而不是卸载：mermaid 直接改写 preview 里的 DOM，卸载会
+  // 丢掉已渲染的图表，且 preview 不变时渲染 effect 不会重新触发。
+  const editorPaneDisplay = previewCollapsed || mobilePane === 'edit' ? 'flex' : 'hidden lg:flex';
+  const previewPaneDisplay = previewCollapsed
+    ? 'hidden'
+    : mobilePane === 'preview'
+      ? 'flex'
+      : 'hidden lg:flex';
+
   if (!currentFile) {
     return (
       <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-12 text-center">
@@ -1253,39 +1288,56 @@ export default function Editor() {
         </div>
       </div>
 
-      {/* 编辑器和预览:<lg 单栏页签切换,lg+ 双栏并锁定视口高度 */}
+      {/* 编辑器和预览:<lg 单栏页签切换,lg+ 双栏并锁定视口高度；预览栏可收起 */}
       <div className="rounded-[10px] border border-[#e4e4e7] bg-white p-4">
-        <div
-          className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-[#f4f4f5] p-1 lg:hidden"
-          role="tablist"
-          aria-label="编辑区视图切换"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mobilePane === 'edit'}
-            onClick={() => setMobilePane('edit')}
-            className={`h-10 cursor-pointer rounded-md text-sm font-medium transition-colors ${
-              mobilePane === 'edit' ? 'bg-white text-zinc-900 shadow-sm' : 'text-[#52525b]'
-            }`}
+        {!previewCollapsed && (
+          <div
+            className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-[#f4f4f5] p-1 lg:hidden"
+            role="tablist"
+            aria-label="编辑区视图切换"
           >
-            编辑
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mobilePane === 'preview'}
-            onClick={() => setMobilePane('preview')}
-            className={`h-10 cursor-pointer rounded-md text-sm font-medium transition-colors ${
-              mobilePane === 'preview' ? 'bg-white text-zinc-900 shadow-sm' : 'text-[#52525b]'
-            }`}
-          >
-            预览
-          </button>
-        </div>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:h-[calc(100vh-380px)] lg:min-h-[500px]">
-          <div className={`flex min-h-0 flex-col ${mobilePane === 'edit' ? '' : 'max-lg:hidden'}`}>
-            <div className="text-sm font-medium text-[#3f3f46] mb-2">编辑器</div>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobilePane === 'edit'}
+              onClick={() => setMobilePane('edit')}
+              className={`h-10 cursor-pointer rounded-md text-sm font-medium transition-colors ${
+                mobilePane === 'edit' ? 'bg-white text-zinc-900 shadow-sm' : 'text-[#52525b]'
+              }`}
+            >
+              编辑
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobilePane === 'preview'}
+              onClick={() => setMobilePane('preview')}
+              className={`h-10 cursor-pointer rounded-md text-sm font-medium transition-colors ${
+                mobilePane === 'preview' ? 'bg-white text-zinc-900 shadow-sm' : 'text-[#52525b]'
+              }`}
+            >
+              预览
+            </button>
+          </div>
+        )}
+        <div className={`grid grid-cols-1 gap-4 lg:h-[calc(100vh-380px)] lg:min-h-[500px] ${previewCollapsed ? '' : 'lg:grid-cols-2'}`}>
+          <div className={`min-h-0 flex-col ${editorPaneDisplay}`}>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="text-sm font-medium text-[#3f3f46]">编辑器</div>
+              {previewCollapsed && (
+                <button
+                  type="button"
+                  onClick={togglePreview}
+                  aria-controls="editor-preview-pane"
+                  aria-expanded={false}
+                  title="展开预览"
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-[#52525b] transition-colors hover:bg-[#f4f4f5] hover:text-zinc-900"
+                >
+                  <PanelRightOpen className="w-4 h-4" />
+                  展开预览
+                </button>
+              )}
+            </div>
             <textarea
               ref={textareaRef}
               value={content}
@@ -1302,8 +1354,21 @@ export default function Editor() {
               onDrift={handleInlineEditDrift}
             />
           </div>
-          <div className={`flex min-h-0 flex-col ${mobilePane === 'preview' ? '' : 'max-lg:hidden'}`}>
-            <div className="text-sm font-medium text-[#3f3f46] mb-2">预览</div>
+          <div id="editor-preview-pane" className={`min-h-0 flex-col ${previewPaneDisplay}`}>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="text-sm font-medium text-[#3f3f46]">预览</div>
+              <button
+                type="button"
+                onClick={togglePreview}
+                aria-controls="editor-preview-pane"
+                aria-expanded
+                title="收起预览，编辑器占满整行"
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-[#52525b] transition-colors hover:bg-[#f4f4f5] hover:text-zinc-900"
+              >
+                <PanelRightClose className="w-4 h-4" />
+                收起
+              </button>
+            </div>
             <div className="h-[58vh] overflow-y-auto p-4 border border-[#e4e4e7] rounded-lg bg-white lg:h-auto lg:flex-1">
               {previewEl}
             </div>

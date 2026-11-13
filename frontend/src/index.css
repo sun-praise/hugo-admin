@@ -274,6 +274,16 @@ body {
   background-color: #f5f5f4;
 }
 .markdown-body img { max-width: 100%; height: auto; }
+/* 内嵌 iframe（B 站/YouTube 等）默认没有宽高属性，浏览器只给 300x150。
+   预览栏比文章页窄，按 16:9 撑满宽度；显式写了 width/height 的保持原样。 */
+.markdown-body iframe { max-width: 100%; border: 0; }
+.markdown-body iframe:not([width]) {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin-bottom: 16px;
+}
 .markdown-body .mermaid {
   display: flex;
   justify-content: center;
