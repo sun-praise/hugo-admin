@@ -14,7 +14,9 @@ export interface RawPost extends Omit<Post, 'tags' | 'categories'> {
   categories?: string[] | null;
 }
 
-export interface RawPostsResponse extends Omit<PostsResponse, 'posts'> {
+// 分页字段也允许缺失：旧后端 / 代理返回半截响应时，不能让页面显示
+// 「共 undefined 篇文章」。缺省值与空列表的语义保持一致。
+export interface RawPostsResponse extends Partial<Omit<PostsResponse, 'posts'>> {
   posts?: RawPost[] | null;
 }
 
@@ -22,6 +24,18 @@ function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   // 只保留字符串：null / 对象既不满足 Post 的类型，也会成为不稳定的 React key。
   return value.filter((item): item is string => typeof item === 'string');
+}
+
+function isRawPost(value: unknown): value is RawPost {
+  return value !== null && typeof value === 'object';
+}
+
+function numberOr(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function boolOr(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
 }
 
 export function normalizePost(raw: RawPost): Post {
@@ -33,8 +47,17 @@ export function normalizePost(raw: RawPost): Post {
 }
 
 export function normalizePostsResponse(raw: RawPostsResponse): PostsResponse {
+  const posts = Array.isArray(raw.posts)
+    ? raw.posts.filter(isRawPost).map(normalizePost)
+    : [];
   return {
     ...raw,
-    posts: Array.isArray(raw.posts) ? raw.posts.map(normalizePost) : [],
+    posts,
+    total: numberOr(raw.total, 0),
+    page: numberOr(raw.page, 1),
+    per_page: numberOr(raw.per_page, 20),
+    total_pages: numberOr(raw.total_pages, 0),
+    has_next: boolOr(raw.has_next, false),
+    has_prev: boolOr(raw.has_prev, false),
   };
 }

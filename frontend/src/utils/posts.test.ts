@@ -55,6 +55,33 @@ describe('normalizePostsResponse', () => {
     expect(data.posts[0].categories).toEqual(['笔记']);
   });
 
+  it('posts 数组里的 null / 非对象元素被跳过，不拖垮整页', () => {
+    const data = normalizePostsResponse({
+      ...base,
+      posts: [null, undefined, 'oops', { ...rawPost, tags: null }] as unknown as RawPostsResponse['posts'],
+    });
+    expect(data.posts).toHaveLength(1);
+    expect(data.posts[0].title).toBe('无标签');
+    expect(data.posts[0].tags).toEqual([]);
+  });
+
+  it('分页字段缺失 / 非数值时回落到空响应的默认值', () => {
+    const data = normalizePostsResponse({
+      posts: [{ ...rawPost, tags: null }],
+      total: undefined,
+      total_pages: NaN,
+      has_next: 'yes' as unknown as boolean,
+    });
+    expect(data).toMatchObject({
+      total: 0,
+      page: 1,
+      per_page: 20,
+      total_pages: 0,
+      has_next: false,
+      has_prev: false,
+    });
+  });
+
   it('正常响应保持字段不变', () => {
     const data = normalizePostsResponse({
       ...base,

@@ -387,6 +387,9 @@ func TestGetPostsMissingTaxonomiesEncodeAsEmptyArrays(t *testing.T) {
 	}
 }
 
+// 聚合接口同样走 /api/posts/tags 与 /categories，前端筛选下拉直接
+// setTags(...) / setCategories(...)。aggregate() 现在返回非 nil 空切片，
+// 这里把它钉成显式契约，防止将来改成 nil 时又输出 null。
 func TestAggregatesAreEmptyArraysWithoutTaxonomies(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "post", "no-taxonomies.md")
