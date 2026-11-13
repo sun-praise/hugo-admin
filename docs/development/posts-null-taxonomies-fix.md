@@ -40,20 +40,25 @@
   API 边界转成 `Post[]`：响应体本身可为 null / 顶层数组、`posts` 可为非数组，
   数组内 null / 数组 / 非对象元素被跳过，`tags` / `categories` 非数组或
   含非字符串项一并降级；分页字段缺失或非法时从 `posts.length` 推导
-  （`total` / `per_page` / `total_pages`，派生总页数不小于当前页码），
-  `page` 回落到调用方传入的请求页码以免翻页被弹回第 1 页；`page` 被纠正时
-  忽略服务端陈旧的 `has_next` / `has_prev`，改由页码推导。
+  （`total` / `per_page`；**总量非零时** `total_pages = ceil(total / per_page)`，
+  总量为 0 时派生 0），`page` 回落到调用方传入的请求页码以免翻页被弹回
+  第 1 页。服务端没给合法页码且请求页码越界时，**收敛页码到最后一页**
+  而不是放大总页数，避免「第 5 / 5 页」+ 空列表且翻页按钮被锁死。
+  `has_next` / `has_prev` 一律按 `page < total_pages` / `page > 1` 推导
+  （与 Go 后端 `posts.go` 同构），不被旧后端陈旧的布尔值锁死。
+  空结果（`total === 0`）时派生总页数为 0、可能小于页码，但 `Posts.tsx`
+  用 `pagination.total > 0` 隐藏分页栏，不会渲染「第 3 / 0 页」。
   `Posts.tsx` 传 `currentPage`、`Dashboard.tsx` 用默认值，两者统一走归一化；
   `Posts.loadFilters` 的标签 / 分类下拉也补了 `|| []`。
-- 新增 `posts.test.ts`（15 例）覆盖 null、字段缺失、`posts` 非数组、
+- 新增 `posts.test.ts`（17 例）覆盖 null、字段缺失、`posts` 非数组、
   数组内混入 null / 数组 / 非对象、分页字段缺失 / 非数值 / 从 posts 推导、
-  多页时 `has_next` 派生、派生总页数不小于页码、`page` 回落请求页码与
-  `has_*` 重算、响应体为 null / 顶层数组、数组内非字符串项、
-  正常数据保持、单篇归一化。
+  多页时 `has_next` 派生、第 2 页页码收敛、越界页码收敛到最后一页、
+  服务端显式 `has_*` 矛盾时以派生值为准、`page` 回落请求页码、
+  响应体为 null / 顶层数组、数组内非字符串项、正常数据保持、单篇归一化。
 
 ## 验证
 
-- `pnpm lint`、`pnpm test`（7 files / 47 tests）、`pnpm build` 全绿。
+- `pnpm lint`、`pnpm test`（7 files / 49 tests）、`pnpm build` 全绿。
 - `go test ./internal/posts`：新增两例通过，其余既有用例通过，
   唯一失败项 `TestModTimeAndDateFormats` 是 Windows 路径分隔符
   （`post\t.md`），在**未改动的 main 工作树**上同样失败，与本次改动无关。

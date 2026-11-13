@@ -106,14 +106,15 @@ describe('normalizePostsResponse', () => {
   });
 
   it('page 缺失或非法时回落到请求页码，不把用户弹回第 1 页', () => {
+    const multiPage = { total: 45, per_page: 20, total_pages: 3 };
     for (const page of [undefined, 0, NaN, '2']) {
       const data = normalizePostsResponse(
-        { ...base, page: page as number, posts: [{ ...rawPost }] },
+        { ...multiPage, page: page as number, posts: [{ ...rawPost }] },
         3,
       );
       expect(data.page).toBe(3);
     }
-    // 服务端明确回传合法页码时仍以服务端为准
+    // 服务端明确回传合法页码时仍以服务端为准（不参与越界收敛）
     expect(normalizePostsResponse({ ...base, page: 2, posts: [] }, 3).page).toBe(2);
   });
 
@@ -129,18 +130,46 @@ describe('normalizePostsResponse', () => {
     expect(data.has_prev).toBe(false);
   });
 
-  it('第 2 页缺分页字段时派生总页数不小于当前页码', () => {
+  it('第 2 页缺分页字段时收敛页码，不出现「第 2 / 1 页」', () => {
     const data = normalizePostsResponse(
       { posts: [{ ...rawPost }, { ...rawPost, path: 'post/b.md' }] },
       2,
     );
     expect(data).toMatchObject({
-      page: 2,
+      page: 1,
       total: 2,
-      total_pages: 2,
-      has_prev: true,
+      total_pages: 1,
+      has_prev: false,
       has_next: false,
     });
+  });
+
+  it('请求页码越界时收敛到最后一页，而不是放大总页数', () => {
+    const data = normalizePostsResponse({
+      posts: [],
+      total: 45,
+      per_page: 20,
+      has_next: true,
+    }, 5);
+    expect(data).toMatchObject({
+      page: 3,
+      total_pages: 3,
+      has_next: false,
+      has_prev: true,
+    });
+  });
+
+  it('服务端显式 has_* 与页码矛盾时以派生值为准', () => {
+    const data = normalizePostsResponse({
+      ...base,
+      total: 45,
+      per_page: 20,
+      total_pages: 3,
+      has_next: false,
+      has_prev: true,
+    });
+    expect(data.has_next).toBe(true);
+    expect(data.has_prev).toBe(false);
   });
 
   it('page 回落时重算 has_prev / has_next，不被陈旧的 false 锁死', () => {
@@ -177,6 +206,8 @@ describe('normalizePostsResponse', () => {
       tags: ['Hugo'],
       categories: ['笔记'],
     });
+    // boolOr 分支移除后，正常响应的派生布尔值仍应与服务端一致
+    expect(data).toMatchObject({ page: 1, has_next: false, has_prev: false });
   });
 });
 

@@ -37,10 +37,6 @@ function intOr(value: unknown, fallback: number, min: number): number {
     : fallback;
 }
 
-function boolOr(value: unknown, fallback: boolean): boolean {
-  return typeof value === 'boolean' ? value : fallback;
-}
-
 export function normalizePost(raw: RawPost): Post {
   return {
     ...raw,
@@ -66,19 +62,25 @@ export function normalizePostsResponse(
     : [];
 
   const total = intOr(source.total, posts.length, 0);
-  const page = intOr(source.page, requestedPage, 1);
   const perPage = intOr(source.per_page, posts.length || 20, 1);
-  // 缺分页字段时只能用本页条数估总数，派生出的总页数不能小于当前页码，
-  // 否则 Posts.tsx 会渲染「第 2 / 1 页」且分页按钮只剩第 1 页。
-  const derivedTotalPages = total > 0 ? Math.max(Math.ceil(total / perPage), page) : 0;
+  // 服务端没给总页数时只能按本页条数估：总量为 0 派生 0，否则向上取整。
+  const derivedTotalPages = total > 0 ? Math.ceil(total / perPage) : 0;
   const totalPages = intOr(source.total_pages, derivedTotalPages, 0);
 
-  // page 是回落/纠正得来的，说明服务端页码不可信；此时 has_prev / has_next
-  // 也按页码推导，避免旧后端给一个陈旧的 false 把「上一页」按钮锁死。
-  const pageWasCorrected = page !== source.page;
-  const hasNext = page < totalPages;
-  const hasPrev = page > 1;
+  const hasServerPage = typeof source.page === 'number'
+    && Number.isInteger(source.page)
+    && source.page >= 1;
+  let page = intOr(source.page, requestedPage, 1);
+  // 页码是回落/纠正得来时，请求页码可能越界（只剩 3 页却请求第 5 页）。
+  // 收敛页码而不是放大总页数：否则会渲染「第 5 / 5 页」+ 空列表，
+  // 且 goToPage 按 total_pages clamp 后翻页按钮被锁死，用户回不去。
+  if (!hasServerPage && totalPages > 0) {
+    page = Math.min(page, totalPages);
+  }
 
+  // has_next / has_prev 一律由页码推导：Go 后端用的也是
+  // page < totalPages / page > 1，前后端同构；旧后端给陈旧的 false
+  // 不会把「上一页 / 下一页」锁死。
   return {
     ...source,
     posts,
@@ -86,7 +88,7 @@ export function normalizePostsResponse(
     page,
     per_page: perPage,
     total_pages: totalPages,
-    has_next: pageWasCorrected ? hasNext : boolOr(source.has_next, hasNext),
-    has_prev: pageWasCorrected ? hasPrev : boolOr(source.has_prev, hasPrev),
+    has_next: page < totalPages,
+    has_prev: page > 1,
   };
 }
