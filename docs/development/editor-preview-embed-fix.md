@@ -20,8 +20,8 @@
 
 ## 4. 是否沉淀
 
-- `frontend/src/utils/markdown.test.ts`：钉住四条边界——默认不放行 iframe（AIChat 行为不变）、`embeds: true` 放行展示属性但不放行 `srcdoc`、多行属性不被 markdown 解析破坏、代码块里的 iframe 仍转义显示。
-- `FORBID_TAGS` / `FORBID_ATTR` 显式声明 `script` / `style` / `srcdoc`，把安全承诺从「依赖上游默认值」改成代码里的显式约束；URI 策略（拦截 `javascript:` / `data:`）仍由 DOMPurify 负责。
+- `frontend/src/utils/markdown.test.ts`：钉住净化配置契约的四条边界——默认不放行 iframe（AIChat 行为不变）、`embeds: true` 时配置含展示属性且不含 `srcdoc`、多行属性不被 markdown 解析破坏、代码块里的 iframe 仍转义显示。注意该用例 mock 了 DOMPurify，只验证「传入的 HTML + 白名单 / 黑名单配置」，不验证真实剥离行为。
+- `FORBID_TAGS` / `FORBID_ATTR` 显式声明 `script` / `style` / `srcdoc`，把这部分承诺从「依赖上游默认值」改成代码里的显式约束；事件属性与 URI 策略（拦截 `javascript:` / `data:`）仍由 DOMPurify 上游保证，本仓库未对其行为钉单测（CI 里没有 DOM 实现）。
 - `embeds` 做成 opt-in：只有文章编辑器开启，渲染模型输出的 AIChat 不放行第三方 frame。
 - `frontend/src/utils/previewCollapse.ts` + 单测：把收起状态持久化与两栏 display 类抽成纯函数，补上回归护栏。
 - 本次评审又发现一个同类盲区并一并修掉：预览收起（`display:none`）时 mermaid 的 `getBBox` 拿不到尺寸，且渲染 effect 只依赖 `[preview]`，再次展开不会重跑。现在隐藏时跳过渲染、可见时重跑，并把「按节点缓存 / 还原原始图表源码」抽成 `MermaidSourceCache`（内部 WeakMap，配 4 例单测），避免把已渲染的 SVG 文本当成图表定义重新解析。窄屏切页签的同类隐患同时覆盖。

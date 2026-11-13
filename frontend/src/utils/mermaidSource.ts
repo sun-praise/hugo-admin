@@ -14,8 +14,8 @@ export interface MermaidNodeLike {
 export class MermaidSourceCache {
   private readonly sources = new WeakMap<object, string>();
 
-  /** 首次见到节点时登记源码；之后始终返回首次登记的值。 */
-  source(node: MermaidNodeLike): string {
+  /** 登记并返回源码：首次见到节点时缓存，之后始终返回首次登记的值。 */
+  remember(node: MermaidNodeLike): string {
     let code = this.sources.get(node);
     if (code === undefined) {
       code = node.textContent ?? '';
@@ -26,7 +26,7 @@ export class MermaidSourceCache {
 
   /** 还原节点为原始源码并清掉 mermaid 的处理标记，返回可用的图表定义。 */
   restore(node: MermaidNodeLike): string {
-    const code = this.source(node);
+    const code = this.remember(node);
     node.textContent = code;
     node.removeAttribute('data-processed');
     return code;
