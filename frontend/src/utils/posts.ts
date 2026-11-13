@@ -59,7 +59,8 @@ export function normalizePostsResponse(
 ): PostsResponse {
   // 整个响应体为 null / undefined 时（代理异常、旧后端返回 `null`），
   // 仍给出一份可用的空响应，而不是在 Dashboard 的 async effect 里抛错。
-  const source: RawPostsResponse = raw && typeof raw === 'object' ? raw : {};
+  // 与 isRawPost 保持一致：顶层数组同样是 object，展开会把数字键铺进返回值。
+  const source: RawPostsResponse = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
   const posts = Array.isArray(source.posts)
     ? source.posts.filter(isRawPost).map(normalizePost)
     : [];
@@ -67,7 +68,16 @@ export function normalizePostsResponse(
   const total = intOr(source.total, posts.length, 0);
   const page = intOr(source.page, requestedPage, 1);
   const perPage = intOr(source.per_page, posts.length || 20, 1);
-  const totalPages = intOr(source.total_pages, total > 0 ? Math.ceil(total / perPage) : 0, 0);
+  // 缺分页字段时只能用本页条数估总数，派生出的总页数不能小于当前页码，
+  // 否则 Posts.tsx 会渲染「第 2 / 1 页」且分页按钮只剩第 1 页。
+  const derivedTotalPages = total > 0 ? Math.max(Math.ceil(total / perPage), page) : 0;
+  const totalPages = intOr(source.total_pages, derivedTotalPages, 0);
+
+  // page 是回落/纠正得来的，说明服务端页码不可信；此时 has_prev / has_next
+  // 也按页码推导，避免旧后端给一个陈旧的 false 把「上一页」按钮锁死。
+  const pageWasCorrected = page !== source.page;
+  const hasNext = page < totalPages;
+  const hasPrev = page > 1;
 
   return {
     ...source,
@@ -76,7 +86,7 @@ export function normalizePostsResponse(
     page,
     per_page: perPage,
     total_pages: totalPages,
-    has_next: boolOr(source.has_next, page < totalPages),
-    has_prev: boolOr(source.has_prev, page > 1),
+    has_next: pageWasCorrected ? hasNext : boolOr(source.has_next, hasNext),
+    has_prev: pageWasCorrected ? hasPrev : boolOr(source.has_prev, hasPrev),
   };
 }
