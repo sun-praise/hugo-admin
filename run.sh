@@ -129,5 +129,16 @@ if [ ! -w "$_content_parent" ]; then
   HUGO_ROOT=~/work/blog/<站点> CONTENT_DIR=~/work/blog/<站点>/content ./run.sh"
 fi
 
-echo "==> 启动 hugo-admin (Go): http://localhost:${PORT:-5050}（监听所有网卡，生产请置于反向代理之后）"
+# --- 访问地址：取默认路由源 IP（即主网卡 inet，自动排除 lo/docker 网桥）---
+PORT="${PORT:-5050}"
+LAN_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "src") {print $(i+1); exit}}')"
+if [ -z "$LAN_IP" ]; then
+    LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+fi
+
+echo "==> 启动 hugo-admin (Go)（监听所有网卡，生产请置于反向代理之后）"
+echo "    本机:   http://localhost:${PORT}"
+if [ -n "$LAN_IP" ]; then
+    echo "    局域网: http://${LAN_IP}:${PORT}"
+fi
 exec ./bin/hugo-admin
