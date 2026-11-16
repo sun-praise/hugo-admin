@@ -130,15 +130,19 @@ if [ ! -w "$_content_parent" ]; then
 fi
 
 # --- 访问地址：取默认路由源 IP（即主网卡 inet，自动排除 lo/docker 网桥）---
+# 默认端口需与 internal/config/config.go 的默认值保持同步
 PORT="${PORT:-5050}"
-LAN_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "src") {print $(i+1); exit}}')"
+# 纯赋值的退出码取自命令替换，pipefail 会把探测失败（无 iproute2 返回 127、
+# 无默认路由返回 2、macOS hostname 不支持 -I）经 set -e 终止脚本，
+# 因此每条探测都必须吞掉失败，仅表现为拿不到地址。
+LAN_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "src") {print $(i+1); exit}}' || true)"
 if [ -z "$LAN_IP" ]; then
-    LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
 fi
 
 echo "==> 启动 hugo-admin (Go)（监听所有网卡，生产请置于反向代理之后）"
 echo "    本机:   http://localhost:${PORT}"
 if [ -n "$LAN_IP" ]; then
-    echo "    局域网: http://${LAN_IP}:${PORT}"
+    echo "    对外:   http://${LAN_IP}:${PORT}"
 fi
 exec ./bin/hugo-admin
