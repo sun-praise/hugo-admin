@@ -13,6 +13,9 @@ repos:
     hooks:
       - id: shellcheck
         args: [--severity=warning]
+        # .specify/ 是 spec-kit 的 vendored 脚本，不属本仓库维护；
+        # 其 local x=$(...) 写法大量触发 SC2155(warning)，不纳入检查
+        exclude: ^\.specify/
 
   - repo: https://github.com/pycqa/flake8
     rev: 7.0.0
