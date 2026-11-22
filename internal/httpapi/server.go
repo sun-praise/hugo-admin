@@ -149,6 +149,7 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /api/themes/preview", s.handleThemePreviewStatus)
 	m.HandleFunc("DELETE /api/themes/preview", s.handleThemePreviewStop)
 	m.HandleFunc("GET /api/content/{filename...}", s.handleContentFile)
+	m.HandleFunc("GET /content/{filename...}", s.handleContentFile)
 	m.HandleFunc("GET /api/article/tts/status", s.handleArticleTTSStatus)
 	m.HandleFunc("POST /api/article/tts", s.handleArticleTTSGenerate)
 	m.HandleFunc("DELETE /api/article/tts", s.handleArticleTTSDelete)
@@ -443,8 +444,34 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, full)
 }
 
-// handleSPA 复刻 Python 404 处理器：/api/* → JSON 404，其余路径回退
-// 到 React SPA 的 index.html。
+// serveHugoStatic 尝试把请求路径映射到 <HugoRoot>/static/<path> 下的常规
+// 文件并直接服务（对齐 Hugo 的 static → 站点根语义），命中返回 true。
+// cover 使用指向 static/ 的绝对路径（如 /images/...）时，管理端借此可
+// 预览封面。点路径与越界路径一律返回 false，回落 SPA 兜底，不泄露存在性。
+func (s *Server) serveHugoStatic(w http.ResponseWriter, r *http.Request) bool {
+	if s.cfg.HugoRoot == "" {
+		return false
+	}
+	rel := strings.TrimPrefix(r.URL.Path, "/")
+	if rel == "" {
+		return false
+	}
+	for _, part := range strings.Split(filepath.ToSlash(rel), "/") {
+		if strings.HasPrefix(part, ".") {
+			return false
+		}
+	}
+	staticRoot := filepath.Join(s.cfg.HugoRoot, "static")
+	full := filepath.Join(staticRoot, filepath.FromSlash(rel))
+	if !isSafeWithin(full, staticRoot) || !isFile(full) {
+		return false
+	}
+	http.ServeFile(w, r, full)
+	return true
+}
+
+// handleSPA 复刻 Python 404 处理器：/api/* → JSON 404，其余路径先探测
+// Hugo static/ 静态文件，未命中再回退到 React SPA 的 index.html。
 func (s *Server) handleSPA(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/api/") {
 		writeJSON(w, http.StatusNotFound, map[string]any{
@@ -454,6 +481,9 @@ func (s *Server) handleSPA(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.serveHugoStatic(w, r) {
 		return
 	}
 	index := filepath.Join(s.cfg.AdminUIDir, "index.html")

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- 补回 `/content/` 静态路由（Go 重写时遗漏）：相对路径封面图与编辑器图片预览恢复显示 (#196)
+- SPA 兜底前先服务 `<HugoRoot>/static/` 静态文件：指向 Hugo static 目录的 `/images/...` 封面恢复显示 (#197)
+
 ## [1.0.1] - 2025-11-26
 
 ### Added
