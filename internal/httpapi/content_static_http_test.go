@@ -121,6 +121,14 @@ func TestHugoStaticServesCover(t *testing.T) {
 	if !strings.Contains(string(body), "<svg") {
 		t.Fatalf("static cover body = %q, want svg bytes", body)
 	}
+	// 可导航执行脚本的格式必须带加固响应头：删掉 serveHugoStatic 里的
+	// 加固分支时此用例变红
+	if got := resp.Header.Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("svg X-Content-Type-Options = %q, want nosniff", got)
+	}
+	if got := resp.Header.Get("Content-Security-Policy"); got != "sandbox" {
+		t.Fatalf("svg Content-Security-Policy = %q, want sandbox", got)
+	}
 }
 
 // TestHugoStaticFallbacksToSPA：static 未命中、名单外扩展名（页面与
@@ -173,7 +181,9 @@ func TestHugoStaticFallbacksToSPA(t *testing.T) {
 
 // TestServeHugoStaticRejectsTraversal 直接调用 serveHugoStatic 绕过 mux
 // 的 cleanPath（走 mux 会被 301），验证白名单内扩展名的点路径与越界
-// 引用仍被安全校验拒绝，而不是仅靠扩展名白名单短路。
+// 引用仍被安全校验拒绝，而不是仅靠扩展名白名单短路。Unix 上越界路径
+// 必含 ".."，会先被点路径检查拦下，isSafeWithin 是其后的兜底层——
+// 两层任一生效即拒绝，保证删除其中任何一层都不会静默放行。
 func TestServeHugoStaticRejectsTraversal(t *testing.T) {
 	srv, _, hugoRoot := newStaticTestServer(t)
 	if err := os.WriteFile(filepath.Join(hugoRoot, "payload.png"), []byte("secret-payload"), 0o644); err != nil {

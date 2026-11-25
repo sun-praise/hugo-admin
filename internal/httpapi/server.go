@@ -452,8 +452,9 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 // 引用只需图片/字体/媒体类文件；名单外的路径（html/yml/json 等页面与
 // 配置）回落 SPA——既不把 static/ 全量匿名暴露（如 CMS 的 config.yml），
 // 也避免同名文件顶掉 SPA 前端路由。名单按封面/素材实际格式逐步补充
-// （含手机直出的 .heic/.heif/.tif(f) 与多帧 .apng），刻意不放可执行或
-// 文档类格式。
+// （含手机直出的 .heic/.heif/.tif(f) 与多帧 .apng）；.pdf 保留用于封面/
+// 附件预览，其可直接导航打开的脚本风险由 serveHugoStatic 的响应头加固
+// 兜住，其余可执行或 HTML 类格式一律不放。
 var hugoStaticExt = map[string]bool{
 	".png": true, ".apng": true, ".jpg": true, ".jpeg": true, ".gif": true,
 	".webp": true, ".avif": true, ".heic": true, ".heif": true,
@@ -490,9 +491,11 @@ func (s *Server) serveHugoStatic(w http.ResponseWriter, r *http.Request) bool {
 	if !isSafeWithin(full, staticRoot) || !isFile(full) {
 		return false
 	}
-	if strings.EqualFold(filepath.Ext(full), ".svg") {
-		// svg 直接导航时可执行内嵌脚本并携带同一会话 cookie：
-		// nosniff 防 MIME 嗅探，CSP sandbox 禁文档内脚本（<img> 引用不受影响）。
+	switch strings.ToLower(filepath.Ext(full)) {
+	case ".svg", ".pdf":
+		// svg/PDF 直接导航时可在文档上下文执行内嵌脚本并携带同一会话
+		// cookie：nosniff 防 MIME 嗅探，CSP sandbox 禁文档内脚本
+		//（<img> 等子资源引用不受影响）。
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Content-Security-Policy", "sandbox")
 	}
