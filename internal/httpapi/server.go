@@ -149,6 +149,7 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /api/themes/preview", s.handleThemePreviewStatus)
 	m.HandleFunc("DELETE /api/themes/preview", s.handleThemePreviewStop)
 	m.HandleFunc("GET /api/content/{filename...}", s.handleContentFile)
+	m.HandleFunc("GET /content/{filename...}", s.handleContentFile)
 	m.HandleFunc("GET /api/article/tts/status", s.handleArticleTTSStatus)
 	m.HandleFunc("POST /api/article/tts", s.handleArticleTTSGenerate)
 	m.HandleFunc("DELETE /api/article/tts", s.handleArticleTTSDelete)
@@ -216,11 +217,15 @@ func (s *Server) recoverMiddleware(next http.Handler) http.Handler {
 }
 
 // guardMiddleware 复刻 Python install_auth_guard：未登录访问非白名单的
-// /api/* 一律 401。机器客户端可通过 Authorization: Bearer <API_TOKEN>
-// 等价通过（API_TOKEN 未配置时 Bearer 通道关闭）。
+// /api/* 与 /content/* 一律 401（/content/* 与 /api/content/* 指向同一
+// ContentDir，供 cover 等 <img> 静态引用；浏览器同源请求自动携带会话
+// cookie，登录态不受影响）。机器客户端可通过 Authorization: Bearer
+// <API_TOKEN> 等价通过（API_TOKEN 未配置时 Bearer 通道关闭）。
 func (s *Server) guardMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api/") || publicAPIPath[r.URL.Path] {
+		guarded := strings.HasPrefix(r.URL.Path, "/api/") ||
+			strings.HasPrefix(r.URL.Path, "/content/")
+		if !guarded || publicAPIPath[r.URL.Path] {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -443,8 +448,63 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, full)
 }
 
-// handleSPA 复刻 Python 404 处理器：/api/* → JSON 404，其余路径回退
-// 到 React SPA 的 index.html。
+// hugoStaticExt 是 Hugo static/ 静态资源的扩展名白名单：cover 等站点内
+// 引用只需图片/字体/媒体类文件；名单外的路径（html/yml/json 等页面与
+// 配置）回落 SPA——既不把 static/ 全量匿名暴露（如 CMS 的 config.yml），
+// 也避免同名文件顶掉 SPA 前端路由。名单按封面/素材实际格式逐步补充
+// （含手机直出的 .heic/.heif/.tif(f) 与多帧 .apng）；.pdf 保留用于封面/
+// 附件预览，其可直接导航打开的脚本风险由 serveHugoStatic 的响应头加固
+// 兜住，其余可执行或 HTML 类格式一律不放。
+var hugoStaticExt = map[string]bool{
+	".png": true, ".apng": true, ".jpg": true, ".jpeg": true, ".gif": true,
+	".webp": true, ".avif": true, ".heic": true, ".heif": true,
+	".tif": true, ".tiff": true, ".svg": true, ".ico": true, ".bmp": true,
+	".mp4": true, ".webm": true, ".mp3": true, ".wav": true, ".ogg": true,
+	".m4a":  true,
+	".woff": true, ".woff2": true, ".ttf": true, ".otf": true, ".eot": true,
+	".pdf": true,
+}
+
+// serveHugoStatic 尝试把请求路径映射到 <HugoRoot>/static/<path> 下的常规
+// 文件并直接服务（对齐 Hugo 的 static → 站点根语义），命中返回 true。
+// cover 使用指向 static/ 的绝对路径（如 /images/...）时，管理端借此可
+// 预览封面。仅服务 hugoStaticExt 白名单内的静态资源；点路径、越界路径与
+// 名单外路径一律返回 false，回落 SPA 兜底，不泄露存在性。
+func (s *Server) serveHugoStatic(w http.ResponseWriter, r *http.Request) bool {
+	if s.cfg.HugoRoot == "" {
+		return false
+	}
+	rel := strings.TrimPrefix(r.URL.Path, "/")
+	if rel == "" {
+		return false
+	}
+	if !hugoStaticExt[strings.ToLower(filepath.Ext(rel))] {
+		return false
+	}
+	for _, part := range strings.Split(filepath.ToSlash(rel), "/") {
+		if strings.HasPrefix(part, ".") {
+			return false
+		}
+	}
+	staticRoot := filepath.Join(s.cfg.HugoRoot, "static")
+	full := filepath.Join(staticRoot, filepath.FromSlash(rel))
+	if !isSafeWithin(full, staticRoot) || !isFile(full) {
+		return false
+	}
+	switch strings.ToLower(filepath.Ext(full)) {
+	case ".svg", ".pdf":
+		// svg/PDF 直接导航时可在文档上下文执行内嵌脚本并携带同一会话
+		// cookie：nosniff 防 MIME 嗅探，CSP sandbox 禁文档内脚本
+		//（<img> 等子资源引用不受影响）。
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Security-Policy", "sandbox")
+	}
+	http.ServeFile(w, r, full)
+	return true
+}
+
+// handleSPA 复刻 Python 404 处理器：/api/* → JSON 404，其余路径先探测
+// Hugo static/ 静态文件，未命中再回退到 React SPA 的 index.html。
 func (s *Server) handleSPA(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/api/") {
 		writeJSON(w, http.StatusNotFound, map[string]any{
@@ -454,6 +514,9 @@ func (s *Server) handleSPA(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.serveHugoStatic(w, r) {
 		return
 	}
 	index := filepath.Join(s.cfg.AdminUIDir, "index.html")

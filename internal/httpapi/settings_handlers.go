@@ -454,7 +454,8 @@ func (s *Server) handleThemePreviewStop(w http.ResponseWriter, r *http.Request) 
 
 // ============ 内容静态文件（/api/content 与 /content） ============
 
-// GET /api/content/{path...} —— 对齐 page_routes.serve_content_files
+// GET /api/content/{path...} 与 GET /content/{path...} —— 对齐
+// page_routes.serve_content_files；/content 前缀供 cover_url 等静态引用直接命中。
 func (s *Server) handleContentFile(w http.ResponseWriter, r *http.Request) {
 	filename := r.PathValue("filename")
 	for _, part := range strings.Split(filepath.ToSlash(filename), "/") {

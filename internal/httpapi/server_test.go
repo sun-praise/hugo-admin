@@ -53,6 +53,7 @@ func newTestServerOpts(t *testing.T, contentDir string, opts Options) *httptest.
 		AuthStorePath: filepath.Join(t.TempDir(), "auth.json"),
 		AdminUIDir:    dir,
 		ContentDir:    contentDir,
+		HugoRoot:      dir,
 		Version:       "2.6.0",
 	}
 	if opts.Hugo == nil {
