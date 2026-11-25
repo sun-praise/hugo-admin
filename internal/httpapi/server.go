@@ -451,10 +451,13 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 // hugoStaticExt 是 Hugo static/ 静态资源的扩展名白名单：cover 等站点内
 // 引用只需图片/字体/媒体类文件；名单外的路径（html/yml/json 等页面与
 // 配置）回落 SPA——既不把 static/ 全量匿名暴露（如 CMS 的 config.yml），
-// 也避免同名文件顶掉 SPA 前端路由。
+// 也避免同名文件顶掉 SPA 前端路由。名单按封面/素材实际格式逐步补充
+// （含手机直出的 .heic/.heif/.tif(f) 与多帧 .apng），刻意不放可执行或
+// 文档类格式。
 var hugoStaticExt = map[string]bool{
-	".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".webp": true,
-	".avif": true, ".svg": true, ".ico": true, ".bmp": true,
+	".png": true, ".apng": true, ".jpg": true, ".jpeg": true, ".gif": true,
+	".webp": true, ".avif": true, ".heic": true, ".heif": true,
+	".tif": true, ".tiff": true, ".svg": true, ".ico": true, ".bmp": true,
 	".mp4": true, ".webm": true, ".mp3": true, ".wav": true, ".ogg": true,
 	".m4a":  true,
 	".woff": true, ".woff2": true, ".ttf": true, ".otf": true, ".eot": true,
@@ -486,6 +489,12 @@ func (s *Server) serveHugoStatic(w http.ResponseWriter, r *http.Request) bool {
 	full := filepath.Join(staticRoot, filepath.FromSlash(rel))
 	if !isSafeWithin(full, staticRoot) || !isFile(full) {
 		return false
+	}
+	if strings.EqualFold(filepath.Ext(full), ".svg") {
+		// svg 直接导航时可执行内嵌脚本并携带同一会话 cookie：
+		// nosniff 防 MIME 嗅探，CSP sandbox 禁文档内脚本（<img> 引用不受影响）。
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Security-Policy", "sandbox")
 	}
 	http.ServeFile(w, r, full)
 	return true

@@ -135,6 +135,9 @@ func TestHugoStaticFallbacksToSPA(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(staticDir, ".hidden"), []byte("secret"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(staticDir, ".hidden.png"), []byte("secret image"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	adminDir := filepath.Join(hugoRoot, "static", "admin")
 	if err := os.MkdirAll(adminDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -149,6 +152,7 @@ func TestHugoStaticFallbacksToSPA(t *testing.T) {
 	for _, path := range []string{
 		"/images/2026/missing.svg",  // 文件不存在
 		"/images/.hidden",           // 点路径拒绝
+		"/images/.hidden.png",       // 点路径 + 白名单内扩展名：仍须被安全校验拒绝
 		"/images/%2e%2e/index.html", // 越界拒绝（mux 400 或 SPA 兜底，均不读 static 外文件）
 		"/images/index.html",        // 名单外：html 不服务，不 shadow SPA
 		"/admin/config.yml",         // 名单外：配置文件不泄露
@@ -163,6 +167,30 @@ func TestHugoStaticFallbacksToSPA(t *testing.T) {
 		rejected := resp.StatusCode == http.StatusBadRequest
 		if !spaFallback && !rejected {
 			t.Fatalf("GET %s = %d %q, want SPA index fallback or 400", path, resp.StatusCode, body)
+		}
+	}
+}
+
+// TestServeHugoStaticRejectsTraversal 直接调用 serveHugoStatic 绕过 mux
+// 的 cleanPath（走 mux 会被 301），验证白名单内扩展名的点路径与越界
+// 引用仍被安全校验拒绝，而不是仅靠扩展名白名单短路。
+func TestServeHugoStaticRejectsTraversal(t *testing.T) {
+	srv, _, hugoRoot := newStaticTestServer(t)
+	if err := os.WriteFile(filepath.Join(hugoRoot, "payload.png"), []byte("secret-payload"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := srv.Config.Handler.(*Server)
+
+	for _, target := range []string{
+		"/../payload.png", // 越界：static 外文件
+		"/images/./x.png", // 路径段以点开头
+	} {
+		w := httptest.NewRecorder()
+		if s.serveHugoStatic(w, httptest.NewRequest(http.MethodGet, target, nil)) {
+			t.Fatalf("serveHugoStatic(%q) = true, want false", target)
+		}
+		if strings.Contains(w.Body.String(), "secret-payload") {
+			t.Fatalf("serveHugoStatic(%q) 泄露 static 外文件", target)
 		}
 	}
 }
