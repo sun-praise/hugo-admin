@@ -3,6 +3,7 @@ package httpapi
 import (
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -15,7 +16,8 @@ import (
 )
 
 // newStaticTestServer 构造带 HugoRoot 的最小服务端，返回 (server, contentDir, hugoRoot)。
-// 与 newTestServerOpts 同构但额外暴露目录路径；静态路由均公开，无需登录态。
+// 与 newTestServerOpts 同构但额外暴露目录路径；client 带 cookie jar，
+// 登录态可保持（/content/* 走与 /api/* 相同的会话守卫）。
 func newStaticTestServer(t *testing.T) (*httptest.Server, string, string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -37,13 +39,16 @@ func newStaticTestServer(t *testing.T) (*httptest.Server, string, string) {
 		t.Fatalf("auth store: %v", err)
 	}
 	ts := httptest.NewServer(New(cfg, store, realtime.NewBroker(), Options{}))
+	jar, _ := cookiejar.New(nil)
+	ts.Client().Jar = jar
 	t.Cleanup(ts.Close)
 	return ts, contentDir, dir
 }
 
 // TestContentRouteServesCoverImage 验证 /content/ 静态路由（Python 版
 // page_routes.serve_content_files 的对齐项）：cover_url 的 /content/...
-// 前缀必须能取到 content 目录内的图片，而不是 SPA 的 index.html。
+// 前缀必须能取到 content 目录内的图片，而不是 SPA 的 index.html；
+// 鉴权模型与 /api/content 一致——匿名 401，登录 200。
 func TestContentRouteServesCoverImage(t *testing.T) {
 	srv, contentDir, _ := newStaticTestServer(t)
 	pics := filepath.Join(contentDir, "post", "demo", "pics")
@@ -55,7 +60,18 @@ func TestContentRouteServesCoverImage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := http.Get(srv.URL + "/content/post/demo/pics/cover.png")
+	// 匿名请求被会话守卫拦截，不泄露 ContentDir 内容
+	anon, err := http.Get(srv.URL + "/content/post/demo/pics/cover.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	anon.Body.Close()
+	if anon.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("anonymous /content cover = %d, want 401", anon.StatusCode)
+	}
+
+	login(t, srv.Client(), srv.URL)
+	resp, err := srv.Client().Get(srv.URL + "/content/post/demo/pics/cover.png")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +85,7 @@ func TestContentRouteServesCoverImage(t *testing.T) {
 	}
 
 	// 隐藏文件仍 403（与 /api/content 同防护）
-	resp2, err := http.Get(srv.URL + "/content/post/demo/.hidden")
+	resp2, err := srv.Client().Get(srv.URL + "/content/post/demo/.hidden")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,8 +95,9 @@ func TestContentRouteServesCoverImage(t *testing.T) {
 	}
 }
 
-// TestHugoStaticServesCover 验证 SPA 兜底前先服务 <HugoRoot>/static/<path>：
-// cover 指向 static/ 的绝对路径（如 /images/...）应返回真实文件。
+// TestHugoStaticServesCover 验证 SPA 兜底前先服务 <HugoRoot>/static/<path>
+// 白名单内的静态资源：cover 指向 static/ 的绝对路径（如 /images/...）
+// 应返回真实文件。
 func TestHugoStaticServesCover(t *testing.T) {
 	srv, _, hugoRoot := newStaticTestServer(t)
 	staticDir := filepath.Join(hugoRoot, "static", "images", "2026", "11", "16")
@@ -106,8 +123,9 @@ func TestHugoStaticServesCover(t *testing.T) {
 	}
 }
 
-// TestHugoStaticFallbacksToSPA：static 未命中的路径、点路径与越界路径都
-// 回落 SPA index.html，不泄露文件存在性。
+// TestHugoStaticFallbacksToSPA：static 未命中、名单外扩展名（页面与
+// 配置，如 CMS 的 config.yml / html）、点路径与越界路径都回落 SPA
+// index.html，不泄露文件存在性，也不顶掉 SPA 前端路由。
 func TestHugoStaticFallbacksToSPA(t *testing.T) {
 	srv, _, hugoRoot := newStaticTestServer(t)
 	staticDir := filepath.Join(hugoRoot, "static", "images")
@@ -117,11 +135,23 @@ func TestHugoStaticFallbacksToSPA(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(staticDir, ".hidden"), []byte("secret"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	adminDir := filepath.Join(hugoRoot, "static", "admin")
+	if err := os.MkdirAll(adminDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(adminDir, "config.yml"), []byte("backend: secret"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(staticDir, "index.html"), []byte("<html>static page</html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	for _, path := range []string{
 		"/images/2026/missing.svg",  // 文件不存在
 		"/images/.hidden",           // 点路径拒绝
 		"/images/%2e%2e/index.html", // 越界拒绝（mux 400 或 SPA 兜底，均不读 static 外文件）
+		"/images/index.html",        // 名单外：html 不服务，不 shadow SPA
+		"/admin/config.yml",         // 名单外：配置文件不泄露
 	} {
 		resp, err := http.Get(srv.URL + path)
 		if err != nil {

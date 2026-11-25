@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 补回 `/content/` 静态路由（Go 重写时遗漏）：相对路径封面图与编辑器图片预览恢复显示 (#196)
 - SPA 兜底前先服务 `<HugoRoot>/static/` 静态文件：指向 Hugo static 目录的 `/images/...` 封面恢复显示 (#197)
 
+### Security
+- `/content/` 纳入会话守卫：匿名访问一律 401，与 `/api/content/` 同鉴权模型（前端 `<img>` 同源自动携带 cookie，封面显示不受影响）
+- `<HugoRoot>/static/` 静态服务限定图片/字体/音视频/pdf 扩展名白名单，名单外（html/yml/json 等页面与配置）回落 SPA，避免全量暴露与 shadow SPA 前端路由
+
 ## [1.0.1] - 2025-11-26
 
 ### Added

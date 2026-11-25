@@ -217,11 +217,15 @@ func (s *Server) recoverMiddleware(next http.Handler) http.Handler {
 }
 
 // guardMiddleware 复刻 Python install_auth_guard：未登录访问非白名单的
-// /api/* 一律 401。机器客户端可通过 Authorization: Bearer <API_TOKEN>
-// 等价通过（API_TOKEN 未配置时 Bearer 通道关闭）。
+// /api/* 与 /content/* 一律 401（/content/* 与 /api/content/* 指向同一
+// ContentDir，供 cover 等 <img> 静态引用；浏览器同源请求自动携带会话
+// cookie，登录态不受影响）。机器客户端可通过 Authorization: Bearer
+// <API_TOKEN> 等价通过（API_TOKEN 未配置时 Bearer 通道关闭）。
 func (s *Server) guardMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api/") || publicAPIPath[r.URL.Path] {
+		guarded := strings.HasPrefix(r.URL.Path, "/api/") ||
+			strings.HasPrefix(r.URL.Path, "/content/")
+		if !guarded || publicAPIPath[r.URL.Path] {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -444,16 +448,33 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, full)
 }
 
+// hugoStaticExt 是 Hugo static/ 静态资源的扩展名白名单：cover 等站点内
+// 引用只需图片/字体/媒体类文件；名单外的路径（html/yml/json 等页面与
+// 配置）回落 SPA——既不把 static/ 全量匿名暴露（如 CMS 的 config.yml），
+// 也避免同名文件顶掉 SPA 前端路由。
+var hugoStaticExt = map[string]bool{
+	".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".webp": true,
+	".avif": true, ".svg": true, ".ico": true, ".bmp": true,
+	".mp4": true, ".webm": true, ".mp3": true, ".wav": true, ".ogg": true,
+	".m4a":  true,
+	".woff": true, ".woff2": true, ".ttf": true, ".otf": true, ".eot": true,
+	".pdf": true,
+}
+
 // serveHugoStatic 尝试把请求路径映射到 <HugoRoot>/static/<path> 下的常规
 // 文件并直接服务（对齐 Hugo 的 static → 站点根语义），命中返回 true。
 // cover 使用指向 static/ 的绝对路径（如 /images/...）时，管理端借此可
-// 预览封面。点路径与越界路径一律返回 false，回落 SPA 兜底，不泄露存在性。
+// 预览封面。仅服务 hugoStaticExt 白名单内的静态资源；点路径、越界路径与
+// 名单外路径一律返回 false，回落 SPA 兜底，不泄露存在性。
 func (s *Server) serveHugoStatic(w http.ResponseWriter, r *http.Request) bool {
 	if s.cfg.HugoRoot == "" {
 		return false
 	}
 	rel := strings.TrimPrefix(r.URL.Path, "/")
 	if rel == "" {
+		return false
+	}
+	if !hugoStaticExt[strings.ToLower(filepath.Ext(rel))] {
 		return false
 	}
 	for _, part := range strings.Split(filepath.ToSlash(rel), "/") {
