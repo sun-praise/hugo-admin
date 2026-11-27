@@ -260,25 +260,24 @@ func TestNormalizeReviewIssueCap(t *testing.T) {
 	}
 }
 
-// mockAnthropicSlowSSE 每 50ms 一个 delta 的慢速提供商，用于取消场景。
-func mockAnthropicSlowSSE(t *testing.T) *httptest.Server {
+// mockOpenAISlowSSE 每 50ms 一个 delta 的慢速提供商，用于取消场景。
+func mockOpenAISlowSSE(t *testing.T) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		flush := w.(http.Flusher)
-		send := func(event, data string) {
-			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
+		send := func(data string) {
+			fmt.Fprintf(w, "data: %s\n\n", data)
 			flush.Flush()
 		}
-		send("message_start", `{"type":"message_start","message":{"id":"m1","type":"message","role":"assistant","content":[],"model":"mock","stop_reason":null,"usage":{"input_tokens":1,"output_tokens":1}}}`)
-		send("content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`)
+		send(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`)
 		for i := 0; i < 1000; i++ {
 			select {
 			case <-r.Context().Done():
 				return
 			case <-time.After(50 * time.Millisecond):
 			}
-			send("content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"x"}}`)
+			send(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{"content":"x"},"finish_reason":null}]}`)
 		}
 	}))
 	t.Cleanup(srv.Close)
@@ -288,7 +287,7 @@ func mockAnthropicSlowSSE(t *testing.T) *httptest.Server {
 // TestAssistStreamStopsOnContextCancel 验证 ctx 取消后事件通道能及时关闭
 // （转发 goroutine 不依赖 trpc 是否关闭 events，防泄漏——评审 Should-fix 回归）。
 func TestAssistStreamStopsOnContextCancel(t *testing.T) {
-	srv := mockAnthropicSlowSSE(t)
+	srv := mockOpenAISlowSSE(t)
 	svc := New("test-key", srv.URL, "mock-model", Deps{ContentDir: t.TempDir()})
 
 	ctx, cancel := context.WithCancel(context.Background())

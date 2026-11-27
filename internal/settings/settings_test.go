@@ -18,7 +18,7 @@ func TestDefaultsAndRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.AI["base_url"] != "https://api.deepseek.com" || st.AI["model"] != "deepseek-chat" {
+	if st.AI["base_url"] != "https://api.deepseek.com" || st.AI["model"] != "deepseek-flash" {
 		t.Fatalf("defaults = %#v", st)
 	}
 
@@ -39,6 +39,42 @@ func TestDefaultsAndRoundTrip(t *testing.T) {
 	lm := public["listmonk"].(map[string]any)
 	if lm["api_key"] != "k-12...5678" {
 		t.Fatalf("mask = %v", lm["api_key"])
+	}
+}
+
+func TestLegacyChatModelMigrates(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // 隔离 ~/.config/secret.yml 的 listmonk 迁移
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := os.WriteFile(path, []byte(`{"ai":{"base_url":"https://api.deepseek.com","model":"deepseek-chat"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := NewService(path, nil, "")
+	st, err := s.GetSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.AI["model"] != "deepseek-flash" {
+		t.Fatalf("model = %v", st.AI["model"])
+	}
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), "deepseek-flash") {
+		t.Fatalf("migration not persisted: %s", raw)
+	}
+}
+
+func TestLegacyChatModelKeptForCustomEndpoint(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := os.WriteFile(path, []byte(`{"ai":{"base_url":"https://llm.example.com","model":"deepseek-chat"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := NewService(path, nil, "")
+	st, err := s.GetSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.AI["model"] != "deepseek-chat" {
+		t.Fatalf("custom endpoint model = %v", st.AI["model"])
 	}
 }
 

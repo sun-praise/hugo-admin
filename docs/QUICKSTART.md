@@ -46,7 +46,7 @@ cp .env.example .env
 | `SECRET_KEY` | 开发默认值 | 会话密钥，生产必须修改 |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | admin/admin | 首次启动引导账户 |
 | `API_TOKEN` | 空 | 机器客户端 Bearer 鉴权 |
-| `AI_API_KEY` 等 | 空 | AI 助手，不设置则禁用 |
+| `AI_API_KEY` | 空 | AI Key 回退值；也可在设置页配置，所有 AI 功能共用 |
 
 完整字段语义见 `internal/config/config.go`。
 

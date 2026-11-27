@@ -83,7 +83,8 @@ docker run -p 5050:5050 -v ~/.hugo-admin:/root/.hugo-admin -v ~/.hugo-admin/data
 | `API_TOKEN` | 空 | 机器客户端 Bearer 鉴权，留空关闭 |
 | `HUGO_SERVER_BASE_URL` | `http://0.0.0.0:1313` | Hugo 预览服务对外地址 |
 | `ADMIN_UI_DIR` | `admin-ui` | 前端构建产物目录 |
-| `AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` | — | AI 服务配置 |
+| `AI_API_KEY` | — | AI Key 回退值，也可在设置页填写；frontmatter、选区辅助、AI 改写与对话共用。`DEEPSEEK_API_KEY` 作为 v2 兼容回退 |
+| `AI_BASE_URL` / `AI_MODEL` | DeepSeek 默认值 | 首次启动写入 `.admin/settings.json` 的 provider 配置 |
 | `OPENROUTER_API_KEY` | — | 封面图生成 |
 
 环境变量也可写入仓库根 `.env`（`.env.example` 为模板，已 gitignore，不会误提交）。

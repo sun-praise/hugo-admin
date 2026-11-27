@@ -1,23 +1,24 @@
-// Package ai 用 trpc-agent-go 重写 Python 的 AIService：
-// anthropic 兼容端点 + 只读工具三件套（search_posts/read_post/git_status，
-// 对齐 allowed_tools 的实际暴露面）+ SSE 流式 + quick rewrite。
+// Package ai 提供博客助手的 agent 能力：OpenAI 兼容端点 + 只读工具三件套
+// （search_posts/read_post/git_status，对齐 allowed_tools 的实际暴露面）
+// + SSE 流式 + quick rewrite。配置统一来自 ConfigStore，与 frontmatter
+// 生成共用同一份 base_url/model/api_key。
 package ai
 
 import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"trpc.group/trpc-go/trpc-agent-go/agent/llmagent"
 	"trpc.group/trpc-go/trpc-agent-go/model"
-	"trpc.group/trpc-go/trpc-agent-go/model/anthropic"
+	"trpc.group/trpc-go/trpc-agent-go/model/openai"
 	"trpc.group/trpc-go/trpc-agent-go/runner"
 	"trpc.group/trpc-go/trpc-agent-go/tool"
 	"trpc.group/trpc-go/trpc-agent-go/tool/function"
 
 	"github.com/sun-praise/hugo-admin/v3/internal/git"
-	"github.com/sun-praise/hugo-admin/v3/internal/hugo"
 	"github.com/sun-praise/hugo-admin/v3/internal/posts"
 )
 
@@ -37,50 +38,85 @@ const rewriteSystemPrompt = "你是 Hugo 博客的润色助手。用户会给你
 type Deps struct {
 	ContentDir string
 	Git        *git.Service
-	Hugo       *hugo.Manager
 }
 
 type Service struct {
-	enabled       bool
-	apiKey        string
-	baseURL       string
-	model         string
-	deps          Deps
-	runner        runner.Runner
+	deps Deps
+
+	// source 每次请求读取当前配置；配置变化时重建 runner，
+	// 因此在设置页改 key/model 后无需重启服务。
+	source func() Config
+
+	mu            sync.Mutex
+	cfg           Config
+	chatRunner    runner.Runner
 	rewriteRunner runner.Runner
 }
 
+// New 用固定配置构造 Service（测试与一次性调用）。
 func New(apiKey, baseURL, modelName string, deps Deps) *Service {
-	s := &Service{apiKey: apiKey, baseURL: baseURL, model: modelName, deps: deps}
-	if apiKey == "" {
-		return s
-	}
-	m := anthropic.New(modelName,
-		anthropic.WithAPIKey(apiKey),
-		anthropic.WithBaseURL(baseURL),
+	return NewWithConfigSource(func() Config {
+		return Config{APIKey: apiKey, BaseURL: baseURL, Model: modelName}
+	}, deps)
+}
+
+// NewWithConfigSource 用动态配置源构造 Service（生产环境）。
+func NewWithConfigSource(source func() Config, deps Deps) *Service {
+	return &Service{source: source, deps: deps}
+}
+
+func newModel(cfg Config) *openai.Model {
+	return openai.New(cfg.Model,
+		openai.WithAPIKey(cfg.APIKey),
+		openai.WithBaseURL(cfg.BaseURL),
 	)
+}
+
+// snapshot 返回当前配置与对应 runner；配置变化时重建 runner。
+func (s *Service) snapshot() (Config, runner.Runner, runner.Runner) {
+	if s.source == nil {
+		return Config{}, nil, nil
+	}
+	// source 现在是内存读取；放在锁外，避免磁盘/设置服务耗时串行化 AI 请求。
+	cfg := s.source()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if cfg == s.cfg {
+		return cfg, s.chatRunner, s.rewriteRunner
+	}
+	s.cfg = cfg
+	s.chatRunner, s.rewriteRunner = nil, nil
+	if cfg.APIKey == "" {
+		return cfg, nil, nil
+	}
+	m := newModel(cfg)
 	ag := llmagent.New("hugo-assistant",
 		llmagent.WithModel(m),
-		llmagent.WithTools(readOnlyTools(deps)),
+		llmagent.WithTools(readOnlyTools(s.deps)),
 		llmagent.WithInstruction(systemPrompt),
 		llmagent.WithGenerationConfig(model.GenerationConfig{Stream: true}),
 	)
-	s.runner = runner.NewRunner("hugo-admin", ag)
+	s.chatRunner = runner.NewRunner("hugo-admin", ag)
 	rw := llmagent.New("rewriter",
 		llmagent.WithModel(m),
-		llmagent.WithTools(readOnlyTools(deps)),
+		llmagent.WithTools(readOnlyTools(s.deps)),
 		llmagent.WithInstruction(rewriteSystemPrompt),
 		llmagent.WithGenerationConfig(model.GenerationConfig{Stream: true}),
 	)
 	s.rewriteRunner = runner.NewRunner("hugo-admin", rw)
-	s.enabled = true
-	return s
+	return cfg, s.chatRunner, s.rewriteRunner
 }
 
-func (s *Service) Enabled() bool { return s.enabled }
+func (s *Service) Enabled() bool {
+	cfg, _, _ := s.snapshot()
+	return cfg.APIKey != ""
+}
 
 // ModelName 返回配置的模型名（inline-edit 响应里回显）。
-func (s *Service) ModelName() string { return s.model }
+func (s *Service) ModelName() string {
+	cfg, _, _ := s.snapshot()
+	return cfg.Model
+}
 
 // readOnlyTools 对齐 allowed_tools 暴露面：仅三个只读工具。
 func readOnlyTools(deps Deps) []tool.Tool {
@@ -124,6 +160,9 @@ func readOnlyTools(deps Deps) []tool.Tool {
 	type emptyIn struct{}
 	gitStatus := function.NewFunctionTool(
 		func(ctx context.Context, in emptyIn) (string, error) {
+			if deps.Git == nil {
+				return "git 服务不可用", nil
+			}
 			st := deps.Git.GetStatus()
 			// Python 工具引用了不存在的 branch/clean/changes 字段（bug），
 			// 此处输出真实状态
@@ -145,16 +184,14 @@ func readOnlyTools(deps Deps) []tool.Tool {
 // QuickRewrite 对齐 quick_rewrite：无工具、非流式的一次性调用，
 // 超时或空结果返回错误。
 func (s *Service) QuickRewrite(ctx context.Context, sysPrompt, userPrompt string, timeout time.Duration) (string, error) {
-	if !s.enabled {
+	cfg, _, _ := s.snapshot()
+	if cfg.APIKey == "" {
 		return "", fmt.Errorf("AI service is not configured")
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	m := anthropic.New(s.model,
-		anthropic.WithAPIKey(s.apiKey),
-		anthropic.WithBaseURL(s.baseURL),
-	)
+	m := newModel(cfg)
 	ag := llmagent.New("rewriter",
 		llmagent.WithModel(m),
 		llmagent.WithInstruction(sysPrompt),
@@ -180,11 +217,12 @@ func (s *Service) QuickRewrite(ctx context.Context, sysPrompt, userPrompt string
 // RewriteSSE 对齐 poc /api/ai/rewrite：带只读工具的流式润色。
 // 帧协议与 ChatSSE 一致（见 sse.go），工具调用/结果对前端可见。
 func (s *Service) RewriteSSE(ctx context.Context, text string) (<-chan string, error) {
-	if !s.enabled {
+	cfg, _, rewriteRunner := s.snapshot()
+	if cfg.APIKey == "" || rewriteRunner == nil {
 		return nil, fmt.Errorf("AI service is not configured")
 	}
 	sessionID := time.Now().Format("20060102-150405.000000000")
-	events, err := s.rewriteRunner.Run(ctx, "web", sessionID, model.NewUserMessage(text))
+	events, err := rewriteRunner.Run(ctx, "web", sessionID, model.NewUserMessage(text))
 	if err != nil {
 		return nil, err
 	}

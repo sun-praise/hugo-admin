@@ -6,6 +6,7 @@ package ai
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,35 +19,29 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/tool"
 )
 
-// newMockAnthropic 两轮：文本+tool_use → 工具结果回传 → 收尾文本。
-func newMockAnthropic(t *testing.T) *httptest.Server {
+// newMockOpenAI 两轮：文本+tool_calls → 工具结果回传 → 收尾文本。
+func newMockOpenAI(t *testing.T) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		raw := make([]byte, r.ContentLength)
-		_, _ = r.Body.Read(raw)
+		raw, _ := io.ReadAll(r.Body)
 		reqText := string(raw)
 		w.Header().Set("Content-Type", "text/event-stream")
 		flush := w.(http.Flusher)
-		send := func(event, data string) {
-			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
+		send := func(data string) {
+			fmt.Fprintf(w, "data: %s\n\n", data)
 			flush.Flush()
 		}
-		send("message_start", `{"type":"message_start","message":{"id":"m1","type":"message","role":"assistant","content":[],"model":"mock","stop_reason":null,"usage":{"input_tokens":1,"output_tokens":1}}}`)
-		if strings.Contains(reqText, "tool_result") {
-			send("content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`)
-			send("content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"搜索完成。"}}`)
-			send("content_block_stop", `{"type":"content_block_stop","index":0}`)
-			send("message_delta", `{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":5}}`)
+		send(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`)
+		if strings.Contains(reqText, "tool_call_id") {
+			send(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{"content":"搜索完成。"},"finish_reason":null}]}`)
+			send(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`)
 		} else {
-			send("content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`)
-			send("content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"我来搜索。"}}`)
-			send("content_block_stop", `{"type":"content_block_stop","index":0}`)
-			send("content_block_start", `{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"tu_001","name":"search_posts","input":{}}}`)
-			send("content_block_delta", `{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"query\":\"go\"}"}}`)
-			send("content_block_stop", `{"type":"content_block_stop","index":1}`)
-			send("message_delta", `{"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":5}}`)
+			send(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{"content":"我来搜索。"},"finish_reason":null}]}`)
+			send(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_001","type":"function","function":{"name":"search_posts","arguments":"{\"query\":\"go\"}"}}]},"finish_reason":null}]}`)
+			send(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`)
 		}
-		send("message_stop", `{"type":"message_stop"}`)
+		fmt.Fprint(w, "data: [DONE]\n\n")
+		flush.Flush()
 	}))
 	t.Cleanup(srv.Close)
 	return srv
@@ -64,7 +59,7 @@ func newTestService(t *testing.T, mock *httptest.Server) *Service {
 }
 
 func TestChatSSEProtocol(t *testing.T) {
-	mock := newMockAnthropic(t)
+	mock := newMockOpenAI(t)
 	svc := newTestService(t, mock)
 	if !svc.Enabled() {
 		t.Fatal("应启用")
@@ -81,8 +76,8 @@ func TestChatSSEProtocol(t *testing.T) {
 
 	want := []string{
 		"data: 我来搜索。\n\n",
-		`data: {"args":{"query":"go"},"tool":"search_posts","tool_call_id":"tu_001","type":"tool_call"}` + "\n\n",
-		`data: {"result":"未找到匹配 'go' 的文章","tool_call_id":"tu_001","type":"tool_result"}` + "\n\n",
+		`data: {"args":{"query":"go"},"tool":"search_posts","tool_call_id":"call_001","type":"tool_call"}` + "\n\n",
+		`data: {"result":"未找到匹配 'go' 的文章","tool_call_id":"call_001","type":"tool_result"}` + "\n\n",
 		"data: 搜索完成。\n\n",
 		"data: [DONE]\n\n",
 	}
@@ -101,16 +96,14 @@ func TestChatSSEMultiLineEscaped(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		flush := w.(http.Flusher)
-		send := func(event, data string) {
-			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
+		send := func(data string) {
+			fmt.Fprintf(w, "data: %s\n\n", data)
 			flush.Flush()
 		}
-		send("message_start", `{"type":"message_start","message":{"id":"m1","type":"message","role":"assistant","content":[],"model":"mock","stop_reason":null,"usage":{"input_tokens":1,"output_tokens":1}}}`)
-		send("content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`)
-		send("content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"第一行\n第二行\r\n"}}`)
-		send("content_block_stop", `{"type":"content_block_stop","index":0}`)
-		send("message_delta", `{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":5}}`)
-		send("message_stop", `{"type":"message_stop"}`)
+		send(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`)
+		send(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{"content":"第一行\n第二行\r\n"},"finish_reason":null}]}`)
+		send(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`)
+		fmt.Fprint(w, "data: [DONE]\n\n")
 	}))
 	defer srv.Close()
 
@@ -135,7 +128,7 @@ func TestQuickRewrite(t *testing.T) {
 	// 非流式：直接返回 JSON message
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"id":"m1","type":"message","role":"assistant","content":[{"type":"text","text":"改写后的片段"}],"model":"mock","stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":5}}`)
+		fmt.Fprint(w, `{"id":"chatcmpl-1","object":"chat.completion","model":"mock","choices":[{"index":0,"message":{"role":"assistant","content":"改写后的片段"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":5,"total_tokens":6}}`)
 	}))
 	defer srv.Close()
 
@@ -148,7 +141,7 @@ func TestQuickRewrite(t *testing.T) {
 	// 空结果
 	empty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"id":"m2","type":"message","role":"assistant","content":[],"model":"mock","stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":0}}`)
+		fmt.Fprint(w, `{"id":"chatcmpl-2","object":"chat.completion","model":"mock","choices":[{"index":0,"message":{"role":"assistant","content":""},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":0,"total_tokens":1}}`)
 	}))
 	defer empty.Close()
 	svc2 := newTestService(t, empty)
@@ -303,5 +296,15 @@ func TestReadOnlyToolsCallable(t *testing.T) {
 	// git_status：真实 Service（temp 目录非 git 仓库，输出字段仍应成形）
 	if out := call(t, byName["git_status"], `{}`); !strings.Contains(out, "Git 仓库状态") {
 		t.Fatalf("git_status = %q", out)
+	}
+
+	// nil Git 防御：返回错误文本而不是 panic
+	nilTools := readOnlyTools(Deps{ContentDir: contentDir})
+	for _, tl := range nilTools {
+		if tl.Declaration().Name == "git_status" {
+			if out := call(t, tl, `{}`); !strings.Contains(out, "git 服务不可用") {
+				t.Fatalf("nil git_status = %q", out)
+			}
+		}
 	}
 }

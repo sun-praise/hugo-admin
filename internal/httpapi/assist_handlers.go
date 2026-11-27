@@ -29,7 +29,7 @@ func (s *Server) handleAssist(w http.ResponseWriter, r *http.Request) {
 	if !s.aiSvc.Enabled() {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
 			"success": false,
-			"message": "AI service not configured. Set DEEPSEEK_API_KEY to enable.",
+			"message": "AI service not configured. Set the AI API key in Settings or AI_API_KEY.",
 		})
 		return
 	}

@@ -17,28 +17,6 @@ import (
 // 对齐 ai_routes.fm_bp 的 /api/frontmatter/generate、image_routes 的
 // /api/image/generate-cover、file_routes 的 /api/article/import。
 
-// aiConfigFromSettings 从 settings + env 拼出 AI 配置（对齐各路由的
-// current_app.config 读取语义：session key 优先于 env）。
-func (s *Server) aiConfig() (apiKey, baseURL, model string) {
-	apiKey = s.sessionAPIKey
-	if apiKey == "" {
-		apiKey = s.envAPIKey
-	}
-	baseURL = "https://api.deepseek.com"
-	model = "deepseek-chat"
-	if s.settingsSvc != nil {
-		if st, err := s.settingsSvc.GetSettings(); err == nil {
-			if v, ok := st.AI["base_url"].(string); ok && v != "" {
-				baseURL = v
-			}
-			if v, ok := st.AI["model"].(string); ok && v != "" {
-				model = v
-			}
-		}
-	}
-	return
-}
-
 // POST /api/frontmatter/generate {content}
 func (s *Server) handleFMGenerate(w http.ResponseWriter, r *http.Request) {
 	data := jsonDict(r)
@@ -48,13 +26,13 @@ func (s *Server) handleFMGenerate(w http.ResponseWriter, r *http.Request) {
 			"success": false, "message": "文章内容为空"})
 		return
 	}
-	apiKey, baseURL, model := s.aiConfig()
-	if apiKey == "" {
+	cfg := s.aiCfg.Get()
+	if cfg.APIKey == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"success": false, "message": "AI API Key 未配置"})
 		return
 	}
-	ok, result := aigen.GenerateFrontmatter(content, apiKey, baseURL, model, time.Now())
+	ok, result := aigen.GenerateFrontmatter(content, cfg.APIKey, cfg.BaseURL, cfg.Model, time.Now())
 	if !ok {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{
 			"success": false, "message": fmt.Sprintf("%v", result)})
@@ -158,7 +136,8 @@ func (s *Server) handleArticleImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	apiKey, baseURL, model := s.aiConfig()
+	aiCfg := s.aiCfg.Get()
+	apiKey, baseURL, model := aiCfg.APIKey, aiCfg.BaseURL, aiCfg.Model
 	imgCfg := importsvc.ImageCfg{
 		APIKey: os.Getenv("OPENROUTER_API_KEY"),
 		Model:  os.Getenv("IMAGE_GEN_MODEL"),
@@ -226,7 +205,8 @@ func (s *Server) handleArticleImportJSON(w http.ResponseWriter, r *http.Request)
 	}
 	title, _ := data["title"].(string)
 
-	apiKey, baseURL, model := s.aiConfig()
+	aiCfg := s.aiCfg.Get()
+	apiKey, baseURL, model := aiCfg.APIKey, aiCfg.BaseURL, aiCfg.Model
 	imgCfg := importsvc.ImageCfg{
 		APIKey: os.Getenv("OPENROUTER_API_KEY"),
 		Model:  os.Getenv("IMAGE_GEN_MODEL"),
