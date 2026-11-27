@@ -108,6 +108,22 @@ func TestSettingsGetPut(t *testing.T) {
 	if status != 400 {
 		t.Fatalf("bad url = %d", status)
 	}
+
+	// 失败的 PUT 不应替换 key（key 在 UpdateSettings 成功后再生效）
+	status, _ = doJSON(t, client, "PUT", srv.URL+"/api/settings", map[string]any{
+		"settings": map[string]any{
+			"ai":   map[string]any{"api_key": "attacker-key-9999"},
+			"hugo": map[string]any{"base_dir": "relative"},
+		},
+	})
+	if status != 400 {
+		t.Fatalf("bad base_dir = %d", status)
+	}
+	_, body = doJSON(t, client, "GET", srv.URL+"/api/settings", nil)
+	ai3 := body["settings"].(map[string]any)["ai"].(map[string]any)
+	if ai3["api_key_hint"] != "sess...1234" {
+		t.Fatalf("failed PUT changed key: %#v", ai3)
+	}
 }
 
 func TestConfigEndpoints(t *testing.T) {

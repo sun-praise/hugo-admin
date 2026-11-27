@@ -89,15 +89,13 @@ func main() {
 		envAPIKey = os.Getenv("DEEPSEEK_API_KEY")
 	}
 	aiCfg := ai.NewConfigStore(settingsSvc, envAPIKey)
-	aiSvc := ai.NewWithConfigSource(aiCfg.Get,
-		ai.Deps{ContentDir: cfg.ContentDir, Git: gitSvc, Hugo: hugoMgr})
-	if !aiSvc.Enabled() {
+	if aiCfg.Get().APIKey == "" {
 		log.Print("AI service disabled: no AI API key configured")
 	}
 
 	srv := httpapi.New(cfg, store, broker, httpapi.Options{
 		Git: gitSvc, Hugo: hugoMgr, Database: database,
-		AI: aiSvc, AIConfig: aiCfg, Chat: chathistory.New(database),
+		AIConfig: aiCfg, Chat: chathistory.New(database),
 		Plugins:  pluginMgr,
 		Refs:     refsSvc,
 		Settings: settingsSvc,

@@ -42,7 +42,6 @@ type Options struct {
 	Git      *git.Service
 	Hugo     *hugo.Manager
 	Database *db.DB
-	AI       *ai.Service
 	AIConfig *ai.ConfigStore
 	Chat     *chathistory.Service
 	Plugins  *plugin.Manager
@@ -73,9 +72,14 @@ func New(cfg *config.Config, store *auth.Store, broker *realtime.Broker, opts Op
 	if aiCfg == nil {
 		aiCfg = ai.NewConfigStore(opts.Settings, "")
 	}
+	aiSvc := ai.NewWithConfigSource(aiCfg.Get, ai.Deps{
+		ContentDir: cfg.ContentDir,
+		Git:        opts.Git,
+		Hugo:       opts.Hugo,
+	})
 	s := &Server{cfg: cfg, store: store, broker: broker, mux: http.NewServeMux(),
 		gitSvc: opts.Git, hugo: opts.Hugo, database: opts.Database,
-		aiSvc: opts.AI, aiCfg: aiCfg, chat: opts.Chat, pluginMgr: opts.Plugins,
+		aiSvc: aiSvc, aiCfg: aiCfg, chat: opts.Chat, pluginMgr: opts.Plugins,
 		refsSvc: opts.Refs, settingsSvc: opts.Settings,
 		apiToken: opts.APIToken}
 	s.routes()

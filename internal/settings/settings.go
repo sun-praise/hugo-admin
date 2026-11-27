@@ -378,6 +378,10 @@ func normalizeAndValidate(st *Settings) (*Settings, error) {
 	if model == "" {
 		return nil, &ValidationError{"AI 模型不能为空"}
 	}
+	// deepseek-chat 已于 2026-07-24 退役；读取旧配置时迁移到当前别名。
+	if model == "deepseek-chat" {
+		model = "deepseek-flash"
+	}
 	return &Settings{
 		AI: map[string]any{"base_url": baseURL, "model": model},
 		Hugo: map[string]any{

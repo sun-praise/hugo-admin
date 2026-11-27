@@ -21,13 +21,14 @@ import (
 func TestAIConfigSharedAcrossFeatures(t *testing.T) {
 	var mu sync.Mutex
 	var authHeaders []string
+	var paths []string
 	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		authHeaders = append(authHeaders, r.Header.Get("Authorization"))
+		paths = append(paths, r.URL.Path)
 		mu.Unlock()
 
-		raw := make([]byte, r.ContentLength)
-		_, _ = r.Body.Read(raw)
+		raw, _ := io.ReadAll(r.Body)
 		body := string(raw)
 		if strings.Contains(body, `"stream":true`) {
 			w.Header().Set("Content-Type", "text/event-stream")
@@ -59,11 +60,8 @@ func TestAIConfigSharedAcrossFeatures(t *testing.T) {
 		"AI_MODEL":    "mock-model",
 	}, "")
 	store := ai.NewConfigStore(settingsSvc, "")
-	aiSvc := ai.NewWithConfigSource(store.Get, ai.Deps{ContentDir: t.TempDir()})
-
 	ts := newTestServerOpts(t, t.TempDir(), Options{
 		Database: database,
-		AI:       aiSvc,
 		AIConfig: store,
 		Settings: settingsSvc,
 		Chat:     chathistory.New(database),
@@ -135,6 +133,11 @@ func TestAIConfigSharedAcrossFeatures(t *testing.T) {
 	for _, h := range authHeaders {
 		if h != "Bearer sess-key-abcd1234" {
 			t.Fatalf("Authorization = %q", h)
+		}
+	}
+	for _, p := range paths {
+		if !strings.HasSuffix(p, "/chat/completions") {
+			t.Fatalf("provider path = %q", p)
 		}
 	}
 

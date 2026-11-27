@@ -76,12 +76,13 @@ func newModel(cfg Config) *openai.Model {
 
 // snapshot 返回当前配置与对应 runner；配置变化时重建 runner。
 func (s *Service) snapshot() (Config, runner.Runner, runner.Runner) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.source == nil {
 		return Config{}, nil, nil
 	}
+	// source 现在是内存读取；放在锁外，避免磁盘/设置服务耗时串行化 AI 请求。
 	cfg := s.source()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if cfg == s.cfg {
 		return cfg, s.chatRunner, s.rewriteRunner
 	}

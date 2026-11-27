@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -12,14 +13,14 @@ import (
 	"github.com/sun-praise/hugo-admin/v3/internal/chathistory"
 	"github.com/sun-praise/hugo-admin/v3/internal/db"
 	"github.com/sun-praise/hugo-admin/v3/internal/git"
+	"github.com/sun-praise/hugo-admin/v3/internal/settings"
 )
 
 // mockOpenAITextOnly：按请求 stream 与否返回 OpenAI SSE 流或 JSON。
 func mockOpenAITextOnly(t *testing.T, text string) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		raw := make([]byte, r.ContentLength)
-		_, _ = r.Body.Read(raw)
+		raw, _ := io.ReadAll(r.Body)
 		if !strings.Contains(string(raw), `"stream":true`) {
 			// 非流式（QuickRewrite）
 			w.Header().Set("Content-Type", "application/json")
@@ -52,15 +53,19 @@ func newAITestServer(t *testing.T, mock *httptest.Server) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var aiSvc *ai.Service
+	defaults := map[string]string(nil)
+	envKey := ""
 	if mock != nil {
-		aiSvc = ai.New("test-key", mock.URL, "mock-model", ai.Deps{ContentDir: t.TempDir(), Git: gitSvc})
-	} else {
-		aiSvc = ai.New("", "", "", ai.Deps{})
+		defaults = map[string]string{"AI_BASE_URL": mock.URL, "AI_MODEL": "mock-model"}
+		envKey = "test-key"
 	}
+	settingsSvc := settings.NewService(filepath.Join(t.TempDir(), "settings.json"), defaults, "")
+	store := ai.NewConfigStore(settingsSvc, envKey)
 	return newTestServerOpts(t, "", Options{
 		Database: database,
-		AI:       aiSvc,
+		Git:      gitSvc,
+		AIConfig: store,
+		Settings: settingsSvc,
 		Chat:     chathistory.New(database),
 	})
 }

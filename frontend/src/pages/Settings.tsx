@@ -237,7 +237,7 @@ export default function SettingsPage() {
         },
         ai: {
           base_url: settings.ai?.base_url || 'https://api.deepseek.com',
-          model: settings.ai?.model || 'deepseek-chat',
+          model: settings.ai?.model || 'deepseek-flash',
           api_key_source: settings.ai?.api_key_source || 'none',
           api_key_hint: settings.ai?.api_key_hint || '',
         },

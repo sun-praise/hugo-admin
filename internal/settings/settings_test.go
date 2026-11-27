@@ -42,6 +42,25 @@ func TestDefaultsAndRoundTrip(t *testing.T) {
 	}
 }
 
+func TestLegacyChatModelMigrates(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := os.WriteFile(path, []byte(`{"ai":{"base_url":"https://api.deepseek.com","model":"deepseek-chat"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := NewService(path, nil, "")
+	st, err := s.GetSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.AI["model"] != "deepseek-flash" {
+		t.Fatalf("model = %v", st.AI["model"])
+	}
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), "deepseek-flash") {
+		t.Fatalf("migration not persisted: %s", raw)
+	}
+}
+
 func TestValidationErrors(t *testing.T) {
 	s := newTestService(t)
 	cases := []struct {

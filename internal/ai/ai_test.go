@@ -6,6 +6,7 @@ package ai
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,8 +23,7 @@ import (
 func newMockOpenAI(t *testing.T) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		raw := make([]byte, r.ContentLength)
-		_, _ = r.Body.Read(raw)
+		raw, _ := io.ReadAll(r.Body)
 		reqText := string(raw)
 		w.Header().Set("Content-Type", "text/event-stream")
 		flush := w.(http.Flusher)

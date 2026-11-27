@@ -101,6 +101,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 
 	// ai.api_key → session，不落盘
 	settingsPayload := payload
+	var pendingAPIKey *string
 	if ai, ok := payload["ai"].(map[string]any); ok {
 		if apiKey, exists := ai["api_key"]; exists {
 			key, _ := apiKey.(string)
@@ -111,7 +112,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 			copied["ai"] = aiCopy
 			settingsPayload = copied
 			if key != "" || exists {
-				s.aiCfg.SetAPIKey(key)
+				pendingAPIKey = &key
 			}
 		}
 	}
@@ -127,6 +128,12 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// 校验成功后再应用 key / 重新加载 base_url、model；失败请求不应有副作用。
+	if pendingAPIKey != nil {
+		s.aiCfg.SetAPIKey(*pendingAPIKey)
+	}
+	s.aiCfg.Refresh()
 
 	// hugo server_url 更新到 hugo manager
 	if hugo, ok := updated.Hugo["server_url"].(string); ok {

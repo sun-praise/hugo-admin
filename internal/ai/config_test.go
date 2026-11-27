@@ -50,14 +50,18 @@ func TestConfigStoreReadsSettings(t *testing.T) {
 		t.Fatalf("key source = %q", source)
 	}
 
-	// 设置更新后无需重启，下一次读取即生效。
+	// 设置更新后由设置页调用 Refresh 生效；请求路径不会重新读盘。
 	if _, err := settingsSvc.UpdateSettings(map[string]any{
 		"ai": map[string]any{"model": "deepseek-flash"},
 	}); err != nil {
 		t.Fatal(err)
 	}
+	if got := store.Get().Model; got != "deepseek-v4-flash" {
+		t.Fatalf("model before refresh = %q", got)
+	}
+	store.Refresh()
 	if got := store.Get().Model; got != "deepseek-flash" {
-		t.Fatalf("model after update = %q", got)
+		t.Fatalf("model after refresh = %q", got)
 	}
 }
 

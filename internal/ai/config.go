@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"log"
 	"strings"
 	"sync"
 
@@ -21,23 +22,57 @@ type Config struct {
 }
 
 // ConfigStore 是所有 AI 功能共享的配置来源：
-//   - base_url / model 来自 .admin/settings.json；
+//   - base_url / model 来自 .admin/settings.json，启动时读取一次，
+//     设置页保存后由 Refresh 更新；
 //   - api key 优先取设置页保存的会话 key，其次回退到环境变量。
 //
-// 设置页保存 key 后无需重启服务，下一次请求即生效。
+// 配置保存在内存中，AI 请求路径不会做磁盘 IO；设置页保存 key 后
+// 无需重启服务，下一次请求即生效。
 type ConfigStore struct {
 	settingsSvc *settings.Service
 	envKey      string
 
 	mu         sync.RWMutex
 	sessionKey string
+	baseURL    string
+	model      string
 }
 
 func NewConfigStore(settingsSvc *settings.Service, envKey string) *ConfigStore {
-	return &ConfigStore{
+	s := &ConfigStore{
 		settingsSvc: settingsSvc,
 		envKey:      strings.TrimSpace(envKey),
 	}
+	s.Refresh()
+	return s
+}
+
+// Refresh 重新读取设置文件中的 base_url/model。设置页保存成功后调用。
+func (s *ConfigStore) Refresh() {
+	if s == nil {
+		return
+	}
+	baseURL, modelName := defaultBaseURL, defaultModel
+	if s.settingsSvc != nil {
+		st, err := s.settingsSvc.GetSettings()
+		if err != nil {
+			log.Printf("读取 AI 设置失败，使用默认端点: %v", err)
+		} else {
+			if v, ok := st.AI["base_url"].(string); ok {
+				if trimmed := strings.TrimSpace(v); trimmed != "" {
+					baseURL = trimmed
+				}
+			}
+			if v, ok := st.AI["model"].(string); ok {
+				if trimmed := strings.TrimSpace(v); trimmed != "" {
+					modelName = trimmed
+				}
+			}
+		}
+	}
+	s.mu.Lock()
+	s.baseURL, s.model = baseURL, modelName
+	s.mu.Unlock()
 }
 
 // Get 返回当前生效的 AI 配置。
@@ -45,23 +80,8 @@ func (s *ConfigStore) Get() Config {
 	if s == nil {
 		return Config{}
 	}
-	cfg := Config{BaseURL: defaultBaseURL, Model: defaultModel}
-	if s.settingsSvc != nil {
-		if st, err := s.settingsSvc.GetSettings(); err == nil {
-			if v, ok := st.AI["base_url"].(string); ok {
-				if trimmed := strings.TrimSpace(v); trimmed != "" {
-					cfg.BaseURL = trimmed
-				}
-			}
-			if v, ok := st.AI["model"].(string); ok {
-				if trimmed := strings.TrimSpace(v); trimmed != "" {
-					cfg.Model = trimmed
-				}
-			}
-		}
-	}
 	s.mu.RLock()
-	cfg.APIKey = s.sessionKey
+	cfg := Config{BaseURL: s.baseURL, Model: s.model, APIKey: s.sessionKey}
 	s.mu.RUnlock()
 	if cfg.APIKey == "" {
 		cfg.APIKey = s.envKey
