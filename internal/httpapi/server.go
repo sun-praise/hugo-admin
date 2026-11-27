@@ -75,7 +75,6 @@ func New(cfg *config.Config, store *auth.Store, broker *realtime.Broker, opts Op
 	aiSvc := ai.NewWithConfigSource(aiCfg.Get, ai.Deps{
 		ContentDir: cfg.ContentDir,
 		Git:        opts.Git,
-		Hugo:       opts.Hugo,
 	})
 	s := &Server{cfg: cfg, store: store, broker: broker, mux: http.NewServeMux(),
 		gitSvc: opts.Git, hugo: opts.Hugo, database: opts.Database,

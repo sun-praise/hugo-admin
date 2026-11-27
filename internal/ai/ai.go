@@ -19,7 +19,6 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/tool/function"
 
 	"github.com/sun-praise/hugo-admin/v3/internal/git"
-	"github.com/sun-praise/hugo-admin/v3/internal/hugo"
 	"github.com/sun-praise/hugo-admin/v3/internal/posts"
 )
 
@@ -39,7 +38,6 @@ const rewriteSystemPrompt = "你是 Hugo 博客的润色助手。用户会给你
 type Deps struct {
 	ContentDir string
 	Git        *git.Service
-	Hugo       *hugo.Manager
 }
 
 type Service struct {
@@ -162,6 +160,9 @@ func readOnlyTools(deps Deps) []tool.Tool {
 	type emptyIn struct{}
 	gitStatus := function.NewFunctionTool(
 		func(ctx context.Context, in emptyIn) (string, error) {
+			if deps.Git == nil {
+				return "git 服务不可用", nil
+			}
 			st := deps.Git.GetStatus()
 			// Python 工具引用了不存在的 branch/clean/changes 字段（bug），
 			// 此处输出真实状态

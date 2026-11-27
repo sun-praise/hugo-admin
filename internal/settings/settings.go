@@ -6,6 +6,7 @@ package settings
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,6 +64,7 @@ func MaskAPIKey(key string) string {
 }
 
 // UpdateSettings 对齐 update_settings：合并更新 + 校验 + 原子写。
+// 注意：AI base_url/model 的运行时缓存（ai.ConfigStore）由调用方在成功后 Refresh。
 func (s *Service) UpdateSettings(updates map[string]any) (*Settings, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -204,15 +206,20 @@ func (s *Service) loadUnlocked() (*Settings, error) {
 		fileSettings = map[string]any{}
 	}
 
-	needsSanitize := false
+	needsWrite := false
 	if ai, ok := fileSettings["ai"].(map[string]any); ok {
 		for _, k := range []string{"base_url", "model"} {
 			if v, ok := ai[k]; ok {
 				st.AI[k] = v
 			}
 		}
+		if v, _ := ai["model"].(string); strings.TrimSpace(v) == "deepseek-chat" {
+			if base, _ := st.AI["base_url"].(string); isDeepSeekOfficial(base) {
+				needsWrite = true // 官方端点上的退役模型迁移需要落盘
+			}
+		}
 		if _, ok := ai["api_key"]; ok {
-			needsSanitize = true
+			needsWrite = true
 		}
 	}
 	if hugo, ok := fileSettings["hugo"].(map[string]any); ok {
@@ -230,7 +237,7 @@ func (s *Service) loadUnlocked() (*Settings, error) {
 			}
 		}
 		if _, ok := lmFromFile["api_key"]; ok {
-			needsSanitize = true
+			needsWrite = true
 		}
 	}
 	if theme, ok := fileSettings["theme"].(map[string]any); ok {
@@ -255,7 +262,7 @@ func (s *Service) loadUnlocked() (*Settings, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !fileExists || needsSanitize || migrated {
+	if !fileExists || needsWrite || migrated {
 		_ = s.write(normalized)
 	}
 	return normalized, nil
@@ -378,8 +385,9 @@ func normalizeAndValidate(st *Settings) (*Settings, error) {
 	if model == "" {
 		return nil, &ValidationError{"AI 模型不能为空"}
 	}
-	// deepseek-chat 已于 2026-07-24 退役；读取旧配置时迁移到当前别名。
-	if model == "deepseek-chat" {
+	// deepseek-chat 已于 2026-07-24 在 DeepSeek 官方端点退役；只迁移官方端点，
+	// 避免覆盖 LiteLLM 等兼容网关上的同名模型配置。
+	if model == "deepseek-chat" && isDeepSeekOfficial(baseURL) {
 		model = "deepseek-flash"
 	}
 	return &Settings{
@@ -401,6 +409,11 @@ func normalizeAndValidate(st *Settings) (*Settings, error) {
 			"api_token": strings.TrimSpace(fmt.Sprintf("%v", orNil(st.Security["api_token"], ""))),
 		},
 	}, nil
+}
+
+func isDeepSeekOfficial(baseURL string) bool {
+	u, err := url.Parse(baseURL)
+	return err == nil && strings.EqualFold(u.Hostname(), "api.deepseek.com")
 }
 
 func hasHugoConfig(dir string) bool {

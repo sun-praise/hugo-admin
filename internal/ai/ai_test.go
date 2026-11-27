@@ -297,4 +297,14 @@ func TestReadOnlyToolsCallable(t *testing.T) {
 	if out := call(t, byName["git_status"], `{}`); !strings.Contains(out, "Git 仓库状态") {
 		t.Fatalf("git_status = %q", out)
 	}
+
+	// nil Git 防御：返回错误文本而不是 panic
+	nilTools := readOnlyTools(Deps{ContentDir: contentDir})
+	for _, tl := range nilTools {
+		if tl.Declaration().Name == "git_status" {
+			if out := call(t, tl, `{}`); !strings.Contains(out, "git 服务不可用") {
+				t.Fatalf("nil git_status = %q", out)
+			}
+		}
+	}
 }
