@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- AI 配置统一：frontmatter 生成、选区辅助（翻译/润色/评价）、AI 改写与对话共用设置页的 `base_url` / `model` / API Key。选区辅助从 Anthropic 兼容端点改为 OpenAI 兼容端点（`model/openai`），设置页保存 key 后无需重启服务；`AI_API_KEY` 未设置时回退到 `DEEPSEEK_API_KEY`（兼容 v2 配置），默认模型更新为 `deepseek-flash`。`AI_BASE_URL` / `AI_MODEL` 仍作为首次启动写入 `.admin/settings.json` 的默认值。
+
 ## [3.2.0] - 2026-11-27
 
 ### Fixed

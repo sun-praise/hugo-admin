@@ -14,8 +14,8 @@ import (
 	"github.com/sun-praise/hugo-admin/v3/internal/git"
 )
 
-// mockAnthropicTextOnly：按请求 stream 与否返回 SSE 流或 JSON。
-func mockAnthropicTextOnly(t *testing.T, text string) *httptest.Server {
+// mockOpenAITextOnly：按请求 stream 与否返回 OpenAI SSE 流或 JSON。
+func mockOpenAITextOnly(t *testing.T, text string) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw := make([]byte, r.ContentLength)
@@ -23,21 +23,20 @@ func mockAnthropicTextOnly(t *testing.T, text string) *httptest.Server {
 		if !strings.Contains(string(raw), `"stream":true`) {
 			// 非流式（QuickRewrite）
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprintf(w, `{"id":"m1","type":"message","role":"assistant","content":[{"type":"text","text":%s}],"model":"mock","stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":5}}`, mustJSON(text))
+			fmt.Fprintf(w, `{"id":"chatcmpl-1","object":"chat.completion","model":"mock","choices":[{"index":0,"message":{"role":"assistant","content":%s},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":5,"total_tokens":6}}`, mustJSON(text))
 			return
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		flush := w.(http.Flusher)
-		send := func(event, data string) {
-			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
+		send := func(data string) {
+			fmt.Fprintf(w, "data: %s\n\n", data)
 			flush.Flush()
 		}
-		send("message_start", `{"type":"message_start","message":{"id":"m1","type":"message","role":"assistant","content":[],"model":"mock","stop_reason":null,"usage":{"input_tokens":1,"output_tokens":1}}}`)
-		send("content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`)
-		send("content_block_delta", fmt.Sprintf(`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":%s}}`, mustJSON(text)))
-		send("content_block_stop", `{"type":"content_block_stop","index":0}`)
-		send("message_delta", `{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":5}}`)
-		send("message_stop", `{"type":"message_stop"}`)
+		send(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`)
+		send(fmt.Sprintf(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{"content":%s},"finish_reason":null}]}`, mustJSON(text)))
+		send(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`)
+		fmt.Fprint(w, "data: [DONE]\n\n")
+		flush.Flush()
 	}))
 	t.Cleanup(srv.Close)
 	return srv
@@ -113,7 +112,7 @@ func TestAISessionsCRUD(t *testing.T) {
 }
 
 func TestAIChatSSEWithSession(t *testing.T) {
-	mock := mockAnthropicTextOnly(t, "这是回答。")
+	mock := mockOpenAITextOnly(t, "这是回答。")
 	ts := newAITestServer(t, mock)
 	client := ts.Client()
 	login(t, client, ts.URL)
@@ -188,7 +187,7 @@ func TestAIChatDisabled(t *testing.T) {
 		t.Fatalf("inline-edit status = %d", status)
 	}
 	// 缺消息
-	enabled := newAITestServer(t, mockAnthropicTextOnly(t, "ok"))
+	enabled := newAITestServer(t, mockOpenAITextOnly(t, "ok"))
 	c2 := enabled.Client()
 	login(t, c2, enabled.URL)
 	status, body = doJSON(t, c2, "POST", enabled.URL+"/api/ai/chat", map[string]string{})
@@ -198,7 +197,7 @@ func TestAIChatDisabled(t *testing.T) {
 }
 
 func TestInlineEditFlow(t *testing.T) {
-	mock := mockAnthropicTextOnly(t, "```markdown\n改写后的片段\n```")
+	mock := mockOpenAITextOnly(t, "```markdown\n改写后的片段\n```")
 	ts := newAITestServer(t, mock)
 	client := ts.Client()
 	login(t, client, ts.URL)
@@ -230,7 +229,7 @@ func TestInlineEditFlow(t *testing.T) {
 	}
 
 	// XSS 拒绝
-	danger := newAITestServer(t, mockAnthropicTextOnly(t, "正常 <script>alert(1)</script>"))
+	danger := newAITestServer(t, mockOpenAITextOnly(t, "正常 <script>alert(1)</script>"))
 	c3 := danger.Client()
 	login(t, c3, danger.URL)
 	status, body = doJSON(t, c3, "POST", danger.URL+"/api/ai/inline-edit", map[string]string{
@@ -242,7 +241,7 @@ func TestInlineEditFlow(t *testing.T) {
 
 // 流式润色：帧协议与 /api/ai/chat 一致（文本增量 + [DONE]）。
 func TestAIRewriteSSE(t *testing.T) {
-	mock := mockAnthropicTextOnly(t, "润色后的文本。")
+	mock := mockOpenAITextOnly(t, "润色后的文本。")
 	ts := newAITestServer(t, mock)
 	client := ts.Client()
 	login(t, client, ts.URL)
@@ -289,7 +288,7 @@ func TestAIRewriteValidation(t *testing.T) {
 	}
 
 	// 参数校验
-	enabled := newAITestServer(t, mockAnthropicTextOnly(t, "ok"))
+	enabled := newAITestServer(t, mockOpenAITextOnly(t, "ok"))
 	c2 := enabled.Client()
 	login(t, c2, enabled.URL)
 	status, body := doJSON(t, c2, "POST", enabled.URL+"/api/ai/rewrite", map[string]string{})

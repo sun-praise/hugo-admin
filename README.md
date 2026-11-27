@@ -83,7 +83,8 @@ docker run -p 5050:5050 -v ~/.hugo-admin:/root/.hugo-admin -v ~/.hugo-admin/data
 | `API_TOKEN` | empty | Bearer auth for machine clients; empty disables |
 | `HUGO_SERVER_BASE_URL` | `http://0.0.0.0:1313` | Public URL of the Hugo preview server |
 | `ADMIN_UI_DIR` | `admin-ui` | Built frontend assets directory |
-| `AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` | — | AI provider config |
+| `AI_API_KEY` | — | AI provider key fallback; can also be set in Settings → AI. Shared by frontmatter, selection assist, rewrite and chat |
+| `AI_BASE_URL` / `AI_MODEL` | DeepSeek defaults | Initial AI provider settings written to `.admin/settings.json` |
 | `OPENROUTER_API_KEY` | — | Cover image generation |
 
 ## v2 → v3 Migration

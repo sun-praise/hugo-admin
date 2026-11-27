@@ -18,7 +18,7 @@ func TestDefaultsAndRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.AI["base_url"] != "https://api.deepseek.com" || st.AI["model"] != "deepseek-chat" {
+	if st.AI["base_url"] != "https://api.deepseek.com" || st.AI["model"] != "deepseek-flash" {
 		t.Fatalf("defaults = %#v", st)
 	}
 

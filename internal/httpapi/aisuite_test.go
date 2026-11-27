@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sun-praise/hugo-admin/v3/internal/ai"
 	"github.com/sun-praise/hugo-admin/v3/internal/aigen"
 	"github.com/sun-praise/hugo-admin/v3/internal/settings"
 )
@@ -84,9 +85,10 @@ func TestFMGenerateEndpoint(t *testing.T) {
 	chat := mockChatServer(t, `{"description":"AI 摘要","tags":["ai"],"categories":["tech"]}`)
 
 	contentDir := t.TempDir()
+	settingsSvc := settingsWithAI(t, chat.URL, "mock-model")
 	ts := newTestServerOpts(t, contentDir, Options{
-		EnvAPIKey: "test-key",
-		Settings:  settingsWithAI(t, chat.URL, "mock-model"),
+		AIConfig: ai.NewConfigStore(settingsSvc, "test-key"),
+		Settings: settingsSvc,
 	})
 	client := ts.Client()
 	login(t, client, ts.URL)
@@ -157,9 +159,10 @@ func TestArticleImport(t *testing.T) {
 	chat := mockChatServer(t, `{"description":"导入摘要","tags":["imported"]}`)
 
 	contentDir := t.TempDir()
+	settingsSvc := settingsWithAI(t, chat.URL, "mock-model")
 	ts := newTestServerOpts(t, contentDir, Options{
-		EnvAPIKey: "test-key",
-		Settings:  settingsWithAI(t, chat.URL, "mock-model"),
+		AIConfig: ai.NewConfigStore(settingsSvc, "test-key"),
+		Settings: settingsSvc,
 	})
 	client := ts.Client()
 	login(t, client, ts.URL)

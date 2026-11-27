@@ -39,41 +39,44 @@ var publicAPIPath = map[string]bool{
 
 // Options 聚合可选服务依赖（nil 时对应端点返回 500/503）。
 type Options struct {
-	Git       *git.Service
-	Hugo      *hugo.Manager
-	Database  *db.DB
-	AI        *ai.Service
-	Chat      *chathistory.Service
-	Plugins   *plugin.Manager
-	Refs      *refs.Service
-	Settings  *settings.Service
-	EnvAPIKey string
-	APIToken  string // 机器客户端 Bearer 鉴权；空 = 关闭 token 登录
+	Git      *git.Service
+	Hugo     *hugo.Manager
+	Database *db.DB
+	AI       *ai.Service
+	AIConfig *ai.ConfigStore
+	Chat     *chathistory.Service
+	Plugins  *plugin.Manager
+	Refs     *refs.Service
+	Settings *settings.Service
+	APIToken string // 机器客户端 Bearer 鉴权；空 = 关闭 token 登录
 }
 
 type Server struct {
-	cfg           *config.Config
-	store         *auth.Store
-	broker        *realtime.Broker
-	gitSvc        *git.Service
-	hugo          *hugo.Manager
-	database      *db.DB
-	aiSvc         *ai.Service
-	chat          *chathistory.Service
-	pluginMgr     *plugin.Manager
-	refsSvc       *refs.Service
-	settingsSvc   *settings.Service
-	sessionAPIKey string
-	envAPIKey     string
-	apiToken      string
-	mux           *http.ServeMux
+	cfg         *config.Config
+	store       *auth.Store
+	broker      *realtime.Broker
+	gitSvc      *git.Service
+	hugo        *hugo.Manager
+	database    *db.DB
+	aiSvc       *ai.Service
+	chat        *chathistory.Service
+	pluginMgr   *plugin.Manager
+	refsSvc     *refs.Service
+	settingsSvc *settings.Service
+	aiCfg       *ai.ConfigStore
+	apiToken    string
+	mux         *http.ServeMux
 }
 
 func New(cfg *config.Config, store *auth.Store, broker *realtime.Broker, opts Options) *Server {
+	aiCfg := opts.AIConfig
+	if aiCfg == nil {
+		aiCfg = ai.NewConfigStore(opts.Settings, "")
+	}
 	s := &Server{cfg: cfg, store: store, broker: broker, mux: http.NewServeMux(),
 		gitSvc: opts.Git, hugo: opts.Hugo, database: opts.Database,
-		aiSvc: opts.AI, chat: opts.Chat, pluginMgr: opts.Plugins,
-		refsSvc: opts.Refs, settingsSvc: opts.Settings, envAPIKey: opts.EnvAPIKey,
+		aiSvc: opts.AI, aiCfg: aiCfg, chat: opts.Chat, pluginMgr: opts.Plugins,
+		refsSvc: opts.Refs, settingsSvc: opts.Settings,
 		apiToken: opts.APIToken}
 	s.routes()
 	return s

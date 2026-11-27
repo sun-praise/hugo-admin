@@ -46,20 +46,10 @@ func (s *Server) toPublicSettings(st *settings.Settings) map[string]any {
 	hugoPublic["server_url"] = ensureServerURLHasPort(hugoPublic["server_url"].(string))
 
 	aiPublic := public["ai"].(map[string]any)
-	switch {
-	case s.sessionAPIKey != "":
-		aiPublic["api_key_source"] = "session"
-		aiPublic["api_key_configured"] = true
-		aiPublic["api_key_hint"] = settings.MaskAPIKey(s.sessionAPIKey)
-	case s.envAPIKey != "":
-		aiPublic["api_key_source"] = "env"
-		aiPublic["api_key_configured"] = true
-		aiPublic["api_key_hint"] = ""
-	default:
-		aiPublic["api_key_source"] = "none"
-		aiPublic["api_key_configured"] = false
-		aiPublic["api_key_hint"] = ""
-	}
+	source, hint := s.aiCfg.KeyInfo()
+	aiPublic["api_key_source"] = source
+	aiPublic["api_key_configured"] = source != "none"
+	aiPublic["api_key_hint"] = hint
 
 	// 机器鉴权 token：settings 优先、env 回退（与 effectiveAPIToken 一致）
 	secPublic := public["security"].(map[string]any)
@@ -121,7 +111,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 			copied["ai"] = aiCopy
 			settingsPayload = copied
 			if key != "" || exists {
-				s.sessionAPIKey = key
+				s.aiCfg.SetAPIKey(key)
 			}
 		}
 	}

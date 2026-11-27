@@ -14,7 +14,6 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/agent/llmagent"
 	"trpc.group/trpc-go/trpc-agent-go/event"
 	"trpc.group/trpc-go/trpc-agent-go/model"
-	"trpc.group/trpc-go/trpc-agent-go/model/anthropic"
 	"trpc.group/trpc-go/trpc-agent-go/runner"
 )
 
@@ -129,13 +128,11 @@ type AssistEvent struct {
 // AssistStream 运行指定任务的无工具流式调用，逐段产出文本增量。
 // ctx 取消（客户端断开/超时）即中止上游请求；通道关闭即流结束。
 func (s *Service) AssistStream(ctx context.Context, task, userPrompt string) (<-chan AssistEvent, error) {
-	if !s.enabled {
+	cfg, _, _ := s.snapshot()
+	if cfg.APIKey == "" {
 		return nil, fmt.Errorf("AI service is not configured")
 	}
-	m := anthropic.New(s.model,
-		anthropic.WithAPIKey(s.apiKey),
-		anthropic.WithBaseURL(s.baseURL),
-	)
+	m := newModel(cfg)
 	ag := llmagent.New("assist-"+task,
 		llmagent.WithModel(m),
 		llmagent.WithInstruction(assistSystemPrompt(task)),

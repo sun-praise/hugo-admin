@@ -60,13 +60,6 @@ func main() {
 		log.Fatalf("git 服务初始化失败: %v", err)
 	}
 
-	// AI：配置语义对齐 config.py（AI_API_KEY/AI_BASE_URL/AI_MODEL）
-	aiSvc := ai.New(os.Getenv("AI_API_KEY"), os.Getenv("AI_BASE_URL"), os.Getenv("AI_MODEL"),
-		ai.Deps{ContentDir: cfg.ContentDir, Git: gitSvc, Hugo: hugoMgr})
-	if !aiSvc.Enabled() {
-		log.Print("AI service disabled: AI_API_KEY not configured")
-	}
-
 	// 插件系统：~/.hugo-admin（与 Python 共享插件目录/配置/密钥）
 	pluginMgr := plugin.NewManager(plugin.DefaultBaseDir())
 	pluginMgr.StartAll()
@@ -88,12 +81,26 @@ func main() {
 		filepath.Join(cfg.ContentDir, ".admin", "settings.json"),
 	)
 
+	// AI：frontmatter、选区辅助、改写与对话共用一份配置。
+	// base_url/model 来自设置文件；key 优先取设置页，回退到环境变量。
+	// DEEPSEEK_API_KEY 是 Python 版本的旧名字，保留兼容。
+	envAPIKey := os.Getenv("AI_API_KEY")
+	if envAPIKey == "" {
+		envAPIKey = os.Getenv("DEEPSEEK_API_KEY")
+	}
+	aiCfg := ai.NewConfigStore(settingsSvc, envAPIKey)
+	aiSvc := ai.NewWithConfigSource(aiCfg.Get,
+		ai.Deps{ContentDir: cfg.ContentDir, Git: gitSvc, Hugo: hugoMgr})
+	if !aiSvc.Enabled() {
+		log.Print("AI service disabled: no AI API key configured")
+	}
+
 	srv := httpapi.New(cfg, store, broker, httpapi.Options{
 		Git: gitSvc, Hugo: hugoMgr, Database: database,
-		AI: aiSvc, Chat: chathistory.New(database),
+		AI: aiSvc, AIConfig: aiCfg, Chat: chathistory.New(database),
 		Plugins:  pluginMgr,
 		Refs:     refsSvc,
-		Settings: settingsSvc, EnvAPIKey: os.Getenv("AI_API_KEY"),
+		Settings: settingsSvc,
 		APIToken: cfg.APIToken,
 	})
 	httpSrv := &http.Server{

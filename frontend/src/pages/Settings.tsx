@@ -620,12 +620,12 @@ export default function SettingsPage() {
                       type="text"
                       value={form.ai.model}
                       onChange={(e) => setForm({ ...form, ai: { ...form.ai, model: e.target.value } })}
-                      placeholder="deepseek-chat"
+                      placeholder="deepseek-flash"
                       className="w-full px-3 py-2 border border-[#e4e4e7] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d4d4d8] font-mono text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#3f3f46] mb-2">AI API Key（可选）</label>
+                    <label className="block text-sm font-medium text-[#3f3f46] mb-2">AI API Key（所有 AI 功能共用，可选）</label>
                     <input
                       type="password"
                       value={apiKeyInput}

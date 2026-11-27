@@ -166,7 +166,7 @@ func (s *Service) ToPublicSettings(st *Settings) map[string]any {
 	return map[string]any{
 		"ai": map[string]any{
 			"base_url": strOrDef(st.AI, "base_url", "https://api.deepseek.com"),
-			"model":    strOrDef(st.AI, "model", "deepseek-chat"),
+			"model":    strOrDef(st.AI, "model", "deepseek-flash"),
 		},
 		"hugo": map[string]any{
 			"base_dir":   strOrDef(st.Hugo, "base_dir", ""),
@@ -265,7 +265,7 @@ func (s *Service) defaults_() *Settings {
 	return &Settings{
 		AI: map[string]any{
 			"base_url": orDefault(s.defaults["AI_BASE_URL"], "https://api.deepseek.com"),
-			"model":    orDefault(s.defaults["AI_MODEL"], "deepseek-chat"),
+			"model":    orDefault(s.defaults["AI_MODEL"], "deepseek-flash"),
 		},
 		Hugo: map[string]any{
 			"base_dir":   orDefault(s.defaults["HUGO_BASE_DIR"], ""),

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sun-praise/hugo-admin/v3/internal/ai"
 	"github.com/sun-praise/hugo-admin/v3/internal/auth"
 	"github.com/sun-praise/hugo-admin/v3/internal/config"
 	"github.com/sun-praise/hugo-admin/v3/internal/hugo"
@@ -43,7 +44,8 @@ baseURL = "https://example.com"
 	settingsSvc := settings.NewService(filepath.Join(root, ".admin", "settings.json"), nil, "")
 	srv := New(cfg, store, realtime.NewBroker(), Options{
 		Hugo:     hugo.NewManager(root, "", nil),
-		Settings: settingsSvc, EnvAPIKey: "env-key-123456",
+		Settings: settingsSvc,
+		AIConfig: ai.NewConfigStore(settingsSvc, "env-key-123456"),
 	})
 	ts := httptest.NewServer(srv)
 	jar, _ := cookiejar.New(nil)

@@ -32,7 +32,7 @@ func assistSSEEvents(t *testing.T, body string) []map[string]any {
 }
 
 func TestAssistTranslateHappyPath(t *testing.T) {
-	mock := mockAnthropicTextOnly(t, assistTranslateJSON())
+	mock := mockOpenAITextOnly(t, assistTranslateJSON())
 	ts := newAITestServer(t, mock)
 	client := ts.Client()
 	login(t, client, ts.URL)
@@ -84,7 +84,7 @@ func TestAssistTranslateHappyPath(t *testing.T) {
 }
 
 func TestAssistPolishFewerThanThreeEndsWithError(t *testing.T) {
-	mock := mockAnthropicTextOnly(t, `{"candidates": [{"style": "formal", "text": "A"}, {"style": "concise", "text": "B"}]}`)
+	mock := mockOpenAITextOnly(t, `{"candidates": [{"style": "formal", "text": "A"}, {"style": "concise", "text": "B"}]}`)
 	ts := newAITestServer(t, mock)
 	client := ts.Client()
 	login(t, client, ts.URL)
@@ -108,7 +108,7 @@ func TestAssistPolishFewerThanThreeEndsWithError(t *testing.T) {
 }
 
 func TestAssistReviewEmptyIssuesIsValid(t *testing.T) {
-	mock := mockAnthropicTextOnly(t, `{"issues": []}`)
+	mock := mockOpenAITextOnly(t, `{"issues": []}`)
 	ts := newAITestServer(t, mock)
 	client := ts.Client()
 	login(t, client, ts.URL)
@@ -149,7 +149,7 @@ func TestAssistValidation(t *testing.T) {
 	})
 
 	t.Run("missing selected_text 400", func(t *testing.T) {
-		ts := newAITestServer(t, mockAnthropicTextOnly(t, "{}"))
+		ts := newAITestServer(t, mockOpenAITextOnly(t, "{}"))
 		client := ts.Client()
 		login(t, client, ts.URL)
 		resp, err := client.Post(ts.URL+"/api/ai/assist/translate", "application/json",
@@ -164,7 +164,7 @@ func TestAssistValidation(t *testing.T) {
 	})
 
 	t.Run("oversized selected_text 400", func(t *testing.T) {
-		ts := newAITestServer(t, mockAnthropicTextOnly(t, "{}"))
+		ts := newAITestServer(t, mockOpenAITextOnly(t, "{}"))
 		client := ts.Client()
 		login(t, client, ts.URL)
 		oversized := strings.Repeat("选", 5001)
@@ -180,7 +180,7 @@ func TestAssistValidation(t *testing.T) {
 	})
 
 	t.Run("oversized context 400", func(t *testing.T) {
-		ts := newAITestServer(t, mockAnthropicTextOnly(t, "{}"))
+		ts := newAITestServer(t, mockOpenAITextOnly(t, "{}"))
 		client := ts.Client()
 		login(t, client, ts.URL)
 		resp, err := client.Post(ts.URL+"/api/ai/assist/translate", "application/json",
@@ -195,7 +195,7 @@ func TestAssistValidation(t *testing.T) {
 	})
 
 	t.Run("review without full_text 400", func(t *testing.T) {
-		ts := newAITestServer(t, mockAnthropicTextOnly(t, "{}"))
+		ts := newAITestServer(t, mockOpenAITextOnly(t, "{}"))
 		client := ts.Client()
 		login(t, client, ts.URL)
 		resp, err := client.Post(ts.URL+"/api/ai/assist/review", "application/json",
@@ -210,7 +210,7 @@ func TestAssistValidation(t *testing.T) {
 	})
 
 	t.Run("review oversized full_text 400", func(t *testing.T) {
-		ts := newAITestServer(t, mockAnthropicTextOnly(t, "{}"))
+		ts := newAITestServer(t, mockOpenAITextOnly(t, "{}"))
 		client := ts.Client()
 		login(t, client, ts.URL)
 		resp, err := client.Post(ts.URL+"/api/ai/assist/review", "application/json",
@@ -240,7 +240,7 @@ func TestAssistValidation(t *testing.T) {
 	})
 
 	t.Run("unauthenticated 401", func(t *testing.T) {
-		ts := newAITestServer(t, mockAnthropicTextOnly(t, "{}"))
+		ts := newAITestServer(t, mockOpenAITextOnly(t, "{}"))
 		resp, err := ts.Client().Post(ts.URL+"/api/ai/assist/translate", "application/json",
 			strings.NewReader(`{"selected_text": "x"}`))
 		if err != nil {
@@ -259,7 +259,7 @@ func TestAssistValidation(t *testing.T) {
 // TestAssistBoundaryAccepts 恰好卡在上限的输入必须放行（与超限 400 成对）。
 func TestAssistBoundaryAccepts(t *testing.T) {
 	t.Run("selected_text exactly at limit", func(t *testing.T) {
-		ts := newAITestServer(t, mockAnthropicTextOnly(t, "{}"))
+		ts := newAITestServer(t, mockOpenAITextOnly(t, "{}"))
 		client := ts.Client()
 		login(t, client, ts.URL)
 		resp, err := client.Post(ts.URL+"/api/ai/assist/translate", "application/json",
@@ -274,7 +274,7 @@ func TestAssistBoundaryAccepts(t *testing.T) {
 	})
 
 	t.Run("context exactly at limit", func(t *testing.T) {
-		ts := newAITestServer(t, mockAnthropicTextOnly(t, "{}"))
+		ts := newAITestServer(t, mockOpenAITextOnly(t, "{}"))
 		client := ts.Client()
 		login(t, client, ts.URL)
 		resp, err := client.Post(ts.URL+"/api/ai/assist/translate", "application/json",
@@ -291,7 +291,7 @@ func TestAssistBoundaryAccepts(t *testing.T) {
 	})
 
 	t.Run("full_text exactly at limit", func(t *testing.T) {
-		ts := newAITestServer(t, mockAnthropicTextOnly(t, "{}"))
+		ts := newAITestServer(t, mockOpenAITextOnly(t, "{}"))
 		client := ts.Client()
 		login(t, client, ts.URL)
 		resp, err := client.Post(ts.URL+"/api/ai/assist/review", "application/json",
@@ -309,7 +309,7 @@ func TestAssistBoundaryAccepts(t *testing.T) {
 
 // TestAssistNonJSONOutputEndsWithError 模型输出不含 JSON → error 事件（非 done）。
 func TestAssistNonJSONOutputEndsWithError(t *testing.T) {
-	mock := mockAnthropicTextOnly(t, "抱歉，我无法输出 JSON。")
+	mock := mockOpenAITextOnly(t, "抱歉，我无法输出 JSON。")
 	ts := newAITestServer(t, mock)
 	client := ts.Client()
 	login(t, client, ts.URL)
@@ -333,20 +333,19 @@ func TestAssistNonJSONOutputEndsWithError(t *testing.T) {
 	}
 }
 
-// mockAnthropicBrokenMidStream 在发出半截 JSON 后强制断开连接，
+// mockOpenAIBrokenMidStream 在发出半截 JSON 后强制断开连接，
 // 模拟流式中途上游失败。
-func mockAnthropicBrokenMidStream(t *testing.T, partial string) *httptest.Server {
+func mockOpenAIBrokenMidStream(t *testing.T, partial string) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		flush := w.(http.Flusher)
-		send := func(event, data string) {
-			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
+		send := func(data string) {
+			fmt.Fprintf(w, "data: %s\n\n", data)
 			flush.Flush()
 		}
-		send("message_start", `{"type":"message_start","message":{"id":"m1","type":"message","role":"assistant","content":[],"model":"mock","stop_reason":null,"usage":{"input_tokens":1,"output_tokens":1}}}`)
-		send("content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`)
-		send("content_block_delta", fmt.Sprintf(`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":%s}}`, mustJSON(partial)))
+		send(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`)
+		send(fmt.Sprintf(`{"id":"chatcmpl-1","object":"chat.completion.chunk","model":"mock","choices":[{"index":0,"delta":{"content":%s},"finish_reason":null}]}`, mustJSON(partial)))
 		if hj, ok := w.(http.Hijacker); ok {
 			if conn, _, err := hj.Hijack(); err == nil {
 				_ = conn.Close()
@@ -362,7 +361,7 @@ func mockAnthropicBrokenMidStream(t *testing.T, partial string) *httptest.Server
 // TestAssistMidStreamUpstreamFailureEndsWithError 断流后必须以 error 结束，
 // 不得把半截输出规整成 done。
 func TestAssistMidStreamUpstreamFailureEndsWithError(t *testing.T) {
-	mock := mockAnthropicBrokenMidStream(t, `{"translation": "半截输出`)
+	mock := mockOpenAIBrokenMidStream(t, `{"translation": "半截输出`)
 	ts := newAITestServer(t, mock)
 	client := ts.Client()
 	login(t, client, ts.URL)

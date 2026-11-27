@@ -111,11 +111,12 @@ func IsDangerousResponse(text string) bool {
 // ChatSSE 运行 agent 并把事件流映射为 SSE 帧序列。
 // 返回的 channel 关闭即流结束（最后一帧为 data: [DONE]）。
 func (s *Service) ChatSSE(ctx context.Context, message string) (<-chan string, error) {
-	if !s.enabled {
+	cfg, chatRunner, _ := s.snapshot()
+	if cfg.APIKey == "" || chatRunner == nil {
 		return nil, fmt.Errorf("AI service is not configured")
 	}
 	sessionID := time.Now().Format("20060102-150405.000000000")
-	events, err := s.runner.Run(ctx, "web", sessionID, model.NewUserMessage(message))
+	events, err := chatRunner.Run(ctx, "web", sessionID, model.NewUserMessage(message))
 	if err != nil {
 		return nil, err
 	}
