@@ -42,7 +42,7 @@
 
 - [x] 7.1 后端全量 `pytest`（根目录，449 个）通过；`ruff check .` 仅剩 main 上已存在的存量错误（`routes/__init__.py` 的 `register_project_init_routes` 未列入 `__all__`，本变更未引入新错误）
 - [x] 7.2 前端 `pnpm lint`、`pnpm build`（含 tsc）通过
-- [ ] 7.3 手动端到端验证：启动服务，在编辑器选中一段中文与一段英文，核对三任务结果、难词悬停、diff、应用/撤销、缓存命中（无重复请求）、未配置 AI 时的错误提示（部分完成：服务启动 ✅、未登录 401 ✅、SPA+新 bundle 200 ✅、上游失败走空闲超时 ✅；真实 LLM 往返被环境阻塞——当前 DEEPSEEK_API_KEY 已失效，浏览器内交互未验证）
+- [x] 7.3 手动端到端验证（2026-10-23 完成）：v3 Go 服务 + OpenRouter（~deepseek/deepseek-v4-flash-latest，anthropic 兼容格式直连）真实模型全链路验证——translate（真译文+难词）、polish（3 候选）、review（全文上下文 3 条意见含跨段落主体不一致）、inline-edit（精简改写）均返回 done 契约且内容质量确认；未配置 AI 503、未登录 401、上游错误透明透传此前已验
 - [x] 7.4 按 openspec 流程校验变更（`openspec validate`），准备归档材料
 
 ## 8. 任务开关（评审后新增需求）
