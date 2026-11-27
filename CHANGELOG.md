@@ -7,15 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-11-27
+
 ### Fixed
 - 文章列表页 / 仪表板遇到「frontmatter 没写 tags / categories」的文章会整页崩溃（`e.tags is null`）：Go 重写时 `strList()` 对缺失值返回 nil 切片，`encoding/json` 把它编成 `null`，而前端按 `string[]` 直接读 `post.tags.length` / `post.tags.slice()`（Python 版本返回的是 `[]`）。现在 `strList()` 返回非 nil 空切片、`GetPosts()` 在序列化边界再兜一层；前端把 `/api/posts` 响应统一过 `utils/posts.ts` 归一化，兼容旧后端 / 缓存里的 null。`Posts.loadFilters` 对标签、分类聚合结果也补了空数组兜底。
 - 编辑器预览吞掉文章里的原生 `<iframe>` 嵌入（B 站 / YouTube 等）：marked 本就原样透传，是 DOMPurify 默认白名单把 `iframe` 及其展示属性整段剥掉。`renderMarkdown` 新增 opt-in `embeds` 选项，仅文章编辑器开启，放行 `iframe` 与 `allowfullscreen` / `frameborder` 等展示属性；`FORBID_TAGS` / `FORBID_ATTR` 显式钉住 `script` / `style` / `srcdoc`，事件属性与危险 URL 沿用 DOMPurify 默认属性 / URI 策略（上游保证，本仓库未对其行为钉单测），AIChat 等未开启的调用方行为不变。宽高都没写的嵌入在预览里按 16:9 自适应，代码块中的 iframe 仍按代码显示。
 - 预览收起（或窄屏切到编辑页签）时 mermaid 在 `display:none` 容器里 `getBBox` 失效，且渲染 effect 只依赖 `[preview]`，再次展开不会重跑：改为隐藏时跳过、重新可见时重跑，用 WeakMap 保存原始图表源码，避免把已渲染的 SVG 文本当成图表定义。
+- 文章封面图全部 404（#196、#197）：Go 重写时 `/content/` 静态路由缺失，Hugo static 里的封面图片不再被服务。补回 `GET /content/...` 静态路由，按扩展名白名单直接服务 Hugo `static/` 目录（封面常用的 png/jpg/webp/svg/gif/pdf 等），svg/PDF 统一带 `nosniff` 与 CSP sandbox 加固响应头。
 
 ### Added
 - 新增 `posts.test.ts`（`/api/posts` 响应归一化，20 例）、Go 侧空标签序列化契约用例，以及根因复盘 `docs/development/posts-null-taxonomies-fix.md`。
 - 编辑器预览栏可「收起 / 展开」：收起后桌面端编辑器占满整行、窄屏回到单栏编辑态，选择记入 localStorage（隐私模式下仅本次会话生效）。收起用 CSS 隐藏而非卸载 DOM；持久化与两栏 display 类抽成 `previewCollapse` 纯函数并配单测。
 - 新增 `markdown.test.ts` / `previewCollapse.test.ts` / `mermaidSource.test.ts`（图表源码缓存逻辑）与根因复盘 `docs/development/editor-preview-embed-fix.md`。
+- `run.sh` 启动时探测并打印本机与局域网访问地址，探测失败不再中断启动、兜底回退到可达地址，文案中性化（#195）。
+
+### Changed
+- 中文 README（`README.zh-CN.md`）同步 Go v3 形态：补凭据持久化与安全章节、去掉硬编码计数，与英文版结构对齐（#184）。
+- CI：shellcheck pre-commit hook 排除 `.specify/` vendored 脚本。
+
+### Security
+- `/content/` 静态路由纳入会话守卫：未登录一律 401；静态服务收敛为扩展名白名单，只放行图片/字体/PDF 等静态资源类型，拒绝可执行/敏感类型；svg/PDF 响应统一加固头（`nosniff`、CSP sandbox）。`internal/httpapi` 新增 206 行契约测试钉住匿名 401、白名单外 404 与响应头（#198）。
 
 ## [3.1.0] - 2026-10-23
 
